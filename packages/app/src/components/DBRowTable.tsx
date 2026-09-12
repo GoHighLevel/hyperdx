@@ -611,7 +611,9 @@ export const RawLogTable = memo(
               const strValue = typeof value === 'string' ? value : `${value}`;
 
               if (column === logLevelColumn) {
-                return <LogLevel level={strValue} />;
+                return (
+                  <LogLevel level={strValue} style={{ fontSize: 'inherit' }} />
+                );
               }
 
               const maxLen = wrapLinesEnabled
@@ -782,12 +784,18 @@ export const RawLogTable = memo(
         () => tableContainerRef,
         [tableContainerRef],
       ),
-      estimateSize: useCallback(() => 23, []),
+      estimateSize: useCallback(
+        () => Math.ceil(logFontSize * 1.5) + 2,
+        [logFontSize],
+      ),
       overscan: 30,
       paddingEnd: 20,
     });
 
     const items = rowVirtualizer.getVirtualItems();
+    useEffect(() => {
+      rowVirtualizer.measure();
+    }, [logFontSize, rowVirtualizer]);
     const totalSize = rowVirtualizer.getTotalSize();
 
     const [paddingTop, paddingBottom] = useMemo(
@@ -1110,6 +1118,16 @@ export const RawLogTable = memo(
                   return (
                     <React.Fragment key={virtualRow.key}>
                       <tr
+                        data-severity={getLogLevelClass(
+                          logLevelColumn
+                            ? String(
+                                retrieveColumnValue(
+                                  logLevelColumn,
+                                  row.original,
+                                ) ?? '',
+                              )
+                            : undefined,
+                        )}
                         data-testid={`table-row-${rowId}`}
                         className={cx(styles.tableRow, {
                           [styles.tableRow__selected]:

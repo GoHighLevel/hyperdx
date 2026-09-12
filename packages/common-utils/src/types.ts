@@ -2217,6 +2217,18 @@ export type TeamClickHouseSettings = z.infer<
   typeof TeamClickHouseSettingsSchema
 >;
 
+export const DeveloperUISchema = z
+  .object({
+    analysisMode: z.boolean().default(false),
+    histogram: z.boolean().default(true),
+    sharedFilters: z.boolean().default(true),
+    filters: z.boolean().default(true),
+    denoise: z.boolean().default(true),
+  })
+  .strict();
+export type DeveloperUI = z.infer<typeof DeveloperUISchema>;
+export const DEFAULT_DEVELOPER_UI = DeveloperUISchema.parse({});
+
 export const TeamSchema = z
   .object({
     id: z.string(),
@@ -2224,6 +2236,7 @@ export const TeamSchema = z
     allowedAuthMethods: z.array(z.literal('password')).optional(),
     apiKey: z.string(),
     hookId: z.string(),
+    developerUI: DeveloperUISchema.optional(),
     collectorAuthenticationEnforced: z.boolean(),
     isMetricsSeriesTableEnabled: z.boolean(),
   })
@@ -2802,6 +2815,7 @@ export type WebhookTestApiResponse = z.infer<
 
 // Team
 export const TeamApiResponseSchema = z.object({
+  developerUI: DeveloperUISchema.optional(),
   _id: z.string(),
   allowedAuthMethods: z.array(z.literal('password')).optional(),
   apiKey: z.string(),
@@ -2892,6 +2906,7 @@ export const MeApiResponseSchema = z.object({
   id: z.string(),
   name: z.string(),
   team: TeamSchema.pick({
+    developerUI: true,
     id: true,
     name: true,
     allowedAuthMethods: true,

@@ -24,6 +24,13 @@ jest.mock('@/usePermissions', () => ({
 }));
 
 describe('cleanClickHouseExpression', () => {
+  it('labels Lucene JSON string and numeric extraction with the original field path', () => {
+    expect(
+      cleanedFacetName(
+        "if(JSONType(log, 'request.id') = 'String', JSONExtractString(log, 'request.id'), JSONExtractRaw(log, 'request.id'))",
+      ),
+    ).toBe('log.request.id');
+  });
   it('gives extracted custom fields readable labels without changing their SQL', () => {
     expect(cleanedFacetName("JSONExtractString(log, 'request.id')")).toBe(
       'log.request.id',

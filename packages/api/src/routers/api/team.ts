@@ -7,6 +7,7 @@ import type {
   UpdateClickHouseSettingsApiResponse,
 } from '@hyperdx/common-utils/dist/types';
 import {
+  DeveloperUISchema,
   TeamClickHouseSettingsUpdateSchema,
   UserRoleSchema,
 } from '@hyperdx/common-utils/dist/types';
@@ -64,6 +65,7 @@ router.get('/', async (req, res: TeamApiExpRes, next) => {
       'name',
       'createdAt',
       'isMetricsSeriesTableEnabled',
+      'developerUI',
     ] as const;
     const team = await getTeam(teamId, fields);
     if (team == null) {
@@ -76,6 +78,33 @@ router.get('/', async (req, res: TeamApiExpRes, next) => {
     next(e);
   }
 });
+
+router.patch(
+  '/developer-ui',
+  requireAdmin,
+  processRequest({ body: DeveloperUISchema }),
+  async (req, res, next) => {
+    try {
+      const { teamId, userId } = getNonNullUserWithTeam(req);
+      setBusinessContext({
+        teamId: teamId.toString(),
+        userId: userId.toString(),
+      });
+      const team = await Team.findOneAndUpdate(
+        { _id: teamId },
+        { $set: { developerUI: req.body } },
+        { new: true, runValidators: true },
+      );
+      if (!team) return res.status(404).json({ message: 'Team not found' });
+      getCounter('hyperdx.team.developer_ui_updates', {
+        description: 'Successful developer UI configuration updates.',
+      }).add(1);
+      return res.json(team.developerUI);
+    } catch (error) {
+      next(error);
+    }
+  },
+);
 
 type RotateApiKeyExpRes = express.Response<RotateApiKeyApiResponse>;
 router.patch('/apiKey', async (req, res: RotateApiKeyExpRes, next) => {

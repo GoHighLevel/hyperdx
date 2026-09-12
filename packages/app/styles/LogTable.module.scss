@@ -34,8 +34,17 @@ $button-height: 18px;
 
 .tableRow {
   position: relative;
+  --log-severity-color: transparent;
 
-  &__selected {
+  &[data-severity='info'] { --log-severity-color: var(--color-chart-info); }
+  &[data-severity='warn'] { --log-severity-color: var(--color-chart-warning); }
+  &[data-severity='error'] { --log-severity-color: var(--color-chart-error); }
+
+  background-color: color-mix(in srgb, var(--log-severity-color) 7%, var(--log-table-bg));
+  td:first-child { box-shadow: inset 3px 0 var(--log-severity-color); }
+  &:hover { background-color: color-mix(in srgb, var(--log-severity-color) 12%, var(--log-table-muted-bg)); }
+
+  &__selected, &__selected:hover {
     background-color: var(--log-table-muted-bg);
     font-weight: bold;
   }

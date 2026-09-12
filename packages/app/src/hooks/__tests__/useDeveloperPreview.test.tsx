@@ -1,11 +1,19 @@
 import React from 'react';
 import { Provider } from 'jotai';
+import { DeveloperUI } from '@hyperdx/common-utils/dist/types';
 import { act, renderHook, waitFor } from '@testing-library/react';
 
 import { useDeveloperPreview } from '@/useDeveloperPreview';
+import { useDeveloperUI } from '@/useDeveloperUI';
 import { usePermissions } from '@/usePermissions';
 
-let mockMe: { id: string; team: { id: string }; role: string } | undefined;
+let mockMe:
+  | {
+      id: string;
+      team: { id: string; developerUI?: DeveloperUI };
+      role: string;
+    }
+  | undefined;
 jest.mock('@/api', () => ({
   __esModule: true,
   default: { useMe: () => ({ data: mockMe }) },
@@ -75,4 +83,25 @@ it('does not expose admin controls before the user loads', () => {
   mockMe = undefined;
   const { result } = renderHook(usePermissions, { wrapper });
   expect(result.current.canManageShared).toBe(false);
+});
+
+it('applies team section settings to developers and admin preview without limiting the admin layout', () => {
+  mockMe!.team.developerUI = {
+    analysisMode: false,
+    histogram: false,
+    sharedFilters: false,
+    filters: true,
+    denoise: false,
+  };
+  const { result, rerender } = renderHook(
+    () => ({ preview: useDeveloperPreview(), sections: useDeveloperUI() }),
+    { wrapper },
+  );
+  expect(result.current.sections.analysisMode).toBe(true);
+  expect(result.current.sections.histogram).toBe(true);
+  act(() => result.current.preview.setDeveloperPreview(true));
+  expect(result.current.sections).toEqual(mockMe!.team.developerUI);
+  mockMe!.role = 'developer';
+  rerender();
+  expect(result.current.sections).toEqual(mockMe!.team.developerUI);
 });

@@ -9,6 +9,18 @@ import { mergePath } from '@/utils';
 
 export function filterKeyPath(key: string): string[] {
   const clean = key.replace(/^toString\((.+)\)$/, '$1');
+  // Lucene's JSON-string resolver preserves both strings and numeric values.
+  if (clean.startsWith('if(JSONType(') && clean.endsWith(')')) {
+    const [, stringValue, rawValue] = splitAndTrimWithBracket(
+      clean.slice(3, -1),
+    );
+    if (
+      stringValue?.startsWith('JSONExtractString(') &&
+      rawValue === stringValue.replace('JSONExtractString(', 'JSONExtractRaw(')
+    ) {
+      return filterKeyPath(stringValue);
+    }
+  }
   const extraction =
     /^(?:JSONExtract(?:String|Float|Bool)|arrayElement)\((.*)\)$/.exec(clean);
   if (extraction) {

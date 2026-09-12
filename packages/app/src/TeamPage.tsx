@@ -27,6 +27,7 @@ import {
 import { PageHeader } from './components/PageHeader';
 import ApiKeysSection from './components/TeamSettings/ApiKeysSection';
 import ConnectionsSection from './components/TeamSettings/ConnectionsSection';
+import DeveloperUISection from './components/TeamSettings/DeveloperUISection';
 import IacMigrationSection from './components/TeamSettings/IacMigrationSection';
 import IntegrationsSection from './components/TeamSettings/IntegrationsSection';
 import McpServerSection from './components/TeamSettings/McpServerSection';
@@ -77,6 +78,7 @@ export default function TeamPage() {
   const brandName = useBrandDisplayName();
   const router = useRouter();
   const { data: team, refetch: refetchTeam, isLoading } = api.useTeam();
+  const { isLoading: isIdentityLoading } = api.useMe();
   const setTeamName = api.useSetTeamName();
   const allowedAuthMethods = team?.allowedAuthMethods ?? [];
   const hasAllowedAuthMethods = allowedAuthMethods.length > 0;
@@ -113,6 +115,14 @@ export default function TeamPage() {
   );
 
   const allTabs: TeamTab[] = [
+    {
+      value: 'developer-experience',
+      label: 'Developer experience',
+      icon: <IconAdjustmentsHorizontal size={16} />,
+      sections: [
+        { id: 'developer-experience', content: () => <DeveloperUISection /> },
+      ],
+    },
     {
       value: 'data',
       label: 'Data',
@@ -217,7 +227,13 @@ export default function TeamPage() {
     : tabs[0]?.value;
 
   useEffect(() => {
-    if (!router.isReady || !activeTab || queryTab === activeTab) {
+    if (
+      isIdentityLoading ||
+      isLoading ||
+      !router.isReady ||
+      !activeTab ||
+      queryTab === activeTab
+    ) {
       return;
     }
 
@@ -240,7 +256,7 @@ export default function TeamPage() {
         scroll: false,
       },
     );
-  }, [activeTab, queryTab, router]);
+  }, [activeTab, queryTab, router, isIdentityLoading, isLoading]);
 
   const handleTabChange = useCallback(
     (value: string | null) => {

@@ -29,6 +29,7 @@ import { useSource } from '@/source';
 import { mergePath } from '@/utils';
 
 import { isDefaultVisibleFilter } from './personalFilterDefaults';
+import { useQueriedFields } from './useQueriedFields';
 import { toQuotedClickHouseKeyExpression } from './utils';
 
 const INITIAL_LOAD_LIMIT = 20;
@@ -102,6 +103,11 @@ function useFacets({
   );
   const { data: jsonColumns } = useJsonColumns(tableConnection);
   const { data: mapColumns } = useMapColumns(tableConnection);
+  const { data: queriedFields } = useQueriedFields(
+    chartConfig,
+    tableConnection,
+    !!columns && enabled !== false,
+  );
 
   const {
     data: allFields,
@@ -162,6 +168,7 @@ function useFacets({
       new Set([
         ...strings,
         ...getPinnedFields(),
+        ...(queriedFields ?? []),
         ...Object.keys(filterState ?? {}),
       ]),
     ).filter(
@@ -181,6 +188,7 @@ function useFacets({
     isFieldPinned,
     isSharedFieldPinned,
     getPinnedFields,
+    queriedFields,
   ]);
 
   const { escapedKeysToFetch, sqlKeyToUiKey } = useMemo(() => {
@@ -308,6 +316,7 @@ function useFacets({
     ...rest,
     error: allFieldsError ?? rest.error,
     data: { keys: allFields, keyValues: facets },
+    queriedFields,
     isLoading: isAllFieldsLoading || rest.isLoading,
     loadMoreFacetsForKey,
   };

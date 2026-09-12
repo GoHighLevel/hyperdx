@@ -7,6 +7,7 @@ import type {
   AlertEvaluationsApiResponse,
   AlertHistoryRangeApiResponse,
   AlertsApiResponse,
+  DeveloperUI,
   InstallationApiResponse,
   MeApiResponse,
   PresetDashboard,
@@ -397,6 +398,22 @@ const api = {
     return useQuery<TeamMembersApiResponse>({
       queryKey: [`team/members`],
       queryFn: () => hdxServer(`team/members`).json<TeamMembersApiResponse>(),
+    });
+  },
+  useUpdateDeveloperUI() {
+    const queryClient = useQueryClient();
+    return useMutation<DeveloperUI, HTTPError, DeveloperUI>({
+      mutationFn: settings =>
+        hdxServer('team/developer-ui', {
+          method: 'PATCH',
+          json: settings,
+        }).json<DeveloperUI>(),
+      onSuccess: async () => {
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: ['me'] }),
+          queryClient.invalidateQueries({ queryKey: ['team'] }),
+        ]);
+      },
     });
   },
   useSetTeamName() {

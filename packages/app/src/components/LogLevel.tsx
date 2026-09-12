@@ -14,10 +14,12 @@ export default function LogLevel({
       size="xs"
       c={
         levelClass === 'error'
-          ? 'red'
+          ? 'var(--color-chart-error)'
           : levelClass === 'warn'
             ? 'var(--color-chart-warning)'
-            : 'gray'
+            : levelClass === 'info'
+              ? 'var(--color-chart-info)'
+              : 'var(--color-text-muted)'
       }
       {...props}
     >

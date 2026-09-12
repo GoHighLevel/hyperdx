@@ -134,6 +134,7 @@ import { readableLogColumns } from '@/utils/readableLogColumns';
 
 import ChartSQLPreview, { SQLPreview } from './components/ChartSQLPreview';
 import DBSqlRowTableWithSideBar from './components/DBSqlRowTableWithSidebar';
+import LogFontSizeControl from './components/LogFontSizeControl';
 import PatternTable from './components/PatternTable';
 import { DBSearchHeatmapChart } from './components/Search/DBSearchHeatmapChart';
 import DirectTraceSidePanel from './components/Search/DirectTraceSidePanel';
@@ -164,6 +165,7 @@ import { LOCAL_STORE_CONNECTIONS_KEY } from './connection';
 import { DBSearchPageAlertModal } from './DBSearchPageAlertModal';
 import { EditablePageName } from './EditablePageName';
 import { SearchConfig } from './types';
+import { useDeveloperUI } from './useDeveloperUI';
 import { FormatTime } from './useFormatTime';
 import { usePermissions } from './usePermissions';
 
@@ -1002,6 +1004,7 @@ export function useSearchTelemetry({
 
 export function DBSearchPage() {
   const { canManageShared } = usePermissions();
+  const developerUI = useDeveloperUI();
   const brandName = useBrandDisplayName();
   const defaultTimeRange = useDefaultTimeRange('Past 15m');
 
@@ -1051,7 +1054,7 @@ export function DBSearchPage() {
       ? ''
       : (searchedConfig.source ?? '');
 
-  const [analysisMode, setAnalysisMode] = useQueryState(
+  const [requestedAnalysisMode, setAnalysisMode] = useQueryState(
     'mode',
     parseAsStringEnum<'results' | 'delta' | 'pattern'>([
       'results',
@@ -1059,6 +1062,10 @@ export function DBSearchPage() {
       'pattern',
     ]).withDefault('results'),
   );
+
+  const analysisMode = developerUI.analysisMode
+    ? requestedAnalysisMode
+    : 'results';
 
   const [patternColumn, setPatternColumn] = useQueryState(
     'patternColumn',
@@ -1085,16 +1092,17 @@ export function DBSearchPage() {
   const [isFilterSidebarCollapsed, setIsFilterSidebarCollapsed] =
     useLocalStorage<boolean>('isFilterSidebarCollapsed', false);
 
-  const [denoiseResults, _setDenoiseResults] = useQueryState(
+  const [requestedDenoiseResults, _setDenoiseResults] = useQueryState(
     'denoise',
     parseAsBoolean.withDefault(false),
   );
+  const denoiseResults =
+    developerUI.filters && developerUI.denoise && requestedDenoiseResults;
   const setDenoiseResults = useCallback(
     (value: boolean) => {
-      setIsLive(false);
       _setDenoiseResults(value);
     },
-    [setIsLive, _setDenoiseResults],
+    [_setDenoiseResults],
   );
 
   // Get default source
@@ -1462,20 +1470,6 @@ export function DBSearchPage() {
     }
   }, [watchedSource, watchedSourceColumns, retainCompatibleFilters]);
 
-  const onTableScroll = useCallback(
-    (scrollTop: number) => {
-      // If the user scrolls a bit down, kick out of live mode
-      if (scrollTop > 16 && isLive) {
-        setIsLive(false);
-      }
-    },
-    [isLive, setIsLive],
-  );
-
-  const onSidebarOpen = useCallback(() => {
-    setIsLive(false);
-  }, [setIsLive]);
-
   const [modelFormExpanded, setModelFormExpanded] = useState(false); // Used in local mode
   const [saveSearchModalState, setSaveSearchModalState] = useState<
     'create' | 'update' | undefined
@@ -1653,16 +1647,6 @@ export function DBSearchPage() {
   useEffect(() => {
     setShouldShowLiveModeHint(isLive === false);
   }, [isLive]);
-
-  // Callback to handle when rows are expanded - kick user out of live tail
-  const onExpandedRowsChange = useCallback(
-    (hasExpandedRows: boolean) => {
-      if (hasExpandedRows && isLive) {
-        setIsLive(false);
-      }
-    },
-    [isLive, setIsLive],
-  );
 
   const handleResumeLiveTail = useCallback(() => {
     setIsLive(true);
@@ -1894,7 +1878,6 @@ export function DBSearchPage() {
 
   const onSortingChange = useCallback(
     (sortState: SortingState | null) => {
-      setIsLive(false);
       const sort = sortState?.at(0);
       setSearchedConfig({
         orderBy: sort
@@ -1902,7 +1885,7 @@ export function DBSearchPage() {
           : defaultSearchConfig.orderBy,
       });
     },
-    [setIsLive, defaultSearchConfig.orderBy, setSearchedConfig],
+    [defaultSearchConfig.orderBy, setSearchedConfig],
   );
   // Parse the orderBy string into a SortingState. We need the string
   // version in other places so we keep this parser separate.
@@ -2587,12 +2570,21 @@ export function DBSearchPage() {
                             enableParallelQueries
                           />
                           <Group gap="sm" align="center">
-                            {shouldShowLiveModeHint &&
-                              denoiseResults != true && (
-                                <ResumeLiveTailButton
-                                  handleResumeLiveTail={handleResumeLiveTail}
-                                />
-                              )}
+                            <LogFontSizeControl />
+                            {isLive && (
+                              <Button
+                                variant="secondary"
+                                size="compact-xs"
+                                onClick={() => setIsLive(false)}
+                              >
+                                Pause live updates
+                              </Button>
+                            )}
+                            {shouldShowLiveModeHint && (
+                              <ResumeLiveTailButton
+                                handleResumeLiveTail={handleResumeLiveTail}
+                              />
+                            )}
                             <SearchNumRows
                               config={{
                                 ...chartConfig,
@@ -2607,7 +2599,7 @@ export function DBSearchPage() {
                           </Group>
                         </Group>
                       </Box>
-                      {!hasQueryError && (
+                      {!hasQueryError && developerUI.histogram && (
                         <Box
                           className={searchPageStyles.timeChartContainer}
                           mih="0"
@@ -2767,12 +2759,9 @@ export function DBSearchPage() {
                             keepOpenSelector={
                               SEARCH_RESULTS_PANEL_KEEP_OPEN_SELECTOR
                             }
-                            onSidebarOpen={onSidebarOpen}
-                            onExpandedRowsChange={onExpandedRowsChange}
                             enabled={isReady}
                             isLive={isLive ?? true}
                             queryKeyPrefix={QUERY_KEY_PREFIX}
-                            onScroll={onTableScroll}
                             onError={handleTableError}
                             denoiseResults={denoiseResults}
                             collapseAllRows={collapseAllRows}

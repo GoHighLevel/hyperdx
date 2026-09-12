@@ -126,6 +126,26 @@ function normalizeChExpression(expr: string): string {
 }
 
 export const IMPLICIT_FIELD = '<implicit>';
+
+/** Fields explicitly named by the query, including field-scoped groups. */
+export function getLuceneFields(query: string): string[] {
+  const fields = new Set<string>();
+  const visit = (node: lucene.AST | lucene.Node) => {
+    if (node.field && node.field !== IMPLICIT_FIELD) {
+      fields.add(node.field.startsWith('-') ? node.field.slice(1) : node.field);
+    }
+    if ('left' in node) {
+      visit(node.left);
+      if ('right' in node && node.right) visit(node.right);
+    }
+  };
+  try {
+    if (query.trim()) visit(parse(query));
+  } catch {
+    // Incomplete editor input must not break sidebar discovery.
+  }
+  return [...fields];
+}
 const RANGE_UNBOUNDED = '*';
 
 // Type guards for lucene AST types

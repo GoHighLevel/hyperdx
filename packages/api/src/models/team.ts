@@ -24,6 +24,19 @@ export default mongoose.model<ITeam>(
       adminUserIds: { type: [Schema.Types.ObjectId], default: undefined },
       setupKey: { type: String, unique: true, sparse: true },
       allowedAuthMethods: [String],
+      developerUI: {
+        type: new Schema(
+          {
+            analysisMode: Boolean,
+            histogram: Boolean,
+            sharedFilters: Boolean,
+            filters: Boolean,
+            denoise: Boolean,
+          },
+          { _id: false },
+        ),
+        default: undefined,
+      },
       hookId: {
         type: String,
         default: function genUUID() {
