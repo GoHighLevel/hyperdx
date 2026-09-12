@@ -4,9 +4,12 @@ import request from 'supertest';
 
 import app from '@/api-app';
 import { MONGO_URI } from '@/config';
+import { getTeamAdminIds } from '@/controllers/teamRoles';
 import Connection from '@/models/connection';
 import PersonalPinnedFilter from '@/models/personalPinnedFilter';
 import { Source } from '@/models/source';
+import Team from '@/models/team';
+import User from '@/models/user';
 
 jest.mock('@/config', () => ({
   ...jest.requireActual('@/config'),
@@ -31,8 +34,13 @@ describe('access control and personal filters over authenticated HTTP', () => {
     )
       throw new Error('Use hyperdx_rbac_test database');
     await mongoose.connect(MONGO_URI);
+    await Promise.all([Team.init(), User.init(), PersonalPinnedFilter.init()]);
     await mongoose.connection.dropDatabase();
-    await PersonalPinnedFilter.init();
+    await Promise.all([
+      Team.createIndexes(),
+      User.createIndexes(),
+      PersonalPinnedFilter.createIndexes(),
+    ]);
     await admin
       .post('/register/password')
       .send({ email: 'admin@example.com', password, confirmPassword: password })
@@ -203,5 +211,117 @@ describe('access control and personal filters over authenticated HTTP', () => {
     await request(app)
       .get(`/personal-pinned-filters?source=${source}`)
       .expect(401);
+  });
+
+  it('persists roles, revokes existing sessions and keys, and protects the last admin', async () => {
+    const adminId = (await admin.get('/me')).body.id;
+    const aliceId = (await alice.get('/me')).body.id;
+    const currentAliceKey = (await alice.get('/me')).body.accessKey;
+    await alice
+      .patch(`/team/member/${aliceId}/role`)
+      .send({ role: 'admin' })
+      .expect(403);
+    await admin
+      .patch(`/team/member/${new Types.ObjectId()}/role`)
+      .send({ role: 'admin' })
+      .expect(404);
+    await admin
+      .patch(`/team/member/${aliceId}/role`)
+      .send({ role: 'owner' })
+      .expect(400);
+    await admin
+      .patch(`/team/member/${adminId}/role`)
+      .send({ role: 'developer' })
+      .expect(409);
+    await admin.delete(`/team/member/${adminId}`).expect(409);
+    await admin
+      .patch(`/team/member/${aliceId}/role`)
+      .send({ role: 'admin' })
+      .expect(200);
+    expect((await alice.get('/me')).body.role).toBe('admin');
+    expect(
+      (await admin.get('/team/members')).body.data.find(
+        (member: { _id: string }) => member._id === aliceId,
+      ).role,
+    ).toBe('admin');
+    await admin
+      .patch(`/team/member/${aliceId}/role`)
+      .send({ role: 'developer' })
+      .expect(200);
+    expect((await alice.get('/me')).body.role).toBe('developer');
+    await alice
+      .post('/team/invitation')
+      .send({ email: 'no@example.com' })
+      .expect(403);
+    await request(app)
+      .post('/api/v2/dashboards')
+      .set('Authorization', `Bearer ${currentAliceKey}`)
+      .send({})
+      .expect(403);
+  });
+
+  it('keeps an admin when two admins concurrently demote one another', async () => {
+    const adminId = (await admin.get('/me')).body.id;
+    const aliceId = (await alice.get('/me')).body.id;
+    await admin
+      .patch(`/team/member/${aliceId}/role`)
+      .send({ role: 'admin' })
+      .expect(200);
+    const results = await Promise.all([
+      admin.patch(`/team/member/${aliceId}/role`).send({ role: 'developer' }),
+      alice.patch(`/team/member/${adminId}/role`).send({ role: 'developer' }),
+    ]);
+    expect(results.filter(response => response.status === 200)).toHaveLength(1);
+    expect((await getTeamAdminIds(new Types.ObjectId(team))).length).toBe(1);
+    await Team.updateOne(
+      { _id: team },
+      { $set: { adminUserIds: [new Types.ObjectId(adminId)] } },
+    );
+  });
+
+  it('imports legacy admins once without undoing subsequent database changes', async () => {
+    const adminId = (await admin.get('/me')).body.id;
+    await Team.updateOne({ _id: team }, { $unset: { adminUserIds: '' } });
+    expect(
+      (await getTeamAdminIds(new Types.ObjectId(team))).map(String),
+    ).toContain(adminId);
+    const bobId = (await bob.get('/me')).body.id;
+    await Team.updateOne(
+      { _id: team },
+      { $set: { adminUserIds: [new Types.ObjectId(bobId)] } },
+    );
+    expect(
+      (await getTeamAdminIds(new Types.ObjectId(team))).map(String),
+    ).toEqual([bobId]);
+    await Team.updateOne(
+      { _id: team },
+      { $set: { adminUserIds: [new Types.ObjectId(adminId)] } },
+    );
+  });
+
+  it('atomically creates only one first admin during concurrent initial setup', async () => {
+    await User.deleteMany({});
+    await Team.deleteMany({});
+    const registrations = await Promise.all(
+      ['first@example.com', 'second@example.com'].map(email =>
+        request
+          .agent(app)
+          .post('/register/password')
+          .send({ email, password, confirmPassword: password }),
+      ),
+    );
+    expect(registrations.map(response => response.status).sort()).toEqual([
+      200, 409,
+    ]);
+    expect(await Team.countDocuments()).toBe(1);
+    expect(await User.countDocuments()).toBe(1);
+    const firstTeam = await Team.findOne().orFail();
+    expect(firstTeam.adminUserIds).toHaveLength(1);
+    expect(
+      await User.exists({
+        _id: firstTeam.adminUserIds![0],
+        team: firstTeam._id,
+      }),
+    ).toBeTruthy();
   });
 });

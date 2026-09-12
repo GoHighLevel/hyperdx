@@ -59,7 +59,7 @@ app.post('/', mcpRateLimiter, validateUserAccessKey, async (req, res) => {
   }
 
   const context: McpContext = {
-    role: getUserRole(req.user),
+    role: await getUserRole(req.user),
     teamId: teamId.toString(),
     userId,
     mcpClient: userAgentClientInfo(req.get('User-Agent')),

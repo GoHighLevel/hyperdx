@@ -6,7 +6,10 @@ import type {
   TeamTagsApiResponse,
   UpdateClickHouseSettingsApiResponse,
 } from '@hyperdx/common-utils/dist/types';
-import { TeamClickHouseSettingsUpdateSchema } from '@hyperdx/common-utils/dist/types';
+import {
+  TeamClickHouseSettingsUpdateSchema,
+  UserRoleSchema,
+} from '@hyperdx/common-utils/dist/types';
 import crypto from 'crypto';
 import express from 'express';
 import pick from 'lodash/pick';
@@ -21,6 +24,7 @@ import {
   setTeamName,
   updateTeamClickhouseSettings,
 } from '@/controllers/team';
+import { getTeamAdminIds } from '@/controllers/teamRoles';
 import {
   deleteTeamMember,
   findUserByEmail,
@@ -28,11 +32,17 @@ import {
 } from '@/controllers/user';
 import { getNonNullUserWithTeam } from '@/middleware/auth';
 import { getUserRole, requireAdmin } from '@/middleware/permissions';
+import Team from '@/models/team';
 import TeamInvite from '@/models/teamInvite';
+import User from '@/models/user';
+import { getCounter, setBusinessContext } from '@/utils/instrumentation';
 import { sendJson } from '@/utils/serialization';
 import { objectIdSchema } from '@/utils/zod';
 
 const router = express.Router();
+const roleChanges = getCounter('hyperdx.authorization.role_changes', {
+  description: 'Successful team member role changes.',
+});
 
 type TeamApiExpRes = express.Response<TeamApiResponse>;
 router.get('/', async (req, res: TeamApiExpRes, next) => {
@@ -60,7 +70,7 @@ router.get('/', async (req, res: TeamApiExpRes, next) => {
       throw new Error(`Team ${teamId} not found for user ${userId}`);
     }
 
-    if (getUserRole(req.user) !== 'admin') team.apiKey = '';
+    if ((await getUserRole(req.user)) !== 'admin') team.apiKey = '';
     sendJson(res, team);
   } catch (e) {
     next(e);
@@ -267,6 +277,7 @@ router.get('/members', async (req, res: TeamMembersExpRes, next) => {
       throw new Error(`User has no id`);
     }
     const teamUsers = await findUsersByTeam(teamId);
+    const admins = await getTeamAdminIds(teamId);
     res.json({
       data: teamUsers.map(user => ({
         ...pick(user.toJSON({ virtuals: true }), [
@@ -276,12 +287,65 @@ router.get('/members', async (req, res: TeamMembersExpRes, next) => {
           'hasPasswordAuth',
         ]),
         isCurrentUser: user._id.equals(userId),
+        role: admins.some(id => id.equals(user._id)) ? 'admin' : 'developer',
       })),
     });
   } catch (e) {
     next(e);
   }
 });
+
+router.patch(
+  '/member/:id/role',
+  requireAdmin,
+  validateRequest({
+    params: z.object({ id: objectIdSchema }),
+    body: z.object({ role: UserRoleSchema }).strict(),
+  }),
+  async (req, res, next) => {
+    try {
+      const { teamId, userId } = getNonNullUserWithTeam(req);
+      const member = await User.findOne({ _id: req.params.id, team: teamId });
+      if (!member) return res.sendStatus(404);
+      const { role } = req.body;
+      // Authorization and the last-admin check are part of the same atomic
+      // document update: two admins cannot concurrently demote each other.
+      const updated = await Team.findOneAndUpdate(
+        {
+          _id: teamId,
+          adminUserIds: userId,
+          ...(role === 'developer'
+            ? {
+                $or: [
+                  { adminUserIds: { $ne: member._id } },
+                  { 'adminUserIds.1': { $exists: true } },
+                ],
+              }
+            : {}),
+        },
+        role === 'admin'
+          ? { $addToSet: { adminUserIds: member._id } }
+          : { $pull: { adminUserIds: member._id } },
+        { new: true },
+      );
+      if (!updated)
+        return res.status(409).json({
+          message:
+            'Keep at least one admin. Refresh the team members before trying again.',
+        });
+      setBusinessContext({
+        teamId: teamId.toString(),
+        userId: userId.toString(),
+        'hyperdx.authorization.target_user_id': member._id.toString(),
+        'hyperdx.authorization.new_role': role,
+      });
+      roleChanges.add(1, { role });
+      return res.json({ role });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
 
 router.delete(
   '/member/:id',
@@ -301,6 +365,13 @@ router.delete(
       const userIdRequestingDelete = req.user?._id;
       if (!userIdRequestingDelete) {
         throw new Error(`Requesting user has no id`);
+      }
+
+      const admins = await getTeamAdminIds(teamId);
+      if (admins.some(id => id.toString() === userIdToDelete)) {
+        return res.status(409).json({
+          message: 'Change this member to developer before removing them.',
+        });
       }
 
       await deleteTeamMember(teamId, userIdToDelete, userIdRequestingDelete);

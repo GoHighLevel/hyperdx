@@ -8,7 +8,7 @@ import * as config from '@/config';
 import { createTeam, isTeamExisting } from '@/controllers/team';
 import { handleAuthError, redirectToDashboard } from '@/middleware/auth';
 import TeamInvite from '@/models/teamInvite';
-import User from '@/models/user'; // TODO -> do not import model directly
+import User, { type UserDocument } from '@/models/user';
 import { setupTeamDefaults } from '@/setupDefaults';
 import logger from '@/utils/logger';
 import passport from '@/utils/passport';
@@ -89,50 +89,45 @@ router.post(
         return res.status(409).json({ error: 'teamAlreadyExists' });
       }
 
-      (User as any).register(
-        new User({ email }),
-        password,
-        async (err: Error, user: any) => {
-          if (err) {
-            logger.error(
-              { err: serializeError(err) },
-              'User registration error',
-            );
-            return res.status(400).json({ error: 'invalid' });
-          }
+      const user = await new Promise<UserDocument>((resolve, reject) => {
+        (User as any).register(
+          new User({ email }),
+          password,
+          (error: Error | null, registered: UserDocument) =>
+            error ? reject(error) : resolve(registered),
+        );
+      });
+      let team;
+      try {
+        team = await createTeam({
+          name: `${email}'s Team`,
+          collectorAuthenticationEnforced: true,
+          adminUserId: user._id,
+        });
+      } catch (error) {
+        // Another registration may have completed while hashing the password.
+        await User.deleteOne({ _id: user._id, team: { $exists: false } });
+        if (await isTeamExisting()) {
+          return res.status(409).json({ error: 'teamAlreadyExists' });
+        }
+        throw error;
+      }
+      user.team = team._id;
+      user.name = email;
+      await user.save();
 
-          const team = await createTeam({
-            name: `${email}'s Team`,
-            collectorAuthenticationEnforced: true,
-          });
-          user.team = team._id;
-          user.name = email;
-          await user.save();
-
-          // Set up default connections and sources for this new team
-          try {
-            await setupTeamDefaults(team._id.toString());
-          } catch (error) {
-            logger.error(
-              { err: serializeError(error) },
-              'Failed to setup team defaults',
-            );
-            // Continue with registration even if setup defaults fails
-          }
-
-          return passport.authenticate('local')(req, res, () => {
-            if (req?.user?.team) {
-              return res.status(200).json({ status: 'success' });
-            }
-
-            logger.error(
-              { userId: req?.user?._id },
-              'Password login for user failed, user or team not found',
-            );
-            return res.status(400).json({ error: 'invalid' });
-          });
-        },
-      );
+      try {
+        await setupTeamDefaults(team._id.toString());
+      } catch (error) {
+        logger.error(
+          { err: serializeError(error) },
+          'Failed to setup team defaults',
+        );
+      }
+      return passport.authenticate('local')(req, res, () => {
+        if (req.user?.team) return res.status(200).json({ status: 'success' });
+        return res.status(400).json({ error: 'invalid' });
+      });
     } catch (e) {
       next(e);
     }

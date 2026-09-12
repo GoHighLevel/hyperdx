@@ -9,6 +9,7 @@ import {
   parseKvItemsCastExpression,
   parseKvItemsExpression,
   SearchQueryBuilder,
+  splitLuceneField,
 } from '@/queryParser';
 import { UseTextIndex } from '@/types';
 
@@ -23,6 +24,14 @@ afterAll(() => {
 });
 
 describe('special token encoding', () => {
+  it('keeps escaped dots in literal JSON keys', () => {
+    expect(splitLuceneField('log.request\\.id')).toEqual(['log', 'request.id']);
+    expect(splitLuceneField('log.request.id')).toEqual([
+      'log',
+      'request',
+      'id',
+    ]);
+  });
   it('decodeSpecialTokensToSource is a lossless inverse of encodeSpecialTokens', () => {
     const queries = [
       'Url:http://example.com',
@@ -37,6 +46,44 @@ describe('special token encoding', () => {
         query,
       );
     }
+  });
+});
+
+describe('Lucene queries copied from JSON filters', () => {
+  const metadata = getMetadata(
+    new ClickhouseClient({ host: 'http://localhost:8123' }),
+  );
+  metadata.getColumn = jest
+    .fn()
+    .mockImplementation(async ({ column }) =>
+      column === 'log' ? { name: 'log', type: 'String' } : undefined,
+    );
+  const serializer = new CustomSchemaSQLSerializerV2({
+    metadata,
+    databaseName: 'default',
+    tableName: 'logs',
+    connectionId: 'local',
+    implicitColumnExpression: 'log',
+  });
+  it('uses a literal dotted key and safely handles string, numeric and boolean JSON values', async () => {
+    const sql = await new SearchQueryBuilder(
+      'log.request\\.id:"req-123"',
+      serializer,
+    ).build();
+    expect(sql).toContain("JSONExtractString(`log`, 'request.id')");
+    expect(sql).toContain("JSONExtractRaw(`log`, 'request.id')");
+    expect(sql).not.toContain("'request', 'id'");
+    expect(sql).toContain("= 'req-123'");
+  });
+  it('casts JSON range values numerically and keeps missing/non-numeric values null', async () => {
+    const sql = await new SearchQueryBuilder(
+      'log.status:[200 TO 499]',
+      serializer,
+    ).build();
+    expect(sql).toContain("JSONExtractFloat(`log`, 'status')");
+    expect(sql).toContain('NULL');
+    expect(sql).toContain('200');
+    expect(sql).toContain('499');
   });
 });
 

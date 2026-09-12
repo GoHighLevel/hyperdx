@@ -21,6 +21,8 @@ import api from '@/api';
 import { useBrandDisplayName } from '@/theme/ThemeProvider';
 import { usePermissions } from '@/usePermissions';
 
+import MemberRoleSelect from './MemberRoleSelect';
+
 export default function TeamMembersSection() {
   const brandName = useBrandDisplayName();
   const { canManageShared: hasAdminAccess } = usePermissions();
@@ -218,7 +220,11 @@ export default function TeamMembersSection() {
 
   return (
     <Box id="team_members" data-testid="team-members-section">
-      <Text size="md">Team Members</Text>
+      <Text size="md">Team members</Text>
+      <Text size="sm" c="dimmed">
+        Admins manage users and shared configuration. Developers can read all
+        logs. Keep at least one admin.
+      </Text>
       <Divider my="md" />
       <Card>
         <Card.Section withBorder py="sm" px="lg">
@@ -262,35 +268,33 @@ export default function TeamMembersSection() {
                       </Group>
                     </Table.Td>
                     <Table.Td>
-                      {member.groupName && (
-                        <Badge
-                          variant="light"
-                          color="green"
-                          fw="normal"
-                          tt="none"
-                        >
-                          {member.groupName}
-                        </Badge>
-                      )}
+                      <MemberRoleSelect
+                        member={member}
+                        adminCount={
+                          members.data.filter(m => m.role === 'admin').length
+                        }
+                      />
                     </Table.Td>
                     <Table.Td style={{ textAlign: 'right' }}>
-                      {!member.isCurrentUser && hasAdminAccess && (
-                        <Group justify="flex-end" gap="8">
-                          <Button
-                            size="compact-sm"
-                            variant="danger"
-                            onClick={() =>
-                              setDeleteTeamMemberConfirmationModalData({
-                                mode: 'team',
-                                id: member._id,
-                                email: member.email,
-                              })
-                            }
-                          >
-                            Remove
-                          </Button>
-                        </Group>
-                      )}
+                      {!member.isCurrentUser &&
+                        member.role !== 'admin' &&
+                        hasAdminAccess && (
+                          <Group justify="flex-end" gap="8">
+                            <Button
+                              size="compact-sm"
+                              variant="danger"
+                              onClick={() =>
+                                setDeleteTeamMemberConfirmationModalData({
+                                  mode: 'team',
+                                  id: member._id,
+                                  email: member.email,
+                                })
+                              }
+                            >
+                              Remove
+                            </Button>
+                          </Group>
+                        )}
                     </Table.Td>
                   </Table.Tr>
                 ))}

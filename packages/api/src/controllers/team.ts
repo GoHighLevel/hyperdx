@@ -40,15 +40,23 @@ export async function isTeamExisting() {
 export async function createTeam({
   name,
   collectorAuthenticationEnforced = true,
+  adminUserId,
 }: {
   name: string;
   collectorAuthenticationEnforced?: boolean;
+  adminUserId?: ObjectId;
 }) {
   if (await isTeamExisting()) {
     throw new Error('Team already exists');
   }
 
-  const team = new Team({ name, collectorAuthenticationEnforced });
+  await Team.init();
+  const team = new Team({
+    name,
+    collectorAuthenticationEnforced,
+    setupKey: 'initial',
+    adminUserIds: adminUserId ? [adminUserId] : undefined,
+  });
 
   await team.save();
 

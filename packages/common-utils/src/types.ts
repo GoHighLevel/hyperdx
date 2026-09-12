@@ -2812,6 +2812,9 @@ export const TeamApiResponseSchema = z.object({
 
 export type TeamApiResponse = z.infer<typeof TeamApiResponseSchema>;
 
+export const UserRoleSchema = z.enum(['admin', 'developer']);
+export type UserRole = z.infer<typeof UserRoleSchema>;
+
 export const TeamMemberSchema = z.object({
   _id: z.string(),
   email: z.string(),
@@ -2819,6 +2822,7 @@ export const TeamMemberSchema = z.object({
   hasPasswordAuth: z.boolean(),
   isCurrentUser: z.boolean(),
   groupName: z.string().optional(),
+  role: UserRoleSchema.optional(),
 });
 
 export type TeamMember = z.infer<typeof TeamMemberSchema>;
@@ -2880,9 +2884,6 @@ export type InstallationApiResponse = z.infer<
 >;
 
 // Me
-export const UserRoleSchema = z.enum(['admin', 'developer']);
-export type UserRole = z.infer<typeof UserRoleSchema>;
-
 export const MeApiResponseSchema = z.object({
   role: UserRoleSchema.optional(),
   accessKey: z.string(),

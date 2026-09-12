@@ -8,6 +8,8 @@ export interface ITeam extends Team {
   _id: ObjectId;
   createdAt: Date;
   updatedAt: Date;
+  adminUserIds?: ObjectId[];
+  setupKey?: string;
 }
 
 export type TeamDocument = mongoose.HydratedDocument<ITeam>;
@@ -17,6 +19,10 @@ export default mongoose.model<ITeam>(
   new Schema<ITeam>(
     {
       name: String,
+      // Keep membership in one document so demotions can atomically preserve
+      // at least one admin, including on standalone MongoDB installations.
+      adminUserIds: { type: [Schema.Types.ObjectId], default: undefined },
+      setupKey: { type: String, unique: true, sparse: true },
       allowedAuthMethods: [String],
       hookId: {
         type: String,

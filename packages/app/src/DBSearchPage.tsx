@@ -96,9 +96,8 @@ import { FavoriteButton } from '@/components/FavoriteButton';
 import ResourceTerraformPopover from '@/components/Iac/ResourceTerraformPopover';
 import { InputControlled } from '@/components/InputControlled';
 import OnboardingModal from '@/components/OnboardingModal';
-import SearchWhereInput, {
-  getStoredLanguage,
-} from '@/components/SearchInput/SearchWhereInput';
+import FilterQueryInput from '@/components/SearchInput/FilterQueryInput';
+import { getStoredLanguage } from '@/components/SearchInput/SearchWhereInput';
 import SearchPageActionBar from '@/components/SearchPageActionBar';
 import SearchTotalCountChart from '@/components/SearchTotalCountChart';
 import { TableSourceForm } from '@/components/Sources/SourceForm';
@@ -1350,6 +1349,19 @@ export function DBSearchPage() {
     useResolvedDateTimeColumns(inputSourceColumns);
 
   const filters = useWatch({ name: 'filters', control });
+  const handleQueryEdit = useCallback(
+    (query: string, remainingFilters: Filter[]) => {
+      setValue('where', query, { shouldDirty: true });
+      setValue('filters', remainingFilters, { shouldDirty: true });
+    },
+    [setValue],
+  );
+  const handleQueryLanguageChange = useCallback(
+    (language: 'sql' | 'lucene') => {
+      setValue('whereLanguage', language, { shouldDirty: true });
+    },
+    [setValue],
+  );
   const searchFilters = useSearchPageFilterState({
     searchQuery: filters ?? undefined,
     onFilterChange: handleSetFilters,
@@ -2336,10 +2348,13 @@ export function DBSearchPage() {
           onCreate={onNewSourceCreate}
         />
         <Flex gap="sm" mt="sm" px="sm" wrap="wrap">
-          <SearchWhereInput
+          <FilterQueryInput
             tableConnection={inputSourceTableConnection}
-            control={control}
-            name="where"
+            where={inputWhere}
+            filters={filters ?? []}
+            language={inputWhereLanguage}
+            onEdit={handleQueryEdit}
+            onLanguageChange={handleQueryLanguageChange}
             onSubmit={onSubmit}
             sqlQueryHistoryType={QUERY_LOCAL_STORAGE.SEARCH_SQL}
             luceneQueryHistoryType={QUERY_LOCAL_STORAGE.SEARCH_LUCENE}

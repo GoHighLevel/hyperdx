@@ -214,7 +214,7 @@ const proxyMiddleware: RequestHandler =
     pathFilter: (path, _req) => {
       return _req.method === 'GET' || _req.method === 'POST';
     },
-    pathRewrite: function (path, req) {
+    pathRewrite: async function (path, req) {
       const sanitizedPath = validateAndSanitizePath(
         path.replace(/^\/clickhouse-proxy/, ''),
       );
@@ -222,7 +222,7 @@ const proxyMiddleware: RequestHandler =
       const parsedUrl = new URL(sanitizedPath, 'http://localhost');
       const { searchParams, pathname } = parsedUrl;
 
-      if (getUserRole(req.user) !== 'admin') {
+      if ((await getUserRole(req.user)) !== 'admin') {
         searchParams.set('readonly', '2');
       }
 

@@ -2,9 +2,34 @@
 
 import SqlString from 'sqlstring';
 import { parseKeyPath } from '@hyperdx/common-utils/dist/core/metadata';
+import { splitAndTrimWithBracket } from '@hyperdx/common-utils/dist/core/utils';
 import type { FilterState } from '@hyperdx/common-utils/dist/filters';
 
 import { mergePath } from '@/utils';
+
+export function filterKeyPath(key: string): string[] {
+  const clean = key.replace(/^toString\((.+)\)$/, '$1');
+  const extraction =
+    /^(?:JSONExtract(?:String|Float|Bool)|arrayElement)\((.*)\)$/.exec(clean);
+  if (extraction) {
+    const [base, ...path] = splitAndTrimWithBracket(extraction[1]);
+    if (
+      path.length &&
+      path.every(part => /^'(?:[^'\\]|\\.|'')*'$/.test(part))
+    ) {
+      return [
+        ...filterKeyPath(base),
+        ...path.map(part =>
+          part
+            .slice(1, -1)
+            .replace(/\\(['\\])/g, '$1')
+            .replace(/''/g, "'"),
+        ),
+      ];
+    }
+  }
+  return parseKeyPath(cleanClickHouseExpression(clean));
+}
 
 // Clean ClickHouse expressions to extract clean property paths
 export function cleanClickHouseExpression(key: string): string {

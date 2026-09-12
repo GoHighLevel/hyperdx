@@ -19,6 +19,7 @@ import type {
   TeamMembersApiResponse,
   TeamTagsApiResponse,
   UpdateClickHouseSettingsApiResponse,
+  UserRole,
   WebhookCreateApiResponse,
   WebhooksApiResponse,
   WebhookTestApiResponse,
@@ -293,6 +294,27 @@ const api = {
       },
     });
   },
+  useSetTeamMemberRole() {
+    const queryClient = useQueryClient();
+    return useMutation<
+      { role: UserRole },
+      HTTPError,
+      { userId: string; role: UserRole }
+    >({
+      mutationFn: ({ userId, role }) =>
+        hdxServer(`team/member/${userId}/role`, {
+          method: 'PATCH',
+          json: { role },
+        }).json(),
+      onSuccess: async () => {
+        await Promise.all(
+          ['team/members', 'me', 'team'].map(key =>
+            queryClient.invalidateQueries({ queryKey: [key] }),
+          ),
+        );
+      },
+    });
+  },
   useDeleteTeamMember() {
     return useMutation<
       { message: string },
@@ -350,6 +372,7 @@ const api = {
   useMe() {
     return useQuery<MeApiResponse | null>({
       queryKey: [`me`],
+      refetchInterval: IS_LOCAL_MODE ? false : 30_000,
       queryFn: () => {
         if (IS_LOCAL_MODE) {
           return null;

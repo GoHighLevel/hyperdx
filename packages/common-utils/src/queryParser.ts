@@ -181,6 +181,20 @@ const CLICK_HOUSE_JSON_NUMBER_TYPES = [
  *
  * eg. for field 'a.b.c', check for columns 'a', 'a.b', 'a.b.c' in order.
  **/
+export function splitLuceneField(field: string): string[] {
+  const parts = [''];
+  for (let i = 0; i < field.length; i++) {
+    if (field[i] === '\\' && i + 1 < field.length) {
+      parts[parts.length - 1] += field[++i];
+    } else if (field[i] === '.') {
+      parts.push('');
+    } else {
+      parts[parts.length - 1] += field[i];
+    }
+  }
+  return parts;
+}
+
 async function findPrefixMatch({
   field,
   metadata,
@@ -194,7 +208,7 @@ async function findPrefixMatch({
   tableName: string;
   connectionId: string;
 }): Promise<ColumnMeta | undefined> {
-  const fieldParts = field.split('.');
+  const fieldParts = splitLuceneField(field);
   let fieldPrefix = '';
 
   for (const part of fieldParts) {
@@ -791,8 +805,23 @@ export abstract class SQLSerializer implements Serializer {
     context: SerializerContext,
     inclusive: lucene.NodeRangedTerm['inclusive'] = 'both',
   ) {
-    const { column, found, mapKeyIndexExpression, isArray } =
-      await this.getColumnForField(field, context);
+    const {
+      column: rawColumn,
+      columnJSON,
+      propertyType,
+      found,
+      mapKeyIndexExpression,
+      isArray,
+    } = await this.getColumnForField(field, context);
+    const column =
+      propertyType === JSDataType.JSON && columnJSON
+        ? [start, end].every(
+            bound =>
+              bound === RANGE_UNBOUNDED || Number.isFinite(Number(bound)),
+          )
+          ? columnJSON.number
+          : columnJSON.string
+        : rawColumn;
     if (!found) {
       return this.NOT_FOUND_QUERY;
     }
@@ -1681,10 +1710,11 @@ export class CustomSchemaSQLSerializerV2 extends SQLSerializer {
   private async buildColumnExpressionFromField(
     field: string,
   ): Promise<CustomSchemaSQLColumnExpression> {
+    const fieldParts = splitLuceneField(field);
     const exactMatch = await this.metadata.getColumn({
       databaseName: this.databaseName,
       tableName: this.tableName,
-      column: field,
+      column: fieldParts.join('.'),
       connectionId: this.connectionId,
     });
 
@@ -1740,8 +1770,13 @@ export class CustomSchemaSQLSerializerV2 extends SQLSerializer {
     });
 
     if (prefixMatch) {
-      const prefixParts = prefixMatch.name.split('.');
-      const fieldPostfix = field.split('.').slice(prefixParts.length).join('.');
+      const prefixLength =
+        fieldParts.findIndex(
+          (_, index) =>
+            fieldParts.slice(0, index + 1).join('.') === prefixMatch.name,
+        ) + 1;
+      const nestedPaths = fieldParts.slice(prefixLength);
+      const fieldPostfix = nestedPaths.join('.');
 
       if (prefixMatch.type.startsWith('Map')) {
         const valueType = prefixMatch.type.match(/,\s+(\w+)\)$/)?.[1];
@@ -1786,17 +1821,19 @@ export class CustomSchemaSQLSerializerV2 extends SQLSerializer {
           columnType: 'JSON',
         };
       } else if (prefixMatch.type === 'String') {
-        // TODO: Support non-strings
-        const nestedPaths = fieldPostfix.split('.');
+        const args = SqlString.format(
+          `??, ${nestedPaths.map(() => '?').join(',')}`,
+          [prefixMatch.name, ...nestedPaths],
+        );
+        const stringExpression = `if(JSONType(${args}) = 'String', JSONExtractString(${args}), JSONExtractRaw(${args}))`;
         return {
           found: true,
-          columnExpression: SqlString.format(
-            `JSONExtractString(??, ${Array(nestedPaths.length)
-              .fill('?')
-              .join(',')})`,
-            [prefixMatch.name, ...nestedPaths],
-          ),
-          columnType: 'String',
+          columnExpression: stringExpression,
+          columnExpressionJSON: {
+            string: stringExpression,
+            number: `if(JSONType(${args}) IN ('Int64', 'UInt64', 'Float64'), JSONExtractFloat(${args}), NULL)`,
+          },
+          columnType: 'JSON',
         };
       } else if (prefixMatch.type.startsWith('Array')) {
         return {
@@ -1814,7 +1851,7 @@ export class CustomSchemaSQLSerializerV2 extends SQLSerializer {
     // TODO: Verify aliases
     return {
       found: true,
-      columnExpression: field,
+      columnExpression: fieldParts.join('.'),
       columnType: 'Unknown',
     };
     // throw new Error(`Column not found: ${field}`);

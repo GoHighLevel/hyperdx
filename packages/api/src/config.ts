@@ -1,7 +1,7 @@
 const env = process.env;
 
-// An empty list grants no administrative access. Existing users are not
-// silently promoted when upgrading an installation.
+// Legacy bootstrap only: imported into MongoDB once per existing team.
+// Runtime role changes are managed in Team settings.
 export const HYPERDX_ADMIN_EMAILS = (env.HYPERDX_ADMIN_EMAILS ?? '')
   .split(',')
   .map(email => email.trim().toLowerCase())

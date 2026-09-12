@@ -9,22 +9,30 @@ changed by admins.
 
 ## Before deploying the custom image
 
-Set `HYPERDX_ADMIN_EMAILS` on the API/fullstack container to the exact login email
-addresses of your existing admin accounts, separated by commas:
+Users and password hashes remain in MongoDB's existing `users` collection.
+Admin membership is stored in `teams.adminUserIds`. Admins manage roles in
+**Team settings → Members**, using the role selector beside each account.
+Invitations create developers; an admin can promote them after they join.
+Role checks read MongoDB on each request, including API keys and MCP requests.
+Changing a role requires no restart or new password. The UI refreshes its role
+within 30 seconds or on page refresh.
 
-```yaml
-HYPERDX_ADMIN_EMAILS: "your-sre-account@example.com,another-admin@example.com"
-```
+For a fresh installation, the setup page creates the first user as admin. A
+unique setup key prevents concurrent registration from creating multiple initial
+teams. The API atomically prevents demoting the last admin, including concurrent
+demotions. Admin accounts must be demoted before they can be removed.
 
-Replace the example addresses. Matching is case-insensitive; wildcards and email
-domains are not supported. An empty list grants **no admin access**, including
-to existing users. Configure it before rollout. Changing the list requires
-rolling out the API containers. Role assignment is managed in deployment
-configuration; there is no role editor in the UI.
+For an existing team without `adminUserIds`, the legacy `HYPERDX_ADMIN_EMAILS`
+allowlist is imported once from existing users. After initialization, MongoDB
+owns the roles: editing the environment variable cannot undo UI role changes.
+Existing teams are never claimed automatically by the next person who logs in.
+If an existing team has no configured admin, seed a verified existing account in
+its `adminUserIds` before rollout. Keep the user IDs as BSON ObjectIds.
 
 Build your fullstack image using the existing `docker/hyperdx/Dockerfile`, publish
 it to your registry, and update the staging Helm image repository/tag to that
-image. The upstream `2.38.0` image does not contain these changes. This repository
+image. The upstream `2.38.0` image and custom `2.38.0-custom.1` image do not contain
+this database role-management update. This repository
 change does not deploy to Kubernetes or modify ClickHouse credentials.
 
 The session API, personal API keys, and MCP enforce the same management boundary.
@@ -53,6 +61,23 @@ index are unchanged; no database migration is required.
 Old browser-only pins are not imported automatically because their storage key
 did not identify the account that created them. Re-pin fields once after rollout.
 Auth-disabled local mode continues to store personal pins in its browser.
+
+### Filters and the query editor
+
+Checkbox selections and **Filter by this field** appear as editable clauses in
+the top query bar. Lucene uses quoted values, OR for multiple included values,
+NOT for exclusions, and numeric ranges. SQL mode displays SQL predicates.
+An existing custom query is parenthesized to preserve its OR/AND meaning.
+
+Unchecking a selection removes its generated clause. Editing generated text
+transfers the displayed clauses into the custom query and clears their separate
+checkbox selections, so no hidden duplicate predicates remain. Custom queries
+and filters survive URL sharing and reloads. Arbitrary saved SQL predicates that
+cannot be represented losslessly in Lucene remain separate, visible filter chips.
+
+Literal dots in JSON keys are escaped: `log.request\.id:"req-123"` reads the
+single `request.id` key, while `log.request.id:"req-123"` reads a nested key.
+JSON strings support string, numeric and boolean equality, plus numeric ranges.
 
 ## Developer log view
 

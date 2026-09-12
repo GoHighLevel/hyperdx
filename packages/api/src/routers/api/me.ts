@@ -33,17 +33,15 @@ router.get('/', async (req, res: express.Response<MeApiResponse>, next) => {
       throw new Api404Error(`Team not found for user ${id}`);
     }
 
+    const role = await getUserRole(req.user);
     return sendJson(res, {
-      role: getUserRole(req.user),
+      role,
       accessKey,
       createdAt,
       email,
       id,
       name,
-      team:
-        getUserRole(req.user) === 'admin'
-          ? team
-          : { ...team.toJSON(), apiKey: '' },
+      team: role === 'admin' ? team : { ...team.toJSON(), apiKey: '' },
       usageStatsEnabled: USAGE_STATS_ENABLED,
       aiAssistantEnabled: !!(AI_API_KEY || ANTHROPIC_API_KEY),
     });

@@ -1,11 +1,9 @@
 import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import cx from 'classnames';
 import {
-  parseKeyPath,
   TableMetadata,
   tcFromSource,
 } from '@hyperdx/common-utils/dist/core/metadata';
-import { splitAndTrimWithBracket } from '@hyperdx/common-utils/dist/core/utils';
 import { FilterState } from '@hyperdx/common-utils/dist/filters';
 import {
   BuilderChartConfigWithDateRange,
@@ -78,7 +76,7 @@ import {
 } from './DBSearchPageFilters/PinShareMenu';
 import { SharedFiltersSection } from './DBSearchPageFilters/SharedFilters';
 import {
-  cleanClickHouseExpression,
+  filterKeyPath,
   getFilterStateEntry,
   groupFacetsByBaseName,
   toQuotedClickHouseKeyExpression,
@@ -96,27 +94,9 @@ const SHOW_MORE_MAX_VALUES_DISPLAYED = 50;
 // This function will clean json string attributes specifically. It will turn a string like
 // 'toString(ResourceAttributes.`hdx`.`sdk`.`version`)' into 'ResourceAttributes.hdx.sdk.version'.
 export function cleanedFacetName(key: string): string {
-  const clean = cleanClickHouseExpression(key);
-  const extraction =
-    /^(?:JSONExtract(?:String|Float|Bool)|arrayElement)\((.*)\)$/.exec(clean);
-  if (extraction) {
-    const [base, ...path] = splitAndTrimWithBracket(extraction[1]);
-    if (
-      path.length > 0 &&
-      path.every(part => /^'(?:[^'\\]|\\.|'')*'$/.test(part))
-    ) {
-      return [
-        cleanedFacetName(base),
-        ...path.map(part =>
-          part
-            .slice(1, -1)
-            .replace(/\\(['\\])/g, '$1')
-            .replace(/''/g, "'"),
-        ),
-      ].join('.');
-    }
-  }
-  return parseKeyPath(clean).join('.');
+  return filterKeyPath(key)
+    .join('.')
+    .replace(/`([^`]+)`/g, '$1');
 }
 
 /** Value-level pin callbacks and state (personal + shared). */

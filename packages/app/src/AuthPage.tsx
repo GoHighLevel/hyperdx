@@ -147,7 +147,8 @@ export default function AuthPage({ action }: { action: 'register' | 'login' }) {
           )}
           {isRegister && config.IS_OSS === true && (
             <div className="text-center mb-2 text-muted">
-              Let{"'"}s create your user account.
+              Create the first admin account. You can invite users and manage
+              their roles in Team settings.
             </div>
           )}
           <form className="text-start mt-4" {...form.controller}>
