@@ -51,6 +51,7 @@ import {
 import { IS_CLICKHOUSE_BUILD } from '@/config';
 import {
   useColumns,
+  useGetValueCounts,
   useGetValuesDistribution,
   useJsonColumns,
   useTableMetadata,
@@ -129,6 +130,9 @@ type FilterCheckboxProps = {
   className?: string;
   percentage?: number;
   isPercentageLoading?: boolean;
+  showLogCounts?: boolean;
+  logCount?: string;
+  isCountLoading?: boolean;
 };
 
 const TextButton = ({
@@ -201,6 +205,9 @@ const FilterCheckbox = ({
   className,
   percentage,
   isPercentageLoading,
+  showLogCounts,
+  logCount,
+  isCountLoading,
 }: FilterCheckboxProps) => {
   const [pinMenuOpened, setPinMenuOpened] = useState(false);
   const testIdPrefix = `filter-checkbox-${columnName}-${label}`;
@@ -261,6 +268,36 @@ const FilterCheckbox = ({
             >
               {label || <span className="fst-italic">(empty)</span>}
             </Text>
+            {showLogCounts && (
+              <Text
+                size="xs"
+                c="dimmed"
+                style={{ flexShrink: 0, fontVariantNumeric: 'tabular-nums' }}
+                data-testid={`filter-count-${columnName}-${label}`}
+                title={
+                  isCountLoading
+                    ? 'Counting matching logs…'
+                    : logCount == null
+                      ? 'Count unavailable. Try a shorter time range or run the query again.'
+                      : 'Matching logs in the current query and time range'
+                }
+                aria-label={
+                  isCountLoading
+                    ? 'Counting matching logs'
+                    : logCount == null
+                      ? 'Count unavailable'
+                      : `${BigInt(logCount).toLocaleString()} matching logs`
+                }
+              >
+                {isCountLoading ? (
+                  <Loader size={10} color="gray" />
+                ) : logCount == null ? (
+                  '—'
+                ) : (
+                  BigInt(logCount).toLocaleString()
+                )}
+              </Text>
+            )}
             {percentage != null && (
               <FilterPercentage
                 percentage={percentage}
@@ -398,6 +435,7 @@ export type FilterGroupProps = {
   hasLoadedMore: boolean;
   isDefaultExpanded?: boolean;
   showFilterCounts?: boolean;
+  showLogCounts?: boolean;
   'data-testid'?: string;
   chartConfig: BuilderChartConfigWithDateRange;
   isLive?: boolean;
@@ -429,6 +467,7 @@ const FilterGroupBody = ({
   isLive,
   distributionKey,
   showDistributions,
+  showLogCounts,
   onDistributionError,
   onFetchingDistributionChange,
 }: {
@@ -450,6 +489,7 @@ const FilterGroupBody = ({
   isLive?: boolean;
   distributionKey?: string;
   showDistributions: boolean;
+  showLogCounts: boolean;
   onDistributionError: () => void;
   onFetchingDistributionChange: (isFetching: boolean) => void;
 }) => {
@@ -530,6 +570,21 @@ const FilterGroupBody = ({
       ...options,
     ];
   }, [options, selectedValues]);
+
+  const countValues = useMemo(
+    () => augmentedOptions.map(option => String(option.value)),
+    [augmentedOptions],
+  );
+  const {
+    data: logCounts,
+    isFetching: isFetchingCounts,
+    error: countsError,
+  } = useGetValueCounts({
+    chartConfig,
+    key: distributionKey || name,
+    values: countValues,
+    enabled: showLogCounts,
+  });
 
   const displayedItemLimit = shouldShowMore
     ? SHOW_MORE_MAX_VALUES_DISPLAYED
@@ -679,6 +734,11 @@ const FilterGroupBody = ({
             onSharedPinClick ? () => onSharedPinClick(option.value) : undefined
           }
           isPercentageLoading={isFetchingDistribution}
+          showLogCounts={showLogCounts}
+          logCount={
+            countsError ? undefined : logCounts?.get(String(option.value))
+          }
+          isCountLoading={isFetchingCounts}
           percentage={
             showDistributions && distributionData
               ? (distributionData.get(option.value.toString()) ?? 0)
@@ -899,6 +959,7 @@ export const FilterGroup = ({
   hasLoadedMore,
   isDefaultExpanded,
   showFilterCounts,
+  showLogCounts = true,
   'data-testid': dataTestId,
   chartConfig,
   isLive,
@@ -1044,6 +1105,7 @@ export const FilterGroup = ({
                   isLive={isLive}
                   distributionKey={distributionKey}
                   showDistributions={showDistributions}
+                  showLogCounts={showLogCounts}
                   onDistributionError={onDistributionError}
                   onFetchingDistributionChange={setIsFetchingDistribution}
                 />
@@ -1135,6 +1197,10 @@ const DBSearchPageFiltersComponent = ({
   );
   const [showFilterCounts, setShowFilterCounts] = useLocalStorage(
     'hdx-show-filter-counts',
+    true,
+  );
+  const [showLogCounts, setShowLogCounts] = useLocalStorage(
+    'hdx-show-matching-log-counts',
     true,
   );
   const [isFiltersExpanded, setFiltersExpanded] = useLocalStorage(
@@ -1517,6 +1583,7 @@ const DBSearchPageFiltersComponent = ({
               onToggleSharedFieldPin={key => toggleSharedFieldPin(key)}
               isSharedFieldPinned={key => isSharedFieldPinned(key)}
               showFilterCounts={showFilterCounts}
+              showLogCounts={showLogCounts}
               onColumnToggle={onColumnToggle}
               displayedColumns={displayedColumns}
               onLoadMore={loadMoreFacetsForKey}
@@ -1562,6 +1629,7 @@ const DBSearchPageFiltersComponent = ({
                 name={cleanedFacetName(facet.key)}
                 distributionKey={facetSqlKey}
                 showFilterCounts={showFilterCounts}
+                showLogCounts={showLogCounts}
                 options={facet.value.map(value => ({
                   value,
                   label: value.toString(),
@@ -1627,6 +1695,7 @@ const DBSearchPageFiltersComponent = ({
       loadMoreFacetsForKey,
       loadMoreLoadingKeys,
       showFilterCounts,
+      showLogCounts,
       isFacetsLoading,
       chartConfig,
       isLive,
@@ -1670,6 +1739,8 @@ const DBSearchPageFiltersComponent = ({
                 isSharedFiltersVisible={isSharedFiltersVisible}
                 onSharedFiltersVisibilityChange={setSharedFiltersVisible}
                 showFilterCounts={showFilterCounts}
+                showLogCounts={showLogCounts}
+                onShowLogCountsChange={setShowLogCounts}
                 onShowFilterCountsChange={setShowFilterCounts}
                 hasPersonalPins={hasPersonalPins}
                 onResetPersonalPins={resetPersonalPins}

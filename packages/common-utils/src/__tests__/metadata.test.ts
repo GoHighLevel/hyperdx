@@ -1709,6 +1709,90 @@ describe('Metadata', () => {
     });
   });
 
+  describe('getValueCounts', () => {
+    const chartConfig: BuilderChartConfigWithDateRange = {
+      ...source,
+      select: '*',
+      where: 'service:api',
+      whereLanguage: 'lucene',
+      filters: [{ type: 'sql', condition: 'status > 200' }],
+      dateRange: [new Date('2024-01-01'), new Date('2024-01-02')],
+      limit: { limit: 1, offset: 10 },
+      orderBy: 'Timestamp DESC',
+    };
+
+    it('counts the full query without sampling or inheriting the result page limit', async () => {
+      jest.mocked(mockClickhouseClient.query).mockResolvedValue({
+        json: async () => ({
+          data: [{ __hdx_value: "it's", __hdx_count: '9007199254740993' }],
+        }),
+      } as any);
+      const result = await metadata.getValueCounts({
+        chartConfig,
+        key: 'severity',
+        values: ["it's", 'missing'],
+        source,
+      });
+      expect(result.get("it's")).toBe('9007199254740993');
+      expect(result.get('missing')).toBe('0');
+      expect(mockClickhouseClient.query).toHaveBeenCalledWith(
+        expect.objectContaining({
+          clickhouse_settings: expect.objectContaining({
+            max_rows_to_read: '3000000',
+            read_overflow_mode: 'throw',
+          }),
+        }),
+      );
+      expect(renderChartConfigModule.renderChartConfig).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: chartConfig.where,
+          whereLanguage: 'lucene',
+          dateRange: chartConfig.dateRange,
+          select: 'toString(severity) AS __hdx_value, count() AS __hdx_count',
+          limit: { limit: 2 },
+          orderBy: undefined,
+          filters: [
+            chartConfig.filters![0],
+            {
+              type: 'sql',
+              condition: "toString(severity) IN ('it\\'s', 'missing')",
+            },
+          ],
+        }),
+        metadata,
+        expect.arrayContaining([
+          { setting: 'read_overflow_mode', value: 'throw' },
+        ]),
+      );
+    });
+
+    it('does not query for an empty list', async () => {
+      expect(
+        await metadata.getValueCounts({
+          chartConfig,
+          key: 'severity',
+          values: [],
+          source,
+        }),
+      ).toEqual(new Map());
+      expect(mockClickhouseClient.query).not.toHaveBeenCalled();
+    });
+
+    it('propagates failures instead of reporting zero', async () => {
+      jest
+        .mocked(mockClickhouseClient.query)
+        .mockRejectedValue(new Error('Read limit exceeded'));
+      await expect(
+        metadata.getValueCounts({
+          chartConfig,
+          key: 'severity',
+          values: ['error'],
+          source,
+        }),
+      ).rejects.toThrow('Read limit exceeded');
+    });
+  });
+
   describe('getValuesDistribution', () => {
     const mockChartConfig: BuilderChartConfigWithDateRange = {
       from: {

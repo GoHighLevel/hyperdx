@@ -22,6 +22,7 @@ import {
   IconChevronDown,
   IconChevronRight,
   IconChevronUp,
+  IconEye,
   IconKeyboard,
   IconLogout,
   IconSettings,
@@ -72,6 +73,8 @@ type AppNavUserMenuProps = {
   teamName?: string;
   logoutUrl?: string | null;
   onClickUserPreferences?: () => void;
+  isViewingAsDeveloper?: boolean;
+  onToggleDeveloperView?: () => void;
 };
 
 const getUserInitials = (userName: string) => {
@@ -89,6 +92,8 @@ export const AppNavUserMenu = ({
   teamName,
   logoutUrl,
   onClickUserPreferences,
+  isViewingAsDeveloper,
+  onToggleDeveloperView,
 }: AppNavUserMenuProps) => {
   const { isCollapsed } = React.use(AppNavContext);
   const resolvedUserName = userName.trim() || 'User';
@@ -146,6 +151,16 @@ export const AppNavUserMenu = ({
         </Paper>
       </Menu.Target>
       <Menu.Dropdown>
+        {onToggleDeveloperView && (
+          <Menu.Item
+            leftSection={<IconEye size={16} />}
+            onClick={onToggleDeveloperView}
+          >
+            {isViewingAsDeveloper
+              ? 'Return to admin view'
+              : 'View as developer'}
+          </Menu.Item>
+        )}
         {IS_LOCAL_MODE ? (
           <Menu.Label fz="xs">Local mode</Menu.Label>
         ) : (

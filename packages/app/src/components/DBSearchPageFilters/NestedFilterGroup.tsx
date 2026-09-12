@@ -32,6 +32,7 @@ type NestedFilterGroupProps = {
   onToggleSharedFieldPin?: (key: string) => void;
   isSharedFieldPinned?: (key: string) => boolean;
   showFilterCounts?: boolean;
+  showLogCounts?: boolean;
   onColumnToggle?: (column: string) => void;
   displayedColumns?: string[];
   onLoadMore: (key: string) => void;
@@ -63,6 +64,7 @@ export const NestedFilterGroup = ({
   onToggleSharedFieldPin,
   isSharedFieldPinned,
   showFilterCounts,
+  showLogCounts,
   onColumnToggle,
   displayedColumns,
   onLoadMore,
@@ -252,6 +254,7 @@ export const NestedFilterGroup = ({
                             }
                             hasLoadedMore={hasLoadedMore[child.key] || false}
                             showFilterCounts={showFilterCounts}
+                            showLogCounts={showLogCounts}
                             isDefaultExpanded={childHasSelections}
                             chartConfig={chartConfig}
                             isLive={isLive}

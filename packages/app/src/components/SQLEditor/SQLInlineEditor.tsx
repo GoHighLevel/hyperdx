@@ -347,8 +347,6 @@ export default function SQLInlineEditor({
       style={{ ['--editor-base-height' as string]: `${baseHeight}px` }}
       data-expanded={isExpanded ? 'true' : undefined}
     >
-      {/* When expanded, Paper is absolute; this keeps the wrapper width stable */}
-      {isExpanded && <div className={styles.placeholder} aria-hidden="true" />}
       <Paper
         shadow="none"
         className={cx(

@@ -450,6 +450,38 @@ export function useMultipleGetKeyValues(
   };
 }
 
+export function useGetValueCounts({
+  chartConfig,
+  key,
+  values,
+  enabled = true,
+}: {
+  chartConfig: BuilderChartConfigWithDateRange;
+  key: string;
+  values: string[];
+  enabled?: boolean;
+}) {
+  const metadata = useMetadataWithSettings();
+  const { data: source, isLoading: isLoadingSource } = useSource({
+    id: chartConfig.source,
+  });
+  return useQuery({
+    queryKey: [
+      'useMetadata.useGetValueCounts',
+      chartConfig,
+      key,
+      values,
+      source?.querySettings,
+    ],
+    queryFn: ({ signal }) =>
+      metadata.getValueCounts({ chartConfig, key, values, source, signal }),
+    enabled: enabled && !!key && values.length > 0 && !isLoadingSource,
+    staleTime: 30_000,
+    refetchOnWindowFocus: false,
+    retry: false,
+  });
+}
+
 export function useGetValuesDistribution(
   {
     chartConfig,

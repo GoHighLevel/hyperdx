@@ -2239,6 +2239,85 @@ export class Metadata {
     return { hasTokens: false };
   }
 
+  /** Exact matching row counts; query limits must fail rather than return partial counts. */
+  async getValueCounts({
+    chartConfig,
+    key,
+    values,
+    source,
+    signal,
+  }: {
+    chartConfig: BuilderChartConfigWithDateRange;
+    key: string;
+    values: string[];
+    source: TSource | undefined;
+    signal?: AbortSignal;
+  }): Promise<Map<string, string>> {
+    const distinctValues = [...new Set(values)];
+    if (!distinctValues.length) return new Map();
+    const renderedKey = await this.renderMetadataKeyExpression({
+      databaseName: chartConfig.from.databaseName,
+      tableName: chartConfig.from.tableName,
+      connectionId: chartConfig.connection,
+      keyExpression: key,
+    });
+    const overflowSettings = [
+      'read_overflow_mode',
+      'group_by_overflow_mode',
+      'timeout_overflow_mode',
+      'result_overflow_mode',
+    ];
+    const sql = await renderChartConfig(
+      {
+        ...chartConfig,
+        select: `toString(${renderedKey}) AS __hdx_value, count() AS __hdx_count`,
+        filters: [
+          ...(chartConfig.filters || []),
+          {
+            type: 'sql',
+            condition: `toString(${renderedKey}) IN (${SqlString.escape(distinctValues)})`,
+          },
+        ],
+        groupBy: '__hdx_value',
+        orderBy: undefined,
+        limit: { limit: distinctValues.length },
+      },
+      this,
+      [
+        ...(source?.querySettings ?? []).filter(
+          ({ setting }) => !overflowSettings.includes(setting),
+        ),
+        ...overflowSettings.map(setting => ({ setting, value: 'throw' })),
+      ],
+    );
+    const result = await this.clickhouseClient.query<'JSON'>({
+      query: sql.sql,
+      query_params: sql.params,
+      connectionId: chartConfig.connection,
+      abort_signal: signal,
+      clickhouse_settings: {
+        ...this.getClickHouseSettings(),
+        max_rows_to_read: String(
+          this.getClickHouseSettings().max_rows_to_read ??
+            DEFAULT_METADATA_MAX_ROWS_TO_READ,
+        ),
+        max_rows_to_group_by: String(distinctValues.length),
+        read_overflow_mode: 'throw',
+        group_by_overflow_mode: 'throw',
+        timeout_overflow_mode: 'throw',
+        result_overflow_mode: 'throw',
+      },
+    });
+    const { data } = await result.json<{
+      __hdx_value: string;
+      __hdx_count: string;
+    }>();
+    const counts = new Map(distinctValues.map(value => [value, '0']));
+    for (const row of data)
+      counts.set(row.__hdx_value, String(row.__hdx_count));
+    return counts;
+  }
+
   async getValuesDistribution({
     chartConfig,
     key,

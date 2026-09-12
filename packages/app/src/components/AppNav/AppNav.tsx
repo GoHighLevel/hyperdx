@@ -9,11 +9,14 @@ import {
   ActionIcon,
   Anchor,
   Badge,
+  Button,
   Collapse,
   Flex,
   Group,
   ScrollArea,
+  Stack,
   Text,
+  Tooltip,
 } from '@mantine/core';
 import { useDisclosure, useLocalStorage } from '@mantine/hooks';
 import {
@@ -22,6 +25,7 @@ import {
   IconChartDots,
   IconDeviceFloppy,
   IconDeviceLaptop,
+  IconEye,
   IconLayoutGrid,
   IconSettings,
   IconSitemap,
@@ -38,6 +42,7 @@ import InstallInstructionModal from '@/InstallInstructionsModal';
 import OnboardingChecklist from '@/OnboardingChecklist';
 import { useSavedSearches } from '@/savedSearch';
 import { useLogomark, useWordmark } from '@/theme/ThemeProvider';
+import { useDeveloperPreview } from '@/useDeveloperPreview';
 import { UserPreferencesModal } from '@/UserPreferencesModal';
 import { useUserPreferences } from '@/useUserPreferences';
 import { useWindowSize } from '@/utils';
@@ -108,6 +113,8 @@ const NAV_LINKS: NavLinkConfig[] = [
 ];
 
 export default function AppNav({ fixed = false }: { fixed?: boolean }) {
+  const { canPreviewDeveloper, isViewingAsDeveloper, setDeveloperPreview } =
+    useDeveloperPreview();
   const wordmark = useWordmark();
   const logomark = useLogomark({ size: 22 });
 
@@ -512,6 +519,34 @@ export default function AppNav({ fixed = false }: { fixed?: boolean }) {
         </ScrollArea>
 
         <div className={styles.footer} style={{ width: navWidth }}>
+          {isViewingAsDeveloper && (
+            <Stack gap={4} p="xs">
+              {!isCollapsed && (
+                <Text size="xs" c="dimmed" role="status">
+                  Viewing as developer
+                </Text>
+              )}
+              {isCollapsed ? (
+                <Tooltip label="Return to admin view" position="right">
+                  <ActionIcon
+                    variant="secondary"
+                    aria-label="Return to admin view"
+                    onClick={() => setDeveloperPreview(false)}
+                  >
+                    <IconEye size={16} />
+                  </ActionIcon>
+                </Tooltip>
+              ) : (
+                <Button
+                  variant="secondary"
+                  size="xs"
+                  onClick={() => setDeveloperPreview(false)}
+                >
+                  Return to admin view
+                </Button>
+              )}
+            </Stack>
+          )}
           {IS_LOCAL_MODE && !isCollapsed && (
             <Link
               href="/careers"
@@ -531,6 +566,12 @@ export default function AppNav({ fixed = false }: { fixed?: boolean }) {
             userName={meData?.name}
             teamName={meData?.team?.name}
             onClickUserPreferences={openUserPreferences}
+            isViewingAsDeveloper={isViewingAsDeveloper}
+            onToggleDeveloperView={
+              canPreviewDeveloper
+                ? () => setDeveloperPreview(!isViewingAsDeveloper)
+                : undefined
+            }
             logoutUrl={IS_LOCAL_MODE ? null : `/api/logout`}
           />
           {meData?.usageStatsEnabled && (

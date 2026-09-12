@@ -13,7 +13,10 @@ import {
   groupFacetsByBaseName,
   parseMapFieldName,
 } from '@/components/DBSearchPageFilters/utils';
-import { useGetValuesDistribution } from '@/hooks/useMetadata';
+import {
+  useGetValueCounts,
+  useGetValuesDistribution,
+} from '@/hooks/useMetadata';
 import { usePermissions } from '@/usePermissions';
 
 jest.mock('@/usePermissions', () => ({
@@ -66,6 +69,9 @@ describe('cleanClickHouseExpression', () => {
 });
 
 jest.mock('@/hooks/useMetadata', () => ({
+  useGetValueCounts: jest
+    .fn()
+    .mockReturnValue({ data: undefined, isFetching: false, error: undefined }),
   useGetValuesDistribution: jest
     .fn()
     .mockReturnValue({ data: undefined, isFetching: false, error: undefined }),
@@ -435,6 +441,71 @@ describe('FilterGroup', () => {
     expect(labels[0]).toHaveTextContent('apple');
     expect(labels[1]).toHaveTextContent('banana');
     expect(labels[2]).toHaveTextContent('zebra');
+  });
+
+  it('shows exact counts including zero without rounding large values', () => {
+    jest.mocked(useGetValueCounts).mockReturnValueOnce({
+      data: new Map([
+        ['apple', '9007199254740993'],
+        ['banana', '0'],
+        ['zebra', '23'],
+      ]),
+      isFetching: false,
+      error: null,
+    } as any);
+    renderWithMantine(<FilterGroup {...defaultProps} />);
+    expect(
+      screen.getByTestId('filter-count-Test Filter-apple'),
+    ).toHaveTextContent('9,007,199,254,740,993');
+    expect(
+      screen.getByTestId('filter-count-Test Filter-banana'),
+    ).toHaveTextContent('0');
+    expect(
+      screen.getByTestId('filter-count-Test Filter-zebra'),
+    ).toHaveTextContent('23');
+  });
+
+  it('shows unavailable on failure even if previous counts exist', () => {
+    jest.mocked(useGetValueCounts).mockReturnValueOnce({
+      data: new Map([['apple', '12']]),
+      isFetching: false,
+      error: new Error('Limit exceeded'),
+    } as any);
+    renderWithMantine(<FilterGroup {...defaultProps} />);
+    expect(
+      screen.getByTestId('filter-count-Test Filter-apple'),
+    ).toHaveTextContent('—');
+  });
+
+  it('does not request counts for collapsed fields or when disabled', () => {
+    jest.mocked(useGetValueCounts).mockClear();
+    const { unmount } = renderWithMantine(
+      <FilterGroup {...defaultProps} isDefaultExpanded={false} />,
+    );
+    expect(useGetValueCounts).not.toHaveBeenCalled();
+    unmount();
+    renderWithMantine(<FilterGroup {...defaultProps} showLogCounts={false} />);
+    expect(useGetValueCounts).toHaveBeenLastCalledWith(
+      expect.objectContaining({ enabled: false }),
+    );
+    expect(
+      screen.queryByTestId('filter-count-Test Filter-apple'),
+    ).not.toBeInTheDocument();
+  });
+
+  it('shows loading instead of stale counts during refresh', () => {
+    jest.mocked(useGetValueCounts).mockReturnValueOnce({
+      data: new Map([['apple', '12']]),
+      isFetching: true,
+      error: null,
+    } as any);
+    renderWithMantine(<FilterGroup {...defaultProps} />);
+    expect(
+      screen.getByTestId('filter-count-Test Filter-apple'),
+    ).toHaveAttribute('aria-label', 'Counting matching logs');
+    expect(
+      screen.getByTestId('filter-count-Test Filter-apple'),
+    ).not.toHaveTextContent('12');
   });
 
   it('should show selected items first, then sort alphabetically', () => {

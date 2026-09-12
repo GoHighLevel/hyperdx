@@ -35,6 +35,8 @@ export function FilterSettingsPanel({
   onSharedFiltersVisibilityChange,
   showFilterCounts,
   onShowFilterCountsChange,
+  showLogCounts,
+  onShowLogCountsChange,
   hasPersonalPins,
   onResetPersonalPins,
   hasSharedPins,
@@ -46,6 +48,8 @@ export function FilterSettingsPanel({
   onSharedFiltersVisibilityChange: (visible: boolean) => void;
   showFilterCounts: boolean;
   onShowFilterCountsChange: (show: boolean) => void;
+  showLogCounts: boolean;
+  onShowLogCountsChange: (show: boolean) => void;
   hasPersonalPins: boolean;
   onResetPersonalPins: VoidFunction;
   hasSharedPins: boolean;
@@ -92,12 +96,20 @@ export function FilterSettingsPanel({
           }
         />
         <Checkbox
-          label="Show Filter Counts"
+          label="Show value/selection totals"
           labelPosition="left"
           size="xs"
           styles={{ labelWrapper: { width: '100%' } }}
           checked={showFilterCounts}
           onChange={e => onShowFilterCountsChange(e.currentTarget.checked)}
+        />
+        <Checkbox
+          label="Show matching log counts"
+          labelPosition="left"
+          size="xs"
+          styles={{ labelWrapper: { width: '100%' } }}
+          checked={showLogCounts}
+          onChange={e => onShowLogCountsChange(e.currentTarget.checked)}
         />
         {onShowAllValuesChange && (
           <Tooltip
