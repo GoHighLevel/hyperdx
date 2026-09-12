@@ -51,7 +51,7 @@ export function FilterSettingsPanel({
   hasSharedPins: boolean;
   onResetSharedFilters: VoidFunction;
   showAllValues: boolean;
-  onShowAllValuesChange: (show: boolean) => void;
+  onShowAllValuesChange?: (show: boolean) => void;
 }) {
   const showResetSection = hasPersonalPins || hasSharedPins;
 
@@ -99,24 +99,26 @@ export function FilterSettingsPanel({
           checked={showFilterCounts}
           onChange={e => onShowFilterCountsChange(e.currentTarget.checked)}
         />
-        <Tooltip
-          label="Show all known values instead of only values matching the current query"
-          multiline
-          w={220}
-          position="bottom"
-          withArrow
-          fz="xxs"
-          color="gray"
-        >
-          <Checkbox
-            label="Show All Values"
-            labelPosition="left"
-            size="xs"
-            styles={{ labelWrapper: { width: '100%' } }}
-            checked={showAllValues}
-            onChange={e => onShowAllValuesChange(e.currentTarget.checked)}
-          />
-        </Tooltip>
+        {onShowAllValuesChange && (
+          <Tooltip
+            label="Show all known values instead of only values matching the current query"
+            multiline
+            w={220}
+            position="bottom"
+            withArrow
+            fz="xxs"
+            color="gray"
+          >
+            <Checkbox
+              label="Show All Values"
+              labelPosition="left"
+              size="xs"
+              styles={{ labelWrapper: { width: '100%' } }}
+              checked={showAllValues}
+              onChange={e => onShowAllValuesChange(e.currentTarget.checked)}
+            />
+          </Tooltip>
+        )}
         {showResetSection && (
           <>
             <Divider />

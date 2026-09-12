@@ -104,6 +104,24 @@ describe('SearchWhereInput', () => {
   });
 
   describe('SQL Mode', () => {
+    it('keeps multiline SQL expanded after blur', async () => {
+      const { container } = renderWithMantine(
+        <TestWrapper
+          defaultLanguage="sql"
+          defaultWhere={"level = 'error'\nAND service = 'api'"}
+        />,
+      );
+      expect(
+        container.querySelector('.cm-editor-multiline'),
+      ).toBeInTheDocument();
+      await userEvent.click(screen.getByText('WHERE'));
+      expect(
+        container.querySelector('.cm-editor-multiline'),
+      ).toBeInTheDocument();
+      expect(container.querySelector('.cm-content')).toHaveTextContent(
+        "service = 'api'",
+      );
+    });
     it('renders SQL input with WHERE label when whereLanguage is sql', () => {
       renderWithMantine(<TestWrapper defaultLanguage="sql" />);
 

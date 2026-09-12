@@ -14,8 +14,24 @@ import {
   parseMapFieldName,
 } from '@/components/DBSearchPageFilters/utils';
 import { useGetValuesDistribution } from '@/hooks/useMetadata';
+import { usePermissions } from '@/usePermissions';
+
+jest.mock('@/usePermissions', () => ({
+  usePermissions: jest.fn(() => ({ canManageShared: true })),
+}));
 
 describe('cleanClickHouseExpression', () => {
+  it('gives extracted custom fields readable labels without changing their SQL', () => {
+    expect(cleanedFacetName("JSONExtractString(log, 'request.id')")).toBe(
+      'log.request.id',
+    );
+    expect(cleanedFacetName("arrayElement(json_payload, 'status_code')")).toBe(
+      'json_payload.status_code',
+    );
+    expect(
+      parseMapFieldName("JSONExtractString(log, 'request.id')"),
+    ).toBeNull();
+  });
   it('should remove toString wrapper', () => {
     expect(cleanClickHouseExpression('toString(ResourceAttributes)')).toBe(
       'ResourceAttributes',
@@ -72,7 +88,7 @@ describe('cleanedFacetName', () => {
     it('should handle strings that do not start with toString', () => {
       expect(cleanedFacetName('notToString(field)')).toBe('notToString(field)');
       expect(cleanedFacetName("JSONExtractString(data, 'field')")).toBe(
-        "JSONExtractString(data, 'field')",
+        'data.field',
       );
     });
   });
@@ -151,7 +167,7 @@ describe('cleanedFacetName', () => {
         cleanedFacetName(
           "ResourceAttributes['http.request.headers.user-agent']",
         ),
-      ).toBe("ResourceAttributes['http.request.headers.user-agent']");
+      ).toBe('ResourceAttributes.http.request.headers.user-agent');
     });
   });
 
@@ -500,6 +516,19 @@ describe('FilterGroup', () => {
     expect(labels[0]).toHaveTextContent('~99%'); // apple
     expect(labels[1]).toHaveTextContent('<1%'); // zebra
     expect(labels[2]).toHaveTextContent('<1%'); // banana
+  });
+
+  it('hides column and distribution actions from developers', () => {
+    jest.mocked(usePermissions).mockReturnValueOnce({ canManageShared: false });
+    renderWithMantine(
+      <FilterGroup {...defaultProps} onColumnToggle={jest.fn()} />,
+    );
+    expect(
+      screen.queryByTestId('toggle-distribution-button-Test Filter'),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId('toggle-column-button-Test Filter'),
+    ).not.toBeInTheDocument();
   });
 
   it('should handle excluded items', () => {

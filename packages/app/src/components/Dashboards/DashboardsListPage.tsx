@@ -47,6 +47,7 @@ import { useFavorites } from '@/favorites';
 import { withAppNav } from '@/layout';
 import { useBrandDisplayName } from '@/theme/ThemeProvider';
 import { useConfirm } from '@/useConfirm';
+import { usePermissions } from '@/usePermissions';
 import { groupByTags } from '@/utils/groupByTags';
 
 function getDashboardAlerts(tiles: Dashboard['tiles']) {
@@ -81,6 +82,7 @@ const PRESET_DASHBOARDS = [
 ];
 
 export default function DashboardsListPage() {
+  const { canManageShared } = usePermissions();
   const brandName = useBrandDisplayName();
   const { data: dashboards, isLoading, isError } = useDashboards();
   const confirm = useConfirm();
@@ -292,6 +294,7 @@ export default function DashboardsListPage() {
               variant="secondary"
               leftSection={<IconUpload size={16} />}
               data-testid="import-dashboard-button"
+              disabled={!canManageShared}
             >
               Import
             </Button>
@@ -312,6 +315,7 @@ export default function DashboardsListPage() {
                   leftSection={<IconDeviceFloppy size={14} />}
                   onClick={handleCreate}
                   data-testid="create-dashboard-button"
+                  disabled={!canManageShared}
                 >
                   Saved Dashboard
                   <Text size="xs" c="dimmed">
@@ -363,6 +367,7 @@ export default function DashboardsListPage() {
                   variant="secondary"
                   leftSection={<IconUpload size={16} />}
                   data-testid="empty-import-dashboard-button"
+                  disabled={!canManageShared}
                 >
                   Import
                 </Button>
@@ -372,6 +377,7 @@ export default function DashboardsListPage() {
                   onClick={handleCreate}
                   loading={createDashboard.isPending}
                   data-testid="empty-create-dashboard-button"
+                  disabled={!canManageShared}
                 >
                   New Dashboard
                 </Button>

@@ -9,11 +9,13 @@ import mcpRouter from './mcp/app';
 import { isUserAuthenticated } from './middleware/auth';
 import defaultCors from './middleware/cors';
 import { appErrorHandler } from './middleware/error';
+import { requireAdmin, requireAdminForWrites } from './middleware/permissions';
 import routers from './routers/api';
 import clickhouseProxyRouter from './routers/api/clickhouseProxy';
 import connectionsRouter from './routers/api/connections';
 import favoritesRouter from './routers/api/favorites';
 import iacRouter from './routers/api/iac';
+import personalPinnedFiltersRouter from './routers/api/personalPinnedFilters';
 import pinnedFiltersRouter from './routers/api/pinnedFilters';
 import savedSearchRouter from './routers/api/savedSearch';
 import sourcesRouter from './routers/api/sources';
@@ -98,18 +100,53 @@ app.use('/mcp', mcpRouter);
 
 // PRIVATE ROUTES
 app.use('/ai', isUserAuthenticated, routers.aiRouter);
-app.use('/alerts', isUserAuthenticated, routers.alertsRouter);
-app.use('/dashboards', isUserAuthenticated, routers.dashboardRouter);
+app.use(
+  '/alerts',
+  isUserAuthenticated,
+  requireAdminForWrites,
+  routers.alertsRouter,
+);
+app.use(
+  '/dashboards',
+  isUserAuthenticated,
+  requireAdminForWrites,
+  routers.dashboardRouter,
+);
 app.use('/me', isUserAuthenticated, routers.meRouter);
-app.use('/team', isUserAuthenticated, routers.teamRouter);
-app.use('/webhooks', isUserAuthenticated, routers.webhooksRouter);
-app.use('/connections', isUserAuthenticated, connectionsRouter);
-app.use('/sources', isUserAuthenticated, sourcesRouter);
-app.use('/saved-search', isUserAuthenticated, savedSearchRouter);
+app.use(
+  '/team',
+  isUserAuthenticated,
+  requireAdminForWrites,
+  routers.teamRouter,
+);
+app.use('/webhooks', isUserAuthenticated, requireAdmin, routers.webhooksRouter);
+app.use(
+  '/connections',
+  isUserAuthenticated,
+  requireAdminForWrites,
+  connectionsRouter,
+);
+app.use('/sources', isUserAuthenticated, requireAdminForWrites, sourcesRouter);
+app.use(
+  '/saved-search',
+  isUserAuthenticated,
+  requireAdminForWrites,
+  savedSearchRouter,
+);
 app.use('/favorites', isUserAuthenticated, favoritesRouter);
-app.use('/pinned-filters', isUserAuthenticated, pinnedFiltersRouter);
+app.use(
+  '/personal-pinned-filters',
+  isUserAuthenticated,
+  personalPinnedFiltersRouter,
+);
+app.use(
+  '/pinned-filters',
+  isUserAuthenticated,
+  requireAdminForWrites,
+  pinnedFiltersRouter,
+);
 app.use('/clickhouse-proxy', isUserAuthenticated, clickhouseProxyRouter);
-app.use('/iac', isUserAuthenticated, iacRouter);
+app.use('/iac', isUserAuthenticated, requireAdmin, iacRouter);
 if (config.IS_PROMQL_ENABLED) {
   app.use('/v1/prometheus', isUserAuthenticated, routers.prometheusRouter);
 }

@@ -2880,7 +2880,11 @@ export type InstallationApiResponse = z.infer<
 >;
 
 // Me
+export const UserRoleSchema = z.enum(['admin', 'developer']);
+export type UserRole = z.infer<typeof UserRoleSchema>;
+
 export const MeApiResponseSchema = z.object({
+  role: UserRoleSchema.optional(),
   accessKey: z.string(),
   createdAt: z.string(),
   email: z.string(),

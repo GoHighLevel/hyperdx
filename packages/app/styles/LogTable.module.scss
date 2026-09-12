@@ -3,7 +3,7 @@ $button-height: 18px;
 .tableWrapper {
   overflow: auto;
   height: 100%;
-  font-size: var(--mantine-font-size-xs);
+  font-size: var(--log-font-size, 14px);
 
   /* CSS custom properties for variant support */
   --log-table-bg: var(--color-bg-body);
@@ -113,6 +113,8 @@ $button-height: 18px;
 }
 
 .rowContentButton {
+  font: inherit;
+  user-select: text;
   background: transparent;
   border: none;
   padding: 0;

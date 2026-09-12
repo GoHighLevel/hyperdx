@@ -1,4 +1,4 @@
-import { screen, waitFor } from '@testing-library/react';
+import { fireEvent, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 import {
@@ -9,6 +9,11 @@ import * as useChartConfigModule from '@/hooks/useChartConfig';
 import { RowWhereResult } from '@/hooks/useRowWhere';
 
 const mockRowWhereResult: RowWhereResult = { where: '', aliasWith: [] };
+
+jest.mock('nuqs', () => ({
+  ...jest.requireActual('nuqs'),
+  useQueryState: () => [null, jest.fn()],
+}));
 
 describe('RawLogTable', () => {
   beforeEach(() => {
@@ -42,6 +47,57 @@ describe('RawLogTable', () => {
     );
 
     expect(await screen.findByTestId('db-row-table-no-results')).toBeTruthy();
+  });
+
+  it('expands a row inline and leaves selected text alone', async () => {
+    const rect = jest
+      .spyOn(HTMLElement.prototype, 'getBoundingClientRect')
+      .mockReturnValue({
+        x: 0,
+        y: 0,
+        top: 0,
+        left: 0,
+        right: 1200,
+        bottom: 600,
+        width: 1200,
+        height: 600,
+        toJSON: () => ({}),
+      });
+    const height = jest
+      .spyOn(HTMLElement.prototype, 'offsetHeight', 'get')
+      .mockReturnValue(600);
+    const width = jest
+      .spyOn(HTMLElement.prototype, 'offsetWidth', 'get')
+      .mockReturnValue(1200);
+    const onRowDetailsClick = jest.fn();
+    renderWithMantine(
+      <RawLogTable
+        displayedColumns={['log']}
+        rows={[{ log: 'A message to copy' }]}
+        generateRowId={() => ({ where: 'id=1', aliasWith: [] })}
+        onRowDetailsClick={onRowDetailsClick}
+        columnTypeMap={new Map()}
+        renderRowDetails={() => <span>Full event JSON</span>}
+      />,
+    );
+    const row = await screen.findByRole('button', {
+      name: 'Toggle log details',
+    });
+    await userEvent.click(row);
+    expect(screen.getByText('Full event JSON')).toBeInTheDocument();
+    expect(onRowDetailsClick).not.toHaveBeenCalled();
+    const text = screen.getByText('A message to copy');
+    const range = document.createRange();
+    range.selectNodeContents(text);
+    window.getSelection()?.removeAllRanges();
+    window.getSelection()?.addRange(range);
+    expect(window.getSelection()?.toString()).toBe('A message to copy');
+    fireEvent.click(row);
+    expect(screen.getByText('Full event JSON')).toBeInTheDocument();
+    window.getSelection()?.removeAllRanges();
+    height.mockRestore();
+    width.mockRestore();
+    rect.mockRestore();
   });
 
   describe('Sorting', () => {

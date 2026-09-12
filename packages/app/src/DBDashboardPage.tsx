@@ -221,6 +221,7 @@ import {
 } from './timeQuery';
 import { useConfirm } from './useConfirm';
 import { FormatTime } from './useFormatTime';
+import { usePermissions } from './usePermissions';
 import { useUserPreferences } from './useUserPreferences';
 import { getMetricTableName, useLocalStorage } from './utils';
 import { useZIndex, ZIndexContext } from './zIndex';
@@ -1853,6 +1854,7 @@ function DBDashboardPage({
   dashboardProps: ReturnType<typeof useDashboard>;
   defaultTimeInput?: string;
 }) {
+  const { canManageShared } = usePermissions();
   const defaultTimeRange = useDefaultTimeRange(defaultTimeInput);
 
   const {
@@ -2410,7 +2412,7 @@ function DBDashboardPage({
           chart={chart}
           dateRange={searchedTimeRange}
           onEditClick={() => setEditedTile(chart)}
-          readOnly={isKioskMode}
+          readOnly={isKioskMode || !canManageShared}
           isLive={isRefreshEnabled}
           granularity={
             isRefreshEnabled ? granularityOverride : (granularity ?? undefined)
@@ -2525,6 +2527,7 @@ function DBDashboardPage({
       selectedTileIds,
       handleToggleTileSelect,
       isKioskMode,
+      canManageShared,
     ],
   );
 
@@ -2896,7 +2899,8 @@ function DBDashboardPage({
     />
   );
 
-  const dashboardActions = !isLocalDashboard ? (
+  const showDashboardActions = !isLocalDashboard && canManageShared;
+  const dashboardActions = showDashboardActions ? (
     <Group gap="xs" wrap="nowrap">
       {dashboard?.id && (
         <FavoriteButton resourceType="dashboard" resourceId={dashboard.id} />
@@ -3172,6 +3176,7 @@ function DBDashboardPage({
           variant="secondary"
           onClick={() => setShowFiltersModal(true)}
           data-testid="edit-filters-button"
+          disabled={!canManageShared}
           size="input-sm"
         >
           <IconFilterEdit size={18} />
@@ -3200,7 +3205,7 @@ function DBDashboardPage({
         </title>
       </Head>
       {!isKioskMode && <OnboardingModal />}
-      {!isKioskMode && (
+      {!isKioskMode && canManageShared && (
         <EditTileModal
           dashboardId={dashboardId}
           chart={editedTile}
@@ -3351,8 +3356,8 @@ function DBDashboardPage({
                       onLayoutChange={
                         isKioskMode ? undefined : onUngroupedLayoutChange
                       }
-                      isDraggable={!isKioskMode}
-                      isResizable={!isKioskMode}
+                      isDraggable={!isKioskMode && canManageShared}
+                      isResizable={!isKioskMode && canManageShared}
                       cols={24}
                       rowHeight={32}
                     >
@@ -3413,7 +3418,7 @@ function DBDashboardPage({
                           makeLayoutChangeHandler={makeOnLayoutChange}
                           tileToLayoutItem={tileToLayoutItem}
                           renderTileComponent={renderTileComponent}
-                          readOnly={isKioskMode}
+                          readOnly={isKioskMode || !canManageShared}
                         />
                       )}
                     </SortableContainerWrapper>
@@ -3422,7 +3427,7 @@ function DBDashboardPage({
               </ErrorBoundary>
             ) : null}
           </Box>
-          {!isKioskMode && (
+          {!isKioskMode && canManageShared && (
             <Menu position="top" width={200}>
               <Menu.Target>
                 <Button

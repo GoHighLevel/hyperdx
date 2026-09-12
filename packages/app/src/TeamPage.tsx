@@ -38,6 +38,7 @@ import { useBrandDisplayName } from './theme/ThemeProvider';
 import api from './api';
 import { IS_IAC_EXPORT_ENABLED } from './config';
 import { APP_CONTENT_SCROLL_CONTAINER_ID, withAppNav } from './layout';
+import { usePermissions } from './usePermissions';
 
 type TeamTab = {
   value: string;
@@ -80,7 +81,7 @@ export default function TeamPage() {
   const allowedAuthMethods = team?.allowedAuthMethods ?? [];
   const hasAllowedAuthMethods = allowedAuthMethods.length > 0;
 
-  const hasAdminAccess = true;
+  const { canManageShared: hasAdminAccess } = usePermissions();
   const [isEditingTeamName, setIsEditingTeamName] = useState(false);
   const form = useForm<{ name: string }>({
     defaultValues: { name: team?.name },
@@ -111,7 +112,7 @@ export default function TeamPage() {
     [refetchTeam, setTeamName],
   );
 
-  const tabs: TeamTab[] = [
+  const allTabs: TeamTab[] = [
     {
       value: 'data',
       label: 'Data',
@@ -170,7 +171,7 @@ export default function TeamPage() {
           id: 'team-api-agents-mcp-server',
           content: () => <McpServerSection />,
         },
-        ...(IS_IAC_EXPORT_ENABLED
+        ...(IS_IAC_EXPORT_ENABLED && hasAdminAccess
           ? [
               {
                 id: 'team-api-agents-iac',
@@ -206,6 +207,9 @@ export default function TeamPage() {
     },
   ];
 
+  const tabs = hasAdminAccess
+    ? allTabs
+    : allTabs.filter(tab => tab.value === 'api-agents');
   const queryTab =
     typeof router.query.tab === 'string' ? router.query.tab : null;
   const activeTab = tabs.some(tab => tab.value === queryTab)

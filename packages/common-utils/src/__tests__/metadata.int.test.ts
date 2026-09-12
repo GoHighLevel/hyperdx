@@ -102,6 +102,26 @@ describe('Metadata Integration Tests', () => {
     });
 
     describe.each([true, false])('with disableRowLimit=%s', disableRowLimit => {
+      it('preserves expression aliases when sampling and filtering values', async () => {
+        const result = await metadata.getKeyValues({
+          chartConfig: {
+            ...chartConfig,
+            with: [
+              {
+                name: 'Level',
+                isSubquery: false,
+                sql: { sql: 'lowerUTF8(SeverityText)', params: {} },
+              },
+            ],
+            where: "Level = 'error'",
+          },
+          keys: ['Level'],
+          disableRowLimit,
+          source,
+        });
+        expect(result).toEqual([{ key: 'Level', value: ['error'] }]);
+      });
+
       it('should return key-value pairs for a given metadata key', async () => {
         const resultSeverityText = await metadata.getKeyValues({
           chartConfig,

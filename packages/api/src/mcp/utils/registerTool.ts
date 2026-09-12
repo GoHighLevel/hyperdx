@@ -19,6 +19,25 @@ export function createRegisterTool(
   context: McpContext,
 ): RegisterToolFn {
   return (name, config, handler) => {
+    // Server-owned annotations classify tools; unclassified tools are denied.
+    // Keep webhook discovery admin-only, matching the HTTP API.
+    const requiresAdmin =
+      config.annotations?.readOnlyHint !== true ||
+      name === 'clickstack_get_webhook';
+    const authorizedHandler: typeof handler = async args => {
+      if (requiresAdmin && context.role !== 'admin') {
+        return {
+          isError: true,
+          content: [
+            {
+              type: 'text',
+              text: 'Admin access is required to manage shared configuration.',
+            },
+          ],
+        };
+      }
+      return handler(args);
+    };
     // Wrap with tracing, then register.  The explicit InputArgs generic
     // binds the SDK's own type parameter to AnyZodObject so TypeScript
     // resolves ToolCallback via the AnySchema branch of BaseToolCallback.
@@ -27,7 +46,7 @@ export function createRegisterTool(
     const traced: ToolCallback<AnyZodObject> = withToolTracing(
       name,
       context,
-      handler,
+      authorizedHandler,
     );
     server.registerTool<AnyZodObject, AnyZodObject>(name, config, traced);
   };

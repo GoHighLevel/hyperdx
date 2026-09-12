@@ -1,6 +1,8 @@
 import { ActionIcon, Center, Menu } from '@mantine/core';
 import { IconPin, IconPinFilled, IconUsers } from '@tabler/icons-react';
 
+import { usePermissions } from '@/usePermissions';
+
 /**
  * Shared pin/share dropdown menu used on both value rows and group headers.
  * Shows contextual actions: "Remove from Shared" / "Pin for me" / "Share with team"
@@ -30,6 +32,7 @@ export function PinShareMenu({
   'data-testid'?: string;
   'aria-label'?: string;
 }) {
+  const { canManageShared } = usePermissions();
   const isPinnedAny = personalPinned || sharedPinned;
 
   // Personal pin icon takes priority over shared icon
@@ -61,7 +64,7 @@ export function PinShareMenu({
         </ActionIcon>
       </Menu.Target>
       <Menu.Dropdown>
-        {onToggleSharedPin && sharedPinned && (
+        {canManageShared && onToggleSharedPin && sharedPinned && (
           <Menu.Item
             leftSection={<IconUsers size={14} />}
             onClick={onToggleSharedPin}
@@ -79,7 +82,7 @@ export function PinShareMenu({
         >
           {personalPinned ? 'Unpin for me' : 'Pin for me'}
         </Menu.Item>
-        {onToggleSharedPin && !sharedPinned && (
+        {canManageShared && onToggleSharedPin && !sharedPinned && (
           <Menu.Item
             leftSection={<IconUsers size={14} />}
             onClick={onToggleSharedPin}

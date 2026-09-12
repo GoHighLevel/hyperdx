@@ -4,7 +4,7 @@
   width: 100%;
   flex-direction: column;
   padding: var(--mantine-spacing-xs);
-  font-size: 12px;
+  font-size: var(--log-font-size, 14px);
   font-family: var(--font-ibm-plex-mono);
 }
 

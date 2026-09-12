@@ -27,6 +27,7 @@ import {
   findUsersByTeam,
 } from '@/controllers/user';
 import { getNonNullUserWithTeam } from '@/middleware/auth';
+import { getUserRole, requireAdmin } from '@/middleware/permissions';
 import TeamInvite from '@/models/teamInvite';
 import { sendJson } from '@/utils/serialization';
 import { objectIdSchema } from '@/utils/zod';
@@ -59,6 +60,7 @@ router.get('/', async (req, res: TeamApiExpRes, next) => {
       throw new Error(`Team ${teamId} not found for user ${userId}`);
     }
 
+    if (getUserRole(req.user) !== 'admin') team.apiKey = '';
     sendJson(res, team);
   } catch (e) {
     next(e);
@@ -191,34 +193,38 @@ router.post(
 );
 
 type TeamInviteExpressRes = express.Response<TeamInvitationsApiResponse>;
-router.get('/invitations', async (req, res: TeamInviteExpressRes, next) => {
-  try {
-    const teamId = req.user?.team;
-    if (teamId == null) {
-      throw new Error(`User ${req.user?._id} not associated with a team`);
+router.get(
+  '/invitations',
+  requireAdmin,
+  async (req, res: TeamInviteExpressRes, next) => {
+    try {
+      const teamId = req.user?.team;
+      if (teamId == null) {
+        throw new Error(`User ${req.user?._id} not associated with a team`);
+      }
+      const teamInvites = await TeamInvite.find(
+        { teamId },
+        {
+          createdAt: 1,
+          email: 1,
+          name: 1,
+          token: 1,
+        },
+      );
+      res.json({
+        data: teamInvites.map(ti => ({
+          _id: ti._id.toString(),
+          createdAt: ti.createdAt.toISOString(),
+          email: ti.email,
+          name: ti.name,
+          url: getTeamInviteUrl(ti.token),
+        })),
+      });
+    } catch (e) {
+      next(e);
     }
-    const teamInvites = await TeamInvite.find(
-      { teamId },
-      {
-        createdAt: 1,
-        email: 1,
-        name: 1,
-        token: 1,
-      },
-    );
-    res.json({
-      data: teamInvites.map(ti => ({
-        _id: ti._id.toString(),
-        createdAt: ti.createdAt.toISOString(),
-        email: ti.email,
-        name: ti.name,
-        url: getTeamInviteUrl(ti.token),
-      })),
-    });
-  } catch (e) {
-    next(e);
-  }
-});
+  },
+);
 
 router.delete(
   '/invitation/:id',

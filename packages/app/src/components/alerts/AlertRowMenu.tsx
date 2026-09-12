@@ -22,6 +22,7 @@ import { IS_IAC_EXPORT_ENABLED } from '@/config';
 import { useBrandDisplayName } from '@/theme/ThemeProvider';
 import type { AlertsPageItem } from '@/types';
 import { useConfirm } from '@/useConfirm';
+import { usePermissions } from '@/usePermissions';
 import { intervalToDateRange } from '@/utils/alerts';
 
 type AlertRowMenuProps = {
@@ -62,6 +63,7 @@ export function AlertRowMenu({
   dateRange,
   onDeleted,
 }: AlertRowMenuProps) {
+  const { canManageShared } = usePermissions();
   // `||`, not `??`: the empty string these arrive as for an unresolvable
   // source is not nullish, and would read as "Open " and "Delete ?".
   const name = alertName?.trim() || 'this alert';
@@ -145,6 +147,7 @@ export function AlertRowMenu({
     queryClient,
   ]);
 
+  if (!canManageShared) return null;
   return (
     <>
       <Menu withArrow position="bottom-end">

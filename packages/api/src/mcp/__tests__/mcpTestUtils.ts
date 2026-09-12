@@ -14,7 +14,7 @@ import { McpContext } from '@/mcp/tools/types';
  * without accessing private SDK internals.
  */
 export async function createTestClient(context: McpContext): Promise<Client> {
-  const mcpServer = createServer(context);
+  const mcpServer = createServer({ role: 'admin', ...context });
   const [clientTransport, serverTransport] =
     InMemoryTransport.createLinkedPair();
   await mcpServer.connect(serverTransport);

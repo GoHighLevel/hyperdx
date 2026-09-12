@@ -12,7 +12,8 @@ import {
   toQuotedClickHouseKeyExpression,
 } from './components/DBSearchPageFilters/utils';
 import { usePinnedFiltersApi, useUpdatePinnedFilters } from './pinnedFilters';
-import { useLocalStorage } from './utils';
+import { usePermissions } from './usePermissions';
+import { usePersonalPinnedFilters } from './usePersonalPinnedFilters';
 
 export const IS_ROOT_SPAN_COLUMN_NAME = 'isRootSpan';
 
@@ -384,62 +385,8 @@ function toggleValueInFilters(
   return updated;
 }
 
-/**
- * Hook for personal pinned filters stored in localStorage.
- * This is the original storage mechanism, per-user, per-browser.
- */
-function usePersonalPinnedFilters(sourceId: string | null) {
-  const [_pinnedFilters, _setPinnedFilters] = useLocalStorage<{
-    [sourceId: string]: PinnedFilters;
-  }>('hdx-pinned-search-filters', {});
-
-  const [_pinnedFields, _setPinnedFields] = useLocalStorage<{
-    [sourceId: string]: string[];
-  }>('hdx-pinned-fields', {});
-
-  const filters = useMemo<PinnedFilters>(
-    () =>
-      !sourceId || !_pinnedFilters[sourceId] ? {} : _pinnedFilters[sourceId],
-    [_pinnedFilters, sourceId],
-  );
-
-  const fields = useMemo<string[]>(
-    () =>
-      !sourceId || !_pinnedFields[sourceId] ? [] : _pinnedFields[sourceId],
-    [_pinnedFields, sourceId],
-  );
-
-  const setFilters = useCallback(
-    (val: PinnedFilters | ((pf: PinnedFilters) => PinnedFilters)) => {
-      if (!sourceId) return;
-      _setPinnedFilters(prev => {
-        const updated = { ...prev };
-        updated[sourceId] =
-          val instanceof Function ? val(prev[sourceId] ?? {}) : val;
-        return updated;
-      });
-    },
-    [sourceId, _setPinnedFilters],
-  );
-
-  const setFields = useCallback(
-    (val: string[] | ((pf: string[]) => string[])) => {
-      if (!sourceId) return;
-      _setPinnedFields(prev => {
-        const updated = { ...prev };
-        updated[sourceId] =
-          val instanceof Function ? val(prev[sourceId] ?? []) : val;
-        return updated;
-      });
-    },
-    [sourceId, _setPinnedFields],
-  );
-
-  return { filters, fields, setFilters, setFields };
-}
-
 export function usePinnedFilters(sourceId: string | null) {
-  // Personal pins: localStorage (per-user, per-browser)
+  const { canManageShared } = usePermissions();
   const personal = usePersonalPinnedFilters(sourceId);
 
   // Team/shared pins: MongoDB via API (shared across team)
@@ -491,7 +438,7 @@ export function usePinnedFilters(sourceId: string | null) {
 
   const flushTeamUpdate = useCallback(
     (newFields: string[], newFilters: PinnedFilters) => {
-      if (!sourceId) return;
+      if (!sourceId || !canManageShared) return;
 
       setOptimisticTeam({ sourceId, fields: newFields, filters: newFilters });
 
@@ -512,10 +459,10 @@ export function usePinnedFilters(sourceId: string | null) {
         pendingTeamUpdateRef.current = null;
       }, 300);
     },
-    [sourceId, updateTeamMutation],
+    [sourceId, updateTeamMutation, canManageShared],
   );
 
-  // Personal pin: value-level pin (localStorage, instant)
+  // Personal value pins are saved independently of shared pins.
   const toggleFilterPin = useCallback(
     (property: string, value: string | boolean) => {
       personal.setFilters(prev => toggleValueInFilters(prev, property, value));
@@ -527,7 +474,7 @@ export function usePinnedFilters(sourceId: string | null) {
     [personal],
   );
 
-  // Personal pin: field-level pin (localStorage, instant)
+  // Personal field pins follow the account across browsers.
   const toggleFieldPin = useCallback(
     (field: string) => {
       personal.setFields(prev => {
@@ -642,6 +589,8 @@ export function usePinnedFilters(sourceId: string | null) {
   );
 
   return {
+    rememberFields: personal.rememberFields,
+    personalPinsLoaded: personal.isLoaded,
     toggleFilterPin,
     toggleFieldPin,
     isFilterPinned,

@@ -4,6 +4,7 @@ import { notifications } from '@mantine/notifications';
 import api from '@/api';
 import { RevealSnippet } from '@/components/RevealSnippet/RevealSnippet';
 import { useConfirm } from '@/useConfirm';
+import { usePermissions } from '@/usePermissions';
 
 // The reveal Input fills its container, so cap its width here at the parent.
 const KEY_FIELD_MAX_WIDTH = 420;
@@ -36,7 +37,7 @@ export default function ApiKeysSection() {
   const rotateTeamApiKey = api.useRotateTeamApiKey();
   const rotatePersonalAccessKey = api.useRotatePersonalAccessKey();
   const confirm = useConfirm();
-  const hasAdminAccess = true;
+  const { canManageShared: hasAdminAccess } = usePermissions();
 
   // `confirm` resolves exactly once, so a double click on its Confirm button
   // during the modal's exit transition cannot fire a second rotation.
@@ -110,29 +111,31 @@ export default function ApiKeysSection() {
     <Box id="api_keys" data-testid="api-keys-section">
       <Text size="md">API keys</Text>
       <Divider my="md" />
-      <Card mb="md">
-        <Text mb="md">Ingestion API key</Text>
-        <Group gap="xs" align="flex-start" wrap="nowrap">
-          {team?.apiKey && (
-            <Box flex={1} miw={0} maw={KEY_FIELD_MAX_WIDTH}>
-              <APIKeyCopyButton
-                value={team.apiKey}
-                dataTestId="ingestion-api-key"
-                ariaLabel="Ingestion API key"
-              />
-            </Box>
-          )}
-          {hasAdminAccess && (
-            <Button
-              data-testid="rotate-api-key-button"
-              variant="danger"
-              onClick={onRotateTeamApiKey}
-            >
-              Rotate API key
-            </Button>
-          )}
-        </Group>
-      </Card>
+      {hasAdminAccess && (
+        <Card mb="md">
+          <Text mb="md">Ingestion API key</Text>
+          <Group gap="xs" align="flex-start" wrap="nowrap">
+            {team?.apiKey && (
+              <Box flex={1} miw={0} maw={KEY_FIELD_MAX_WIDTH}>
+                <APIKeyCopyButton
+                  value={team.apiKey}
+                  dataTestId="ingestion-api-key"
+                  ariaLabel="Ingestion API key"
+                />
+              </Box>
+            )}
+            {hasAdminAccess && (
+              <Button
+                data-testid="rotate-api-key-button"
+                variant="danger"
+                onClick={onRotateTeamApiKey}
+              >
+                Rotate API key
+              </Button>
+            )}
+          </Group>
+        </Card>
+      )}
       {!isLoadingMe && me != null && (
         <Card>
           <Card.Section p="md">

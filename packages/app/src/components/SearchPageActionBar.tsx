@@ -1,6 +1,8 @@
 import { ActionIcon, Menu } from '@mantine/core';
 import { IconCopy, IconDotsVertical, IconTrash } from '@tabler/icons-react';
 
+import { usePermissions } from '@/usePermissions';
+
 export default function SearchPageActionBar({
   onClickDeleteSavedSearch,
   onClickSaveAsNew,
@@ -8,6 +10,8 @@ export default function SearchPageActionBar({
   onClickDeleteSavedSearch: () => void;
   onClickSaveAsNew: () => void;
 }) {
+  const { canManageShared } = usePermissions();
+  if (!canManageShared) return null;
   return (
     <Menu width={250}>
       <Menu.Target>

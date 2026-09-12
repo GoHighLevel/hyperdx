@@ -3,6 +3,7 @@ import router from 'next/router';
 import { useAtom, useAtomValue } from 'jotai';
 import { atomWithStorage } from 'jotai/utils';
 import get from 'lodash/get';
+import SqlString from 'sqlstring';
 import {
   Box,
   Button,
@@ -33,6 +34,7 @@ import HyperJson, {
   LineAction,
 } from '@/components/HyperJson';
 import { useFormatTime } from '@/useFormatTime';
+import { useUserPreferences } from '@/useUserPreferences';
 import { mergePath } from '@/utils';
 import {
   CLIPBOARD_ERROR_MESSAGE,
@@ -63,7 +65,7 @@ export function buildJSONExtractQuery(
   // numeric-looking Map sub-key renders as `Map['1']` instead of the array
   // `Map[2]`. See HDX-4369.
   const baseColumn = mergePath(parsedJsonRootPath, jsonColumns, mapColumns);
-  const jsonPathArgs = nestedPath.map(p => `'${p}'`).join(', ');
+  const jsonPathArgs = nestedPath.map(p => SqlString.escape(p)).join(', ');
   return `${jsonExtractFn}(${baseColumn}, ${jsonPathArgs})`;
 }
 
@@ -355,6 +357,9 @@ export function DBRowJsonViewer({
 }) {
   const formatTime = useFormatTime();
   const {
+    userPreferences: { logFontSize = 14 },
+  } = useUserPreferences();
+  const {
     onPropertyAddClick,
     generateSearchUrl,
     generateChartUrl,
@@ -429,7 +434,7 @@ export function DBRowJsonViewer({
         actions.push({
           key: 'add-to-search',
           label: <IconFilter size={14} />,
-          title: 'Add to Filters',
+          title: 'Filter by this field',
           onClick: () => {
             let filterFieldPath = fieldPath;
 
@@ -679,7 +684,10 @@ export function DBRowJsonViewer({
   );
 
   return (
-    <div className="flex-grow-1 overflow-auto">
+    <div
+      className="flex-grow-1 overflow-auto"
+      style={{ '--log-font-size': `${logFontSize}px` } as React.CSSProperties}
+    >
       <Box py="xs">
         <Group gap="xs">
           <Input
@@ -709,6 +717,7 @@ export function DBRowJsonViewer({
             getLineActions={getLineActions}
             formatLeafValue={formatLeafValue}
             {...jsonOptions}
+            expandJsonStrings
           />
         ) : (
           <Text>No data</Text>

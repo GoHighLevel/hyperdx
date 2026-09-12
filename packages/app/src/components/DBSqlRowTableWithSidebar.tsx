@@ -6,6 +6,7 @@ import {
 } from '@hyperdx/common-utils/dist/clickhouse';
 import {
   BuilderChartConfigWithDateRange,
+  SourceKind,
   TSource,
 } from '@hyperdx/common-utils/dist/types';
 import { SortingState } from '@tanstack/react-table';
@@ -13,6 +14,7 @@ import { SortingState } from '@tanstack/react-table';
 import { RowWhereResult, WithClause } from '@/hooks/useRowWhere';
 import { useSource } from '@/source';
 import TabBar from '@/TabBar';
+import { usePermissions } from '@/usePermissions';
 import { useLocalStorage } from '@/utils';
 import { parseAsStringEncoded } from '@/utils/queryParsers';
 
@@ -166,6 +168,7 @@ function RowOverviewPanelWrapper({
   rowId: string;
   aliasWith?: WithClause[];
 }) {
+  const { canManageShared } = usePermissions();
   // Use localStorage to persist the selected tab
   const [activeTab, setActiveTab] = useLocalStorage<InlineTab>(
     'hdx-expanded-row-default-tab',
@@ -186,6 +189,10 @@ function RowOverviewPanelWrapper({
         </div>
       </div>
     );
+  }
+
+  if (source.kind === SourceKind.Log && !canManageShared) {
+    return <RowDataPanel source={source} rowId={rowId} aliasWith={aliasWith} />;
   }
 
   return (

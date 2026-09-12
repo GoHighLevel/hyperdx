@@ -28,6 +28,7 @@ import { escapeFilterStateKeys, usePinnedFilters } from '@/searchFilters';
 import { useSource } from '@/source';
 import { mergePath } from '@/utils';
 
+import { isDefaultVisibleFilter } from './personalFilterDefaults';
 import { toQuotedClickHouseKeyExpression } from './utils';
 
 const INITIAL_LOAD_LIMIT = 20;
@@ -112,16 +113,13 @@ function useFacets({
     enabled,
   });
 
-  const { isFieldPinned, isSharedFieldPinned } = usePinnedFilters(
-    sourceId ?? null,
-  );
+  const { isFieldPinned, isSharedFieldPinned, getPinnedFields } =
+    usePinnedFilters(sourceId ?? null);
 
   const keysToFetch = useMemo(() => {
-    if (!allFields) {
-      return [];
-    }
-
-    const strings = allFields
+    const aliases = new Set(chartConfig.with?.map(clause => clause.name));
+    const hasLevelAlias = aliases.has('Level');
+    const strings = [...(allFields ?? [])]
       .sort((a, b) => {
         // First show low cardinality fields
         const isLowCardinality = (type: string) =>
@@ -138,15 +136,17 @@ function useFacets({
       .map(({ path, type }) => {
         return {
           type,
-          path: mergePath(path, jsonColumns ?? [], mapColumns ?? []),
+          path:
+            hasLevelAlias && path.length === 1 && path[0] === 'log_level'
+              ? 'Level'
+              : mergePath(path, jsonColumns ?? [], mapColumns ?? []),
           isMapSubField: path.length > 1,
         };
       })
       .filter(
         field =>
           showMoreFields ||
-          field.type.includes('LowCardinality') || // query only low cardinality fields by default
-          field.isMapSubField || // always include Map/JSON sub-fields (e.g. LogAttributes, ResourceAttributes keys)
+          isDefaultVisibleFilter(field.path) ||
           (filterState && Object.keys(filterState).includes(field.path)) || // keep selected fields
           isFieldPinned(field.path) || // keep personally pinned fields
           isSharedFieldPinned(field.path), // keep team-shared fields
@@ -156,15 +156,31 @@ function useFacets({
         path =>
           !['body', 'timestamp', '_hdx_body'].includes(path.toLowerCase()),
       );
-    return strings;
+    // A field selected from a log may be absent from sampled metadata (or be
+    // a JSONExtract expression). Keep it queryable after the filter is cleared.
+    return Array.from(
+      new Set([
+        ...strings,
+        ...getPinnedFields(),
+        ...Object.keys(filterState ?? {}),
+      ]),
+    ).filter(
+      key =>
+        !['Level', 'Message'].includes(key) ||
+        aliases.has(key) ||
+        knownColumns.has(key),
+    );
   }, [
     allFields,
+    chartConfig.with,
+    knownColumns,
     jsonColumns,
     mapColumns,
     filterState,
     showMoreFields,
     isFieldPinned,
     isSharedFieldPinned,
+    getPinnedFields,
   ]);
 
   const { escapedKeysToFetch, sqlKeyToUiKey } = useMemo(() => {
@@ -207,6 +223,7 @@ function useFacets({
       rawFacets?.map(f => ({
         ...f,
         key: sqlKeyToUiKey.get(f.key) ?? f.key,
+        value: f.value.map(String),
       })),
     [rawFacets, sqlKeyToUiKey],
   );

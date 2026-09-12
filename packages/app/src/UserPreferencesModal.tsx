@@ -183,6 +183,26 @@ export const UserPreferencesModal = ({
           </SettingContainer>
         )}
 
+        <SettingContainer
+          label="Log font size"
+          description="Applies to log rows and expanded details"
+        >
+          <Select
+            aria-label="Log font size"
+            value={String(userPreferences.logFontSize ?? 14)}
+            data={['12', '14', '16', '18'].map(value => ({
+              value,
+              label: `${value}px`,
+            }))}
+            allowDeselect={false}
+            onChange={value => {
+              const size = Number(value);
+              if (size === 12 || size === 14 || size === 16 || size === 18) {
+                setUserPreference({ logFontSize: size });
+              }
+            }}
+          />
+        </SettingContainer>
         {/* Font selection is only available for HyperDX theme */}
         {/* ClickStack theme always uses Inter font and doesn't show this setting */}
         {themeName !== 'clickstack' && (

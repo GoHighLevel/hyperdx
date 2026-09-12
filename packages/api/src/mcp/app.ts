@@ -4,6 +4,7 @@ import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/
 import express from 'express';
 
 import { validateUserAccessKey } from '@/middleware/auth';
+import { getUserRole } from '@/middleware/permissions';
 import logger from '@/utils/logger';
 import rateLimiter, { rateLimiterKeyGenerator } from '@/utils/rateLimiter';
 
@@ -58,6 +59,7 @@ app.post('/', mcpRateLimiter, validateUserAccessKey, async (req, res) => {
   }
 
   const context: McpContext = {
+    role: getUserRole(req.user),
     teamId: teamId.toString(),
     userId,
     mcpClient: userAgentClientInfo(req.get('User-Agent')),

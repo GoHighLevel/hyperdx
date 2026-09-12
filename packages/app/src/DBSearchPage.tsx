@@ -131,6 +131,7 @@ import {
   useLocalStorage,
   usePrevious,
 } from '@/utils';
+import { readableLogColumns } from '@/utils/readableLogColumns';
 
 import ChartSQLPreview, { SQLPreview } from './components/ChartSQLPreview';
 import DBSqlRowTableWithSideBar from './components/DBSqlRowTableWithSidebar';
@@ -165,6 +166,7 @@ import { DBSearchPageAlertModal } from './DBSearchPageAlertModal';
 import { EditablePageName } from './EditablePageName';
 import { SearchConfig } from './types';
 import { FormatTime } from './useFormatTime';
+import { usePermissions } from './usePermissions';
 
 import searchPageStyles from '@styles/SearchPage.module.scss';
 
@@ -1000,6 +1002,7 @@ export function useSearchTelemetry({
 }
 
 export function DBSearchPage() {
+  const { canManageShared } = usePermissions();
   const brandName = useBrandDisplayName();
   const defaultTimeRange = useDefaultTimeRange('Past 15m');
 
@@ -1467,7 +1470,10 @@ export function DBSearchPage() {
   >(undefined);
   const chartSearchConfig = useMemo(
     () => ({
-      select: searchedConfig.select ?? '',
+      select:
+        !canManageShared && searchedSource?.kind === SourceKind.Log
+          ? readableLogColumns(defaultSearchConfig.select ?? '', knownColumns)
+          : (searchedConfig.select ?? ''),
       source: chartSourceId,
       where: searchedConfig.where ?? '',
       whereLanguage:
@@ -1477,6 +1483,10 @@ export function DBSearchPage() {
     }),
     [
       chartSourceId,
+      canManageShared,
+      searchedSource?.kind,
+      defaultSearchConfig.select,
+      knownColumns,
       searchedConfig.filters,
       searchedConfig.orderBy,
       searchedConfig.select,
@@ -1950,7 +1960,7 @@ export function DBSearchPage() {
     () => ({
       onPropertyAddClick: searchFilters.setFilterValue,
       displayedColumns,
-      toggleColumn,
+      toggleColumn: canManageShared ? toggleColumn : undefined,
       generateSearchUrl,
       dbSqlRowTableConfig,
       isChildModalOpen: isDrawerChildModalOpen,
@@ -1959,6 +1969,7 @@ export function DBSearchPage() {
     }),
     [
       searchFilters.setFilterValue,
+      canManageShared,
       searchedSource,
       dbSqlRowTableConfig,
       displayedColumns,
@@ -2218,97 +2229,102 @@ export function DBSearchPage() {
         className={searchPageStyles.searchForm}
       >
         {/* <DevTool control={control} /> */}
-        <Flex gap="sm" px="sm" pt="sm" wrap="nowrap">
-          <SourceSelectControlled
-            key={`${savedSearchId}`}
-            size="xs"
-            control={control}
-            name="source"
-            onCreate={openNewSourceModal}
-            onEdit={onEditCurrentSource}
-            onManageSources={onManageSources}
-            onSchemaPreview={() => setIsSourceSchemaPreviewOpen(true)}
-            isSchemaPreviewEnabled={isSourceSchemaPreviewEnabled(
-              inputSourceObj,
-            )}
-            allowedSourceKinds={ALLOWED_SOURCE_KINDS}
-            data-testid="source-selector"
-            style={{ minWidth: 150 }}
-          />
-          <SourceSchemaPreview
-            source={inputSourceObj}
-            controlled
-            open={isSourceSchemaPreviewOpen}
-            onClose={() => setIsSourceSchemaPreviewOpen(false)}
-          />
-          <Box style={{ flex: '1 1 0%', minWidth: 100 }}>
-            <SQLInlineEditorControlled
-              tableConnection={inputSourceTableConnection}
-              control={control}
-              name="select"
-              defaultValue={defaultSearchConfig.select}
-              placeholder={defaultSearchConfig.select || 'SELECT Columns'}
-              onSubmit={onSubmit}
-              label="SELECT"
+        {canManageShared && (
+          <Flex gap="sm" px="sm" pt="sm" wrap="nowrap">
+            <SourceSelectControlled
+              key={`${savedSearchId}`}
               size="xs"
-              allowMultiline
-              dateRange={searchedTimeRange}
-              sourceId={inputSource}
-            />
-          </Box>
-          <Box style={{ maxWidth: 400, width: '20%' }}>
-            <SQLInlineEditorControlled
-              tableConnection={inputSourceTableConnection}
               control={control}
-              name="orderBy"
-              defaultValue={defaultSearchConfig.orderBy}
-              onSubmit={onSubmit}
-              label="ORDER BY"
-              size="xs"
-              dateRange={searchedTimeRange}
-              sourceId={inputSource}
+              name="source"
+              onCreate={openNewSourceModal}
+              onEdit={onEditCurrentSource}
+              onManageSources={onManageSources}
+              onSchemaPreview={() => setIsSourceSchemaPreviewOpen(true)}
+              isSchemaPreviewEnabled={isSourceSchemaPreviewEnabled(
+                inputSourceObj,
+              )}
+              allowedSourceKinds={ALLOWED_SOURCE_KINDS}
+              data-testid="source-selector"
+              style={{ minWidth: 150 }}
             />
-          </Box>
-          <>
-            {!savedSearchId ? (
-              <Button
-                data-testid="save-search-button"
-                variant="secondary"
+            <SourceSchemaPreview
+              source={inputSourceObj}
+              controlled
+              open={isSourceSchemaPreviewOpen}
+              onClose={() => setIsSourceSchemaPreviewOpen(false)}
+            />
+            <Box style={{ flex: '1 1 0%', minWidth: 100 }}>
+              <SQLInlineEditorControlled
+                tableConnection={inputSourceTableConnection}
+                control={control}
+                name="select"
+                defaultValue={defaultSearchConfig.select}
+                placeholder={defaultSearchConfig.select || 'SELECT Columns'}
+                onSubmit={onSubmit}
+                label="SELECT"
                 size="xs"
-                onClick={onSaveSearch}
-                style={{ flexShrink: 0 }}
-              >
-                Save
-              </Button>
-            ) : (
-              <Button
-                data-testid="update-search-button"
-                variant="secondary"
+                allowMultiline
+                dateRange={searchedTimeRange}
+                sourceId={inputSource}
+              />
+            </Box>
+            <Box style={{ maxWidth: 400, width: '20%' }}>
+              <SQLInlineEditorControlled
+                tableConnection={inputSourceTableConnection}
+                control={control}
+                name="orderBy"
+                defaultValue={defaultSearchConfig.orderBy}
+                onSubmit={onSubmit}
+                label="ORDER BY"
                 size="xs"
-                onClick={() => {
-                  setSaveSearchModalState('update');
-                }}
-                style={{ flexShrink: 0 }}
-              >
-                Update
-              </Button>
-            )}
-            {!IS_LOCAL_MODE && (
-              <Button
-                data-testid="alerts-button"
-                variant="secondary"
-                size="xs"
-                onClick={openAlertModal}
-                style={{ flexShrink: 0 }}
-              >
-                <Group gap={4}>
-                  Alerts
-                  <AlertStatusIcon alerts={savedSearch?.alerts} />
-                </Group>
-              </Button>
-            )}
-          </>
-        </Flex>
+                dateRange={searchedTimeRange}
+                sourceId={inputSource}
+              />
+            </Box>
+            <>
+              {!savedSearchId ? (
+                <Button
+                  data-testid="save-search-button"
+                  disabled={!canManageShared}
+                  variant="secondary"
+                  size="xs"
+                  onClick={onSaveSearch}
+                  style={{ flexShrink: 0 }}
+                >
+                  Save
+                </Button>
+              ) : (
+                <Button
+                  data-testid="update-search-button"
+                  disabled={!canManageShared}
+                  variant="secondary"
+                  size="xs"
+                  onClick={() => {
+                    setSaveSearchModalState('update');
+                  }}
+                  style={{ flexShrink: 0 }}
+                >
+                  Update
+                </Button>
+              )}
+              {!IS_LOCAL_MODE && (
+                <Button
+                  data-testid="alerts-button"
+                  disabled={!canManageShared}
+                  variant="secondary"
+                  size="xs"
+                  onClick={openAlertModal}
+                  style={{ flexShrink: 0 }}
+                >
+                  <Group gap={4}>
+                    Alerts
+                    <AlertStatusIcon alerts={savedSearch?.alerts} />
+                  </Group>
+                </Button>
+              )}
+            </>
+          </Flex>
+        )}
         <SourceEditModal
           opened={modelFormExpanded}
           onClose={onModelFormExpandClose}

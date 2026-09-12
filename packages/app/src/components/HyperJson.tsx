@@ -44,6 +44,7 @@ export type FormatLeafValue = (arg0: {
 // to avoid prop drilling
 type HyperJsonAtom = {
   normallyExpanded: boolean;
+  expandJsonStrings?: boolean;
   getLineActions?: GetLineActions;
   formatLeafValue?: FormatLeafValue;
 };
@@ -171,7 +172,7 @@ const Line = React.memo(
     isInParsedJson?: boolean;
     parsedJsonRootPath?: string[];
   }) => {
-    const { normallyExpanded } = useAtomValue(hyperJsonAtom);
+    const { normallyExpanded, expandJsonStrings } = useAtomValue(hyperJsonAtom);
 
     // For performance reasons, render LineMenu only when hovered instead of
     // mounting it for potentially hundreds of lines
@@ -179,10 +180,11 @@ const Line = React.memo(
 
     const isStringValueValidJson = React.useMemo(() => {
       if (!isString(value)) return false;
+      const trimmed = value.trim();
       try {
         if (
-          (value.startsWith('{') && value.endsWith('}')) ||
-          (value.startsWith('[') && value.endsWith(']'))
+          (trimmed.startsWith('{') && trimmed.endsWith('}')) ||
+          (trimmed.startsWith('[') && trimmed.endsWith(']'))
         ) {
           const parsed = JSON.parse(value);
           return !!parsed;
@@ -193,12 +195,14 @@ const Line = React.memo(
     }, [value]);
 
     const [isExpanded, setIsExpanded] = React.useState(
-      normallyExpanded && !isStringValueValidJson,
+      normallyExpanded && (!isStringValueValidJson || !!expandJsonStrings),
     );
 
     React.useEffect(() => {
-      setIsExpanded(normallyExpanded && !isStringValueValidJson);
-    }, [isStringValueValidJson, normallyExpanded]);
+      setIsExpanded(
+        normallyExpanded && (!isStringValueValidJson || !!expandJsonStrings),
+      );
+    }, [isStringValueValidJson, normallyExpanded, expandJsonStrings]);
 
     const isExpandable = React.useMemo(
       () =>
@@ -428,6 +432,7 @@ const HydrateAtoms = ({
 type HyperJsonProps = {
   data: object;
   normallyExpanded?: boolean;
+  expandJsonStrings?: boolean;
   tabulate?: boolean;
   whiteSpace?: 'pre' | 'pre-wrap';
   getLineActions?: GetLineActions;
@@ -437,6 +442,7 @@ type HyperJsonProps = {
 const HyperJson = ({
   data,
   normallyExpanded = false,
+  expandJsonStrings = false,
   tabulate = false,
   whiteSpace = 'pre-wrap',
   getLineActions,
@@ -447,7 +453,12 @@ const HyperJson = ({
   return (
     <Provider>
       <HydrateAtoms
-        initialValues={{ normallyExpanded, getLineActions, formatLeafValue }}
+        initialValues={{
+          normallyExpanded,
+          expandJsonStrings,
+          getLineActions,
+          formatLeafValue,
+        }}
       >
         <div
           className={cx(styles.container, {

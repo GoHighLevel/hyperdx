@@ -3,6 +3,31 @@ import React from 'react';
 import HyperJson from '@/components/HyperJson';
 
 describe('HyperJson wrap markers', () => {
+  it('expands JSON strings when requested without losing their query context', () => {
+    const { container } = renderWithMantine(
+      <HyperJson
+        data={{ log: '  {"status_code":404,"message":"missing"}  ' }}
+        normallyExpanded
+        expandJsonStrings
+      />,
+    );
+    expect(container).toHaveTextContent('status_code');
+    expect(container).toHaveTextContent('404');
+    expect(container).toHaveTextContent('missing');
+  });
+
+  it('preserves plain text and malformed JSON', () => {
+    const { container } = renderWithMantine(
+      <HyperJson
+        data={{ log: '{not json}\nstack trace' }}
+        normallyExpanded
+        expandJsonStrings
+      />,
+    );
+    expect(container).toHaveTextContent('{not json}');
+    expect(container).toHaveTextContent('stack trace');
+  });
+
   const data = { 'url.path': '/bitdrift.internal_api.unary.example/VeryLong' };
 
   it('applies withPreWrap when wrap mode is on (whiteSpace="pre-wrap")', () => {

@@ -1,9 +1,11 @@
 import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import cx from 'classnames';
 import {
+  parseKeyPath,
   TableMetadata,
   tcFromSource,
 } from '@hyperdx/common-utils/dist/core/metadata';
+import { splitAndTrimWithBracket } from '@hyperdx/common-utils/dist/core/utils';
 import { FilterState } from '@hyperdx/common-utils/dist/filters';
 import {
   BuilderChartConfigWithDateRange,
@@ -63,17 +65,20 @@ import {
   usePinnedFilters,
 } from '@/searchFilters';
 import { useSource } from '@/source';
+import { usePermissions } from '@/usePermissions';
 import { useLocalStorage } from '@/utils';
 
 import { FilterSettingsPanel } from './DBSearchPageFilters/FilterSettingsPopover';
 import { useFetchFacets } from './DBSearchPageFilters/hooks';
 import { NestedFilterGroup } from './DBSearchPageFilters/NestedFilterGroup';
+import { isDefaultVisibleFilter } from './DBSearchPageFilters/personalFilterDefaults';
 import {
   PinShareIndicator,
   PinShareMenu,
 } from './DBSearchPageFilters/PinShareMenu';
 import { SharedFiltersSection } from './DBSearchPageFilters/SharedFilters';
 import {
+  cleanClickHouseExpression,
   getFilterStateEntry,
   groupFacetsByBaseName,
   toQuotedClickHouseKeyExpression,
@@ -91,16 +96,27 @@ const SHOW_MORE_MAX_VALUES_DISPLAYED = 50;
 // This function will clean json string attributes specifically. It will turn a string like
 // 'toString(ResourceAttributes.`hdx`.`sdk`.`version`)' into 'ResourceAttributes.hdx.sdk.version'.
 export function cleanedFacetName(key: string): string {
-  if (key.startsWith('toString')) {
-    return key
-      .slice('toString('.length, key.length - 1)
-      .split('.')
-      .map(str =>
-        str.startsWith('`') && str.endsWith('`') ? str.slice(1, -1) : str,
-      )
-      .join('.');
+  const clean = cleanClickHouseExpression(key);
+  const extraction =
+    /^(?:JSONExtract(?:String|Float|Bool)|arrayElement)\((.*)\)$/.exec(clean);
+  if (extraction) {
+    const [base, ...path] = splitAndTrimWithBracket(extraction[1]);
+    if (
+      path.length > 0 &&
+      path.every(part => /^'(?:[^'\\]|\\.|'')*'$/.test(part))
+    ) {
+      return [
+        cleanedFacetName(base),
+        ...path.map(part =>
+          part
+            .slice(1, -1)
+            .replace(/\\(['\\])/g, '$1')
+            .replace(/''/g, "'"),
+        ),
+      ].join('.');
+    }
   }
-  return key;
+  return parseKeyPath(clean).join('.');
 }
 
 /** Value-level pin callbacks and state (personal + shared). */
@@ -228,6 +244,7 @@ const FilterCheckbox = ({
       >
         <Checkbox
           checked={!!value}
+          aria-label={label}
           size={13 as any}
           onChange={() => {
             // taken care by the onClick in the group
@@ -793,40 +810,43 @@ function FilterGroupActions({
   onToggleSharedFieldPin,
   onClearClick,
 }: FilterGroupActionsProps) {
+  const { canManageShared } = usePermissions();
   return (
     <Group gap={0} wrap="nowrap">
       {!hasRange && (
         <>
-          <Tooltip
-            label={
-              showDistributions ? 'Hide Distribution' : 'Show Distribution'
-            }
-            position="top"
-            withArrow
-            fz="xxs"
-            color="gray"
-          >
-            <ActionIcon
-              size="xs"
-              variant="subtle"
+          {canManageShared && (
+            <Tooltip
+              label={
+                showDistributions ? 'Hide Distribution' : 'Show Distribution'
+              }
+              position="top"
+              withArrow
+              fz="xxs"
               color="gray"
-              onClick={toggleShowDistributions}
-              data-testid={`toggle-distribution-button-${name}`}
-              aria-checked={showDistributions}
-              role="checkbox"
             >
-              {isFetchingDistribution ? (
-                <Center>
-                  <IconRefresh className="spin-animate" size={12} />
-                </Center>
-              ) : showDistributions ? (
-                <IconChartBarOff size={14} />
-              ) : (
-                <IconChartBar size={14} />
-              )}
-            </ActionIcon>
-          </Tooltip>
-          {onColumnToggle && (
+              <ActionIcon
+                size="xs"
+                variant="subtle"
+                color="gray"
+                onClick={toggleShowDistributions}
+                data-testid={`toggle-distribution-button-${name}`}
+                aria-checked={showDistributions}
+                role="checkbox"
+              >
+                {isFetchingDistribution ? (
+                  <Center>
+                    <IconRefresh className="spin-animate" size={12} />
+                  </Center>
+                ) : showDistributions ? (
+                  <IconChartBarOff size={14} />
+                ) : (
+                  <IconChartBar size={14} />
+                )}
+              </ActionIcon>
+            </Tooltip>
+          )}
+          {canManageShared && onColumnToggle && (
             <Tooltip
               label={isColumnDisplayed ? 'Remove Column' : 'Add Column'}
               position="top"
@@ -1086,6 +1106,8 @@ const DBSearchPageFiltersComponent = ({
   displayedColumns?: string[];
   onCollapse?: () => void;
 } & FilterStateHook) => {
+  const { canManageShared } = usePermissions();
+  const [filterSearch, setFilterSearch] = useState('');
   const setFilterValue = useCallback(
     (
       property: string,
@@ -1111,7 +1133,21 @@ const DBSearchPageFiltersComponent = ({
     resetSharedFilters,
     hasPersonalPins,
     hasSharedPins,
+    rememberFields,
+    personalPinsLoaded,
   } = usePinnedFilters(sourceId ?? null);
+
+  useEffect(() => {
+    const activeFields = Object.entries(filterState)
+      .filter(
+        ([, filter]) =>
+          filter.included.size > 0 ||
+          filter.excluded.size > 0 ||
+          filter.range != null,
+      )
+      .map(([field]) => field);
+    rememberFields(activeFields);
+  }, [filterState, rememberFields, personalPinsLoaded]);
   const { data: pinnedFiltersApiData } = usePinnedFiltersApi(sourceId ?? null);
   const [isSharedFiltersVisible, setSharedFiltersVisible] = useLocalStorage(
     'hdx-shared-filters-visible',
@@ -1131,7 +1167,7 @@ const DBSearchPageFiltersComponent = ({
   );
   const [showAllValues, setShowAllValues] = useLocalStorage(
     'hdx-show-all-filter-values',
-    true,
+    false,
   );
   const { size, startResize } = useResizable(16, 'left');
 
@@ -1182,7 +1218,7 @@ const DBSearchPageFiltersComponent = ({
     chartConfig,
     sourceId: sourceId ?? null,
     dateRange,
-    mode: showAllValues ? 'all' : 'exact',
+    mode: canManageShared && showAllValues ? 'all' : 'exact',
     filterState,
     showMoreFields,
   });
@@ -1278,6 +1314,14 @@ const DBSearchPageFiltersComponent = ({
       const hasSelectedValues =
         filter && (filter.included.size > 0 || filter.excluded.size > 0);
       const isPinned = isFieldPinned(facet.key);
+      if (
+        !showMoreFields &&
+        !isDefaultVisibleFilter(facet.key) &&
+        !isPinned &&
+        !hasSelectedValues &&
+        !filter?.range
+      )
+        continue;
       if (facet.value?.length > 0 || hasSelectedValues || isPinned) {
         _facets.push(facet);
       }
@@ -1331,7 +1375,11 @@ const DBSearchPageFiltersComponent = ({
       return 0;
     });
 
-    return _facets;
+    return showMoreFields && filterSearch
+      ? _facets.filter(facet =>
+          facet.key.toLowerCase().includes(filterSearch.toLowerCase()),
+        )
+      : _facets;
   }, [
     facetsWithPinnedValues,
     filterState,
@@ -1340,6 +1388,8 @@ const DBSearchPageFiltersComponent = ({
     isSharedFieldPinned,
     jsonColumns,
     sharedFilterKeys,
+    showMoreFields,
+    filterSearch,
   ]);
 
   // Check if shared facets have active selections
@@ -1643,10 +1693,12 @@ const DBSearchPageFiltersComponent = ({
                 onShowFilterCountsChange={setShowFilterCounts}
                 hasPersonalPins={hasPersonalPins}
                 onResetPersonalPins={resetPersonalPins}
-                hasSharedPins={hasSharedPins}
+                hasSharedPins={canManageShared && hasSharedPins}
                 onResetSharedFilters={resetSharedFilters}
-                showAllValues={showAllValues}
-                onShowAllValuesChange={setShowAllValues}
+                showAllValues={canManageShared && showAllValues}
+                onShowAllValuesChange={
+                  canManageShared ? setShowAllValues : undefined
+                }
               />
               {onCollapse && (
                 <Tooltip label="Hide filters" position="bottom">
@@ -1837,6 +1889,17 @@ const DBSearchPageFiltersComponent = ({
                   )
                 )}
                 {/* Show facets even when loading to ensure pinned filters are visible while loading */}
+                {showMoreFields && (
+                  <TextInput
+                    size="xs"
+                    aria-label="Find a filter"
+                    placeholder="Find a filter"
+                    value={filterSearch}
+                    onChange={event =>
+                      setFilterSearch(event.currentTarget.value)
+                    }
+                  />
+                )}
                 {renderFacetList(shownFacets)}
 
                 <Button
@@ -1852,7 +1915,7 @@ const DBSearchPageFiltersComponent = ({
                   }
                   onClick={() => setShowMoreFields(!showMoreFields)}
                 >
-                  {showMoreFields ? 'Less filters' : 'More filters'}
+                  {showMoreFields ? 'Done adding filters' : 'Add filter'}
                 </Button>
 
                 {showMoreFields && (

@@ -200,7 +200,7 @@ export default function AutocompleteInput({
     <div
       className={styles.root}
       style={{ ['--autocomplete-base-height' as string]: `${baseHeight}px` }}
-      data-expanded={isSearchInputFocused ? 'true' : undefined}
+      data-expanded="true"
     >
       <Popover
         opened={isInputDropdownOpen}
@@ -225,14 +225,13 @@ export default function AutocompleteInput({
             placeholder={placeholder}
             className={cx(
               styles.textarea,
-              !isSearchInputFocused && styles.collapseFade,
               isSearchInputFocused && styles.focused,
             )}
             value={value}
             size={size}
             autosize
             minRows={1}
-            maxRows={isSearchInputFocused ? 4 : 1}
+            maxRows={8}
             data-testid={dataTestId}
             onChange={e => onChange(e.target.value)}
             onFocus={() => {

@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef } from 'react';
 import cx from 'classnames';
 import { useController, UseControllerProps } from 'react-hook-form';
 import { useHotkeys } from 'react-hotkeys-hook';
@@ -173,8 +173,6 @@ export default function SQLInlineEditor({
     language: 'sql',
   });
 
-  const [isFocused, setIsFocused] = useState(false);
-
   const ref = useRef<ReactCodeMirrorRef>(null);
 
   const compartmentRef = useRef<Compartment>(new Compartment());
@@ -337,8 +335,7 @@ export default function SQLInlineEditor({
     }
   }, []);
 
-  // Only apply expanded styling when multiline is enabled and focused
-  const isExpanded = allowMultiline && isFocused;
+  const isExpanded = allowMultiline;
 
   const isVariableWarningOnly =
     variableIssues.errors.length === 0 && variableIssues.warnings.length > 0;
@@ -396,12 +393,6 @@ export default function SQLInlineEditor({
             value={value}
             onChange={onChange}
             theme={colorScheme === 'dark' ? 'dark' : 'light'}
-            onFocus={useCallback(() => {
-              setIsFocused(true);
-            }, [setIsFocused])}
-            onBlur={useCallback(() => {
-              setIsFocused(false);
-            }, [setIsFocused])}
             extensions={cmExtensions}
             onCreateEditor={updateAutocompleteColumns}
             basicSetup={DEFAULT_CODE_MIRROR_BASIC_SETUP}

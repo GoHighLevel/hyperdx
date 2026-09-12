@@ -8,6 +8,7 @@ import { validateRequest } from 'zod-express-middleware';
 import { CODE_VERSION } from '@/config';
 import { getConnectionById } from '@/controllers/connection';
 import { getNonNullUserWithTeam } from '@/middleware/auth';
+import { getUserRole, requireAdmin } from '@/middleware/permissions';
 import { validateRequestHeaders } from '@/middleware/validation';
 import { recordOperationOutcome } from '@/utils/instrumentation';
 import logger from '@/utils/logger';
@@ -84,6 +85,7 @@ const CUSTOM_SETTING_KEY_USER_SUFFIX = 'user';
 
 router.post(
   '/test',
+  requireAdmin,
   validateRequest({
     body: z.object({
       host: z.string().url(),
@@ -219,6 +221,10 @@ const proxyMiddleware: RequestHandler =
 
       const parsedUrl = new URL(sanitizedPath, 'http://localhost');
       const { searchParams, pathname } = parsedUrl;
+
+      if (getUserRole(req.user) !== 'admin') {
+        searchParams.set('readonly', '2');
+      }
 
       // Append user email as custom ClickHouse setting for query log annotation if the prefix was set
       const hyperdxSettingPrefix = req._hdx_connection?.hyperdxSettingPrefix;

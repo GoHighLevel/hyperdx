@@ -25,6 +25,7 @@ import {
   DEFAULT_SEARCH_ROW_LIMIT,
 } from '@/defaults';
 import { useBrandDisplayName } from '@/theme/ThemeProvider';
+import { usePermissions } from '@/usePermissions';
 
 type ClickhouseSettingType = 'number' | 'boolean';
 
@@ -64,7 +65,7 @@ function ClickhouseSettingForm({
 }: ClickhouseSettingFormProps) {
   const { data: me, refetch: refetchMe } = api.useMe();
   const updateClickhouseSettings = api.useUpdateClickhouseSettings();
-  const hasAdminAccess = true;
+  const { canManageShared: hasAdminAccess } = usePermissions();
   const [isEditing, setIsEditing] = useState(false);
   const currentValue = me?.team[settingKey];
 

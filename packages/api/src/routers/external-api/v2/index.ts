@@ -1,6 +1,7 @@
 import express from 'express';
 
 import { validateUserAccessKey } from '@/middleware/auth';
+import { requireAdmin, requireAdminForWrites } from '@/middleware/permissions';
 import alertsRouter from '@/routers/external-api/v2/alerts';
 import chartsRouter from '@/routers/external-api/v2/charts';
 import connectionsRouter from '@/routers/external-api/v2/connections';
@@ -13,6 +14,25 @@ import webhooksRouter from '@/routers/external-api/v2/webhooks';
 import rateLimiter, { rateLimiterKeyGenerator } from '@/utils/rateLimiter';
 
 const router = express.Router();
+
+// Query endpoints use POST but do not mutate shared configuration.
+router.use(
+  [
+    '/alerts',
+    '/connections',
+    '/dashboards',
+    '/sources',
+    '/saved-searches',
+    '/team',
+  ],
+  validateUserAccessKey,
+  requireAdminForWrites,
+);
+router.use(
+  ['/webhooks', '/team/invitations'],
+  validateUserAccessKey,
+  requireAdmin,
+);
 
 const defaultRateLimiter = rateLimiter({
   windowMs: 60 * 1000, // 1 minute

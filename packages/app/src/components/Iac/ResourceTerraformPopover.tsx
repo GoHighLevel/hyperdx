@@ -4,6 +4,7 @@ import { ActionIcon, Popover, Tooltip } from '@mantine/core';
 import { IconBrandTerraform } from '@tabler/icons-react';
 
 import { IS_IAC_EXPORT_ENABLED } from '@/config';
+import { usePermissions } from '@/usePermissions';
 
 import { TerraformHelperPanel } from './TerraformHelperPanel';
 import { useTerraformSnippets } from './useTerraformSnippets';
@@ -35,12 +36,13 @@ export default function ResourceTerraformPopover({
 }: {
   resource: IacResourceRef;
 }) {
+  const { canManageShared } = usePermissions();
   const [opened, setOpened] = useState(false);
   const { id } = resource;
   const snippets = useTerraformSnippets({ resource, enabled: opened });
 
   // After the hooks, so the early return cannot change hook order.
-  if (!IS_IAC_EXPORT_ENABLED) return null;
+  if (!IS_IAC_EXPORT_ENABLED || !canManageShared) return null;
 
   return (
     <Popover

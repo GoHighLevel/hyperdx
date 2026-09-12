@@ -23,6 +23,7 @@ export function parseMapFieldName(
   key: string,
 ): { baseName: string; propertyPath: string } | null {
   const cleanKey = cleanClickHouseExpression(key);
+  if (isSqlFunctionCallExpression(cleanKey)) return null;
   const path = parseKeyPath(cleanKey);
 
   if (path.length >= 2) {

@@ -3,6 +3,8 @@ import { Box, Button, Input, Title } from '@mantine/core';
 import { useHover } from '@mantine/hooks';
 import { IconPencil } from '@tabler/icons-react';
 
+import { usePermissions } from './usePermissions';
+
 export function EditablePageName({
   name,
   onSave,
@@ -10,6 +12,7 @@ export function EditablePageName({
   name: string;
   onSave: (name: string) => void;
 }) {
+  const { canManageShared } = usePermissions();
   const [editing, setEditing] = useState(false);
   const [editedName, setEditedName] = useState(name);
 
@@ -24,11 +27,11 @@ export function EditablePageName({
     <Box
       ref={ref}
       pe="md"
-      onDoubleClick={() => setEditing(true)}
-      className="cursor-pointer"
-      title="Double click to edit"
+      onDoubleClick={() => canManageShared && setEditing(true)}
+      className={canManageShared ? 'cursor-pointer' : undefined}
+      title={canManageShared ? 'Double click to edit' : undefined}
     >
-      {editing ? (
+      {editing && canManageShared ? (
         <form
           className="d-flex align-items-center"
           onSubmit={e => {
@@ -75,7 +78,7 @@ export function EditablePageName({
           >
             {name}
           </Title>
-          {hovered && (
+          {hovered && canManageShared && (
             <Button
               ms="xs"
               variant="subtle"

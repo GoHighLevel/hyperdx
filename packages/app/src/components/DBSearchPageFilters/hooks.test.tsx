@@ -178,6 +178,7 @@ function setupDefaultMocks({ withMVs }: { withMVs: boolean }) {
   usePinnedFilters.mockReturnValue({
     isFieldPinned: jest.fn().mockReturnValue(false),
     isSharedFieldPinned: jest.fn().mockReturnValue(false),
+    getPinnedFields: jest.fn().mockReturnValue([]),
   } as any);
 
   useMetadataWithSettings.mockReturnValue({
@@ -196,6 +197,152 @@ function setupDefaultMocks({ withMVs }: { withMVs: boolean }) {
 describe('useFetchFacets', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+  });
+
+  it('queries a personally added field even when metadata discovery misses it', () => {
+    setupDefaultMocks({ withMVs: false });
+    const field = "JSONExtractString(log, 'status_code')";
+    usePinnedFilters.mockReturnValue({
+      ...usePinnedFilters('source1'),
+      getPinnedFields: () => [field],
+    });
+    const { wrapper } = makeWrapper();
+    renderHook(
+      () =>
+        useFetchFacets({
+          chartConfig: { ...CHART_CONFIG, where: "container_name = 'api'" },
+          sourceId: 'source1',
+          dateRange: DATE_RANGE,
+          mode: 'exact',
+        }),
+      { wrapper },
+    );
+    const options = useGetKeyValues.mock.calls.at(-1)?.[0];
+    expect(options?.keys).toContain(field);
+    expect(options?.chartConfig?.where).toBe("container_name = 'api'");
+  });
+
+  it('keeps numeric JSON values consistent with selected filter values', () => {
+    setupDefaultMocks({ withMVs: false });
+    useGetKeyValues.mockReturnValue({
+      data: [{ key: "JSONExtractFloat(log, 'status_code')", value: [404] }],
+    } as unknown as ReturnType<typeof useGetKeyValues>);
+    const { wrapper } = makeWrapper();
+    const { result } = renderHook(
+      () =>
+        useFetchFacets({
+          chartConfig: CHART_CONFIG,
+          sourceId: 'source1',
+          dateRange: DATE_RANGE,
+          mode: 'exact',
+        }),
+      { wrapper },
+    );
+    expect(result.current.data.keyValues?.[0].value).toEqual(['404']);
+  });
+
+  it('fetches only the default fields until Add filter is opened', () => {
+    setupDefaultMocks({ withMVs: false });
+    useAllFields.mockReturnValue({
+      data: ['log_level', 'namespace_name', 'host', 'label_team'].map(name => ({
+        path: [name],
+        type: 'LowCardinality(String)',
+        jsType: 'string',
+      })),
+    } as ReturnType<typeof useMetadataModule.useAllFields>);
+    const { wrapper } = makeWrapper();
+    const { rerender } = renderHook(
+      ({ showMoreFields }) =>
+        useFetchFacets({
+          chartConfig: CHART_CONFIG,
+          sourceId: 'source1',
+          dateRange: DATE_RANGE,
+          mode: 'all',
+          showMoreFields,
+        }),
+      { wrapper, initialProps: { showMoreFields: false } },
+    );
+    expect(useGetKeyValues.mock.calls.at(-1)?.[0]?.keys).toEqual([
+      'log_level',
+      'namespace_name',
+    ]);
+    rerender({ showMoreFields: true });
+    expect(useGetKeyValues.mock.calls.at(-1)?.[0]?.keys).toEqual([
+      'log_level',
+      'namespace_name',
+      'host',
+      'label_team',
+    ]);
+  });
+
+  it('uses the displayed Level alias for developer severity filtering', () => {
+    setupDefaultMocks({ withMVs: false });
+    useAllFields.mockReturnValue({
+      data: [{ path: ['log_level'], type: 'String', jsType: 'string' }],
+    } as ReturnType<typeof useMetadataModule.useAllFields>);
+    const { wrapper } = makeWrapper();
+    renderHook(
+      () =>
+        useFetchFacets({
+          chartConfig: {
+            ...CHART_CONFIG,
+            with: [
+              {
+                name: 'Level',
+                sql: { sql: 'lowerUTF8(log_level)', params: {} },
+              },
+            ],
+          },
+          sourceId: 'source1',
+          dateRange: DATE_RANGE,
+          mode: 'exact',
+        }),
+      { wrapper },
+    );
+    expect(useGetKeyValues.mock.calls.at(-1)?.[0]?.keys).toEqual(['Level']);
+  });
+
+  it('waits for a remembered Level alias to resolve before fetching it', () => {
+    setupDefaultMocks({ withMVs: false });
+    usePinnedFilters.mockReturnValue({
+      ...usePinnedFilters('source1'),
+      getPinnedFields: () => ['Level'],
+    });
+    const { wrapper } = makeWrapper();
+    renderHook(
+      () =>
+        useFetchFacets({
+          chartConfig: CHART_CONFIG,
+          sourceId: 'source1',
+          dateRange: DATE_RANGE,
+          mode: 'exact',
+        }),
+      { wrapper },
+    );
+    expect(useGetKeyValues.mock.calls.at(-1)?.[0]?.keys).not.toContain('Level');
+  });
+
+  it('keeps personal fields available without opening Add filter', () => {
+    setupDefaultMocks({ withMVs: false });
+    usePinnedFilters.mockReturnValue({
+      ...usePinnedFilters('source1'),
+      isFieldPinned: (field: string) => field === 'ServiceName',
+      isSharedFieldPinned: () => false,
+    });
+    const { wrapper } = makeWrapper();
+    renderHook(
+      () =>
+        useFetchFacets({
+          chartConfig: CHART_CONFIG,
+          sourceId: 'source1',
+          dateRange: DATE_RANGE,
+          mode: 'all',
+        }),
+      { wrapper },
+    );
+    expect(useGetKeyValues.mock.calls.at(-1)?.[0]?.keys).toEqual([
+      'ServiceName',
+    ]);
   });
 
   describe('pipeline selection', () => {

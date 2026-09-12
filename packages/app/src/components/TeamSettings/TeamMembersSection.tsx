@@ -19,10 +19,11 @@ import { IconLock, IconUserPlus } from '@tabler/icons-react';
 
 import api from '@/api';
 import { useBrandDisplayName } from '@/theme/ThemeProvider';
+import { usePermissions } from '@/usePermissions';
 
 export default function TeamMembersSection() {
   const brandName = useBrandDisplayName();
-  const hasAdminAccess = true;
+  const { canManageShared: hasAdminAccess } = usePermissions();
 
   const {
     data: members,

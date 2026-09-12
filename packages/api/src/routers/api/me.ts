@@ -7,6 +7,7 @@ import express from 'express';
 import { AI_API_KEY, ANTHROPIC_API_KEY, USAGE_STATS_ENABLED } from '@/config';
 import { getTeam } from '@/controllers/team';
 import { rotateUserAccessKey } from '@/controllers/user';
+import { getUserRole } from '@/middleware/permissions';
 import { Api404Error } from '@/utils/errors';
 import { sendJson } from '@/utils/serialization';
 
@@ -33,12 +34,16 @@ router.get('/', async (req, res: express.Response<MeApiResponse>, next) => {
     }
 
     return sendJson(res, {
+      role: getUserRole(req.user),
       accessKey,
       createdAt,
       email,
       id,
       name,
-      team,
+      team:
+        getUserRole(req.user) === 'admin'
+          ? team
+          : { ...team.toJSON(), apiKey: '' },
       usageStatsEnabled: USAGE_STATS_ENABLED,
       aiAssistantEnabled: !!(AI_API_KEY || ANTHROPIC_API_KEY),
     });

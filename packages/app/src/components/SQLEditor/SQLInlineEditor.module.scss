@@ -27,13 +27,13 @@
   }
 
   &.expanded {
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    z-index: 100;
-    box-shadow: var(--mb-shadow, var(--mantine-shadow-xs));
-    border-bottom: 2px solid var(--color-bg-brand) !important;
+    position: relative;
+
+    /* stylelint-disable-next-line selector-pseudo-class-no-unknown */
+    :global(.cm-scroller) {
+      max-height: 240px;
+      overflow: auto;
+    }
   }
 
   &:not(.expanded) {

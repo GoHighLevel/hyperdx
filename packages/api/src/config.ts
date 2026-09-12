@@ -1,5 +1,12 @@
 const env = process.env;
 
+// An empty list grants no administrative access. Existing users are not
+// silently promoted when upgrading an installation.
+export const HYPERDX_ADMIN_EMAILS = (env.HYPERDX_ADMIN_EMAILS ?? '')
+  .split(',')
+  .map(email => email.trim().toLowerCase())
+  .filter(Boolean);
+
 // DEFAULTS
 const DEFAULT_APP_TYPE = 'api';
 const DEFAULT_EXPRESS_SESSION = 'hyperdx is cool 👋';

@@ -79,7 +79,7 @@ describe('DBRowJsonViewer', () => {
   // tooltip. Maps the friendly action name to a unique title substring.
   const ACTION_TITLE: Record<string, string> = {
     Search: 'search for this value only',
-    'Add to Filters': 'add to filters',
+    'Add to Filters': 'filter by this field',
     Column: 'column to results table',
     'Copy Object': 'copy object',
     'Copy Value': 'copy value',
@@ -109,7 +109,7 @@ describe('DBRowJsonViewer', () => {
     const parentLine = screen
       .getByText(parentField)
       .closest('.line')! as HTMLElement;
-    fireEvent.click(parentLine);
+    if (!screen.queryByText(childField)) fireEvent.click(parentLine);
 
     const childLine = screen
       .getByText(childField)

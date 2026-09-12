@@ -2771,6 +2771,9 @@ export class Metadata {
 
               return {
                 with: [
+                  // Sampling creates a CTE whose schema does not retain nested
+                  // WITH clauses. Keep expression aliases in the outer scope.
+                  ...(chartConfig.with ?? []),
                   {
                     name: 'sampledData',
                     chartConfig: {

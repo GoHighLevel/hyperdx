@@ -440,7 +440,7 @@ export const RawLogTable = memo(
     );
 
     const {
-      userPreferences: { isUTC },
+      userPreferences: { isUTC, logFontSize = 14 },
     } = useUserPreferences();
 
     const [columnSizeStorage, setColumnSizeStorage] = useLocalStorage<
@@ -964,6 +964,9 @@ export const RawLogTable = memo(
           />
           <div
             data-testid="search-results-table"
+            style={
+              { '--log-font-size': `${logFontSize}px` } as React.CSSProperties
+            }
             className={cx(styles.tableWrapper, {
               [styles.muted]: variant === 'muted',
             })}
@@ -1133,16 +1136,44 @@ export const RawLogTable = memo(
                           className="align-top overflow-hidden p-0"
                           colSpan={columns.length - (showExpandButton ? 1 : 0)}
                         >
-                          <button
-                            type="button"
+                          <div
+                            role="button"
+                            tabIndex={0}
                             className={cx(styles.rowContentButton, {
                               [styles.isWrapped]: wrapLinesEnabled,
                               [styles.isTruncated]: !wrapLinesEnabled,
                             })}
-                            onClick={() => {
-                              _onRowExpandClick(row.original);
+                            onClick={event => {
+                              if (window.getSelection()?.toString()) return;
+                              if (
+                                (event.target as HTMLElement).closest(
+                                  'button, a, input',
+                                )
+                              )
+                                return;
+                              if (showExpandButton && renderRowDetails) {
+                                toggleRowExpansion(rowId);
+                              } else {
+                                _onRowExpandClick(row.original);
+                              }
                             }}
-                            aria-label="View details for log entry"
+                            onKeyDown={event => {
+                              if (event.target !== event.currentTarget) return;
+                              if (event.key === 'Enter' || event.key === ' ') {
+                                event.preventDefault();
+                                event.currentTarget.click();
+                              }
+                            }}
+                            aria-expanded={
+                              showExpandButton && renderRowDetails
+                                ? isExpanded
+                                : undefined
+                            }
+                            aria-label={
+                              showExpandButton && renderRowDetails
+                                ? 'Toggle log details'
+                                : 'View details for log entry'
+                            }
                           >
                             {row
                               .getVisibleCells()
@@ -1212,7 +1243,7 @@ export const RawLogTable = memo(
                                 }
                               />
                             )}
-                          </button>
+                          </div>
                         </td>
                       </tr>
                       {showExpandButton && isExpanded && (

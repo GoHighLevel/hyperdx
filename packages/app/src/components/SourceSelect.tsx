@@ -28,6 +28,7 @@ import {
   useSourceKindMap,
 } from '@/components/sourceSelectUtils';
 import { useSources } from '@/source';
+import { usePermissions } from '@/usePermissions';
 
 import styles from '@styles/SourceSelectControlled.module.scss';
 
@@ -73,6 +74,7 @@ export const SourceManagementMenu = ({
   onManageSources,
   onCreate,
 }: SourceManagementMenuProps) => {
+  const { canManageShared } = usePermissions();
   const items: React.ReactNode[] = [];
 
   if (onSchemaPreview) {
@@ -88,7 +90,7 @@ export const SourceManagementMenu = ({
     );
   }
 
-  if (onEdit) {
+  if (canManageShared && onEdit) {
     items.push(
       <Menu.Item
         key="edit-source"
@@ -101,7 +103,7 @@ export const SourceManagementMenu = ({
     );
   }
 
-  if (onManageSources) {
+  if (canManageShared && onManageSources) {
     items.push(
       <Menu.Item
         key="manage-sources"
@@ -113,7 +115,7 @@ export const SourceManagementMenu = ({
     );
   }
 
-  if (onCreate) {
+  if (canManageShared && onCreate) {
     if (items.length > 0) {
       items.push(<Menu.Divider key="divider-create" />);
     }

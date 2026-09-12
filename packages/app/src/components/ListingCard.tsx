@@ -14,6 +14,7 @@ import { IconDots, IconTrash } from '@tabler/icons-react';
 import { FavoriteButton } from '@/components/FavoriteButton';
 import { Favorite } from '@/favorites';
 import { FormatTime } from '@/useFormatTime';
+import { usePermissions } from '@/usePermissions';
 
 export function ListingCard({
   name,
@@ -38,6 +39,7 @@ export function ListingCard({
   updatedAt?: string;
   updatedBy?: string;
 }) {
+  const { canManageShared } = usePermissions();
   return (
     <Card
       component={Link}
@@ -66,7 +68,7 @@ export function ListingCard({
             />
           )}
         </Group>
-        {onDelete && (
+        {canManageShared && onDelete && (
           <Menu position="bottom-end" withinPortal>
             <Menu.Target>
               <ActionIcon

@@ -13,6 +13,7 @@ import {
 import { IconSearch, IconTags } from '@tabler/icons-react';
 
 import api from '@/api';
+import { usePermissions } from '@/usePermissions';
 
 import styles from './Tags.module.scss';
 
@@ -28,6 +29,7 @@ export const Tags = React.memo(
     allowCreate?: boolean;
     children?: React.ReactNode;
   }) => {
+    const { canManageShared } = usePermissions();
     const {
       data: prefetchedOptionsData,
       isLoading,
@@ -84,6 +86,7 @@ export const Tags = React.memo(
 
     return (
       <Popover
+        disabled={allowCreate && !canManageShared}
         withinPortal
         width={240}
         keepMounted={false}

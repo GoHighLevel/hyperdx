@@ -12,6 +12,7 @@ import {
 import { IconDots, IconTrash } from '@tabler/icons-react';
 
 import { FormatTime } from '@/useFormatTime';
+import { usePermissions } from '@/usePermissions';
 
 export function ListingRow({
   id,
@@ -34,6 +35,7 @@ export function ListingRow({
   updatedBy?: string;
   createdBy?: string;
 }) {
+  const { canManageShared } = usePermissions();
   return (
     <Table.Tr
       style={{ cursor: 'pointer' }}
@@ -91,7 +93,7 @@ export function ListingRow({
         )}
       </Table.Td>
       <Table.Td>
-        {onDelete && (
+        {canManageShared && onDelete && (
           <Menu position="bottom-end" withinPortal>
             <Menu.Target>
               <ActionIcon
