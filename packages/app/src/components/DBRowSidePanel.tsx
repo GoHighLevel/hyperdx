@@ -425,12 +425,15 @@ export const DBRowSidePanelInner = ({
   const normalizedRow = rowData?.data?.[0];
   const timestampValue = normalizedRow?.['__hdx_timestamp'];
 
-  let timestampDate: Date;
-  if (typeof timestampValue === 'number') {
-    timestampDate = new Date(timestampValue * 1000);
-  } else {
-    timestampDate = new Date(timestampValue);
-  }
+  const timestampDate = useMemo(
+    () =>
+      new Date(
+        typeof timestampValue === 'number'
+          ? timestampValue * 1000
+          : timestampValue,
+      ),
+    [timestampValue],
+  );
 
   const mainContentColumn = getEventBody(source);
   const mainContent = isString(normalizedRow?.['__hdx_body'])
@@ -541,7 +544,7 @@ export const DBRowSidePanelInner = ({
       ? source.logSourceId
       : undefined;
 
-  const traceSourceId = isTraceSource(source)
+  const configuredTraceSourceId = isTraceSource(source)
     ? source.id
     : isLogSource(source)
       ? source.traceSourceId
@@ -549,21 +552,17 @@ export const DBRowSidePanelInner = ({
         ? source.traceSourceId
         : undefined;
 
-  const enableServiceMap = traceId && traceSourceId;
-
-  const { data: traceSourceData } = useSource({ id: traceSourceId });
+  const { data: traceSourceData } = useSource({
+    id: configuredTraceSourceId,
+    kinds: [SourceKind.Trace],
+    traceForLogSourceId: isLogSource(source) ? source.id : undefined,
+  });
+  const traceSourceId = traceSourceData?.id ?? configuredTraceSourceId;
+  const enableServiceMap = traceId;
 
   const spanId = normalizedRow?.['__hdx_span_id'];
-  const traceIdExpression =
-    traceSourceData?.kind === SourceKind.Log ||
-    traceSourceData?.kind === SourceKind.Trace
-      ? traceSourceData.traceIdExpression
-      : undefined;
-  const spanIdExpression =
-    traceSourceData?.kind === SourceKind.Log ||
-    traceSourceData?.kind === SourceKind.Trace
-      ? traceSourceData.spanIdExpression
-      : undefined;
+  const traceIdExpression = traceSourceData?.traceIdExpression;
+  const spanIdExpression = traceSourceData?.spanIdExpression;
 
   // The current row's own timestamp, read from the source's
   // `timestampValueExpression` rather than the displayed expression (which
@@ -595,6 +594,12 @@ export const DBRowSidePanelInner = ({
     }
     return clauses.length > 0 ? clauses.join(' AND ') : undefined;
   }, [traceIdExpression, traceId, spanIdExpression, spanId]);
+
+  // A log's span may be unsampled or missing while other spans in its trace exist.
+  const logTraceRowId =
+    traceIdExpression && traceId
+      ? SqlString.format('?=?', [SqlString.raw(traceIdExpression), traceId])
+      : undefined;
 
   const handleSessionEventNavigate = useCallback(
     (rowId: string, aliasWith: WithClause[]) => {
@@ -863,7 +868,7 @@ export const DBRowSidePanelInner = ({
     );
   }
 
-  const showLogTraceActions = !sourceIsTrace && traceId && traceSourceId;
+  const showLogTraceActions = !sourceIsTrace && traceId;
 
   return (
     <RowSidePanelContext value={rowSidePanelContextValue}>
@@ -966,19 +971,21 @@ export const DBRowSidePanelInner = ({
           )}
           {showLogTraceActions && (
             <ViewTraceCalloutButton
-              disabled={!traceSourceData || !traceSpanRowId}
+              disabled={false}
               autoOpened={viewTraceCalloutAutoOpened}
               onAutoOpen={handleViewTraceCalloutAutoOpen}
               onView={() => {
-                if (traceSourceData && traceSpanRowId) {
+                if (traceSourceData && logTraceRowId) {
                   handleSourceStackPush({
                     sourceId: traceSourceData.id,
-                    rowId: traceSpanRowId,
+                    rowId: logTraceRowId,
                     label: mainContent || 'Log',
                     sourceKind: traceSourceData.kind as SourceKind,
                     aliasWith: [],
                     focusTimestamp: rowFocusTimestamp,
                   });
+                } else {
+                  setTab(Tab.ServiceMap);
                 }
               }}
             />
@@ -1113,6 +1120,7 @@ export const DBRowSidePanelInner = ({
               traceId={traceId}
               traceTableSourceId={traceSourceId}
               dateRange={oneHourRange}
+              focusDate={focusDate}
             />
           </Flex>
         </ErrorBoundary>

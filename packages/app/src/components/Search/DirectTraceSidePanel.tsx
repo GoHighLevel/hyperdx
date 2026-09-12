@@ -145,7 +145,7 @@ export default function DirectTraceSidePanel({
                 <EmptyState
                   icon={<IconConnection size={24} />}
                   title="Trace not found"
-                  description="No matching spans or correlated logs were found for this trace in the selected source and time range."
+                  description="No matching spans or correlated logs were found in this source and time range. A trace ID in a log does not guarantee stored spans. Check the trace source, time range, sampling, ingestion, and retention."
                   variant="card"
                   fullWidth
                   mt="md"

@@ -17,6 +17,7 @@ import {
   getEventBody,
 } from '@/source';
 import { getSelectExpressionsForHighlightedAttributes } from '@/utils/highlightedAttributes';
+import { getLogTraceContext } from '@/utils/logTraceContext';
 import { getTimestampValueSelects } from '@/utils/rowTimestamps';
 
 import { DBRowJsonViewer } from './DBRowJsonViewer';
@@ -262,6 +263,11 @@ export function useRowData({
 
     const row = queryResult.data.data[0];
     const normalizedRow = { ...row };
+    if (isLogSource(source)) {
+      const { traceId, spanId } = getLogTraceContext(row);
+      if (traceId) normalizedRow[ROW_DATA_ALIASES.TRACE_ID] = traceId;
+      if (spanId) normalizedRow[ROW_DATA_ALIASES.SPAN_ID] = spanId;
+    }
 
     if (row[ROW_DATA_ALIASES.RESOURCE_ATTRIBUTES]) {
       normalizedRow[ROW_DATA_ALIASES.RESOURCE_ATTRIBUTES] = flatten(
@@ -279,7 +285,7 @@ export function useRowData({
       ...queryResult.data,
       data: [normalizedRow],
     };
-  }, [queryResult.data]);
+  }, [queryResult.data, source]);
 
   return {
     ...queryResult,

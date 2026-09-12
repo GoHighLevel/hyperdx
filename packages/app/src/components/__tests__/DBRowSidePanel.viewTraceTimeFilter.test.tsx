@@ -262,7 +262,7 @@ describe('DBRowSidePanelInner, "View Trace" row lookup time filter', () => {
 
     expect(pushedFrame()).toMatchObject({
       sourceId: 'trace-src',
-      rowId: TRACE_SPAN_ROW_ID,
+      rowId: `TraceId='${TRACE_ID}'`,
       focusTimestamp: new Date(TIMESTAMP_VALUE).toISOString(),
     });
     // Not the displayed timestamp, which may point at another column entirely.

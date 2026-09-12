@@ -14,6 +14,7 @@ import {
   getEventBody,
   getSourceValidationNotificationId,
   getTraceDurationNumberFormat,
+  resolveTraceSource,
   useChartNumberFormats,
   useSingleSeriesNumberFormat,
   useSources,
@@ -53,6 +54,38 @@ const TRACE_SOURCE: TTraceSource = {
   spanKindExpression: 'SpanKind',
   defaultTableSelectExpression: 'Timestamp, ServiceName',
 } as TTraceSource;
+
+describe('resolveTraceSource', () => {
+  const reverseLinked = { ...TRACE_SOURCE, logSourceId: 'logs' };
+  it('recovers a deleted link from a unique reverse link', () => {
+    expect(resolveTraceSource([reverseLinked], 'deleted', 'logs')).toBe(
+      reverseLinked,
+    );
+  });
+  it('prefers the explicitly configured trace source', () => {
+    expect(
+      resolveTraceSource(
+        [TRACE_SOURCE, { ...reverseLinked, id: 'other' }],
+        TRACE_SOURCE.id,
+        'logs',
+      ),
+    ).toBe(TRACE_SOURCE);
+  });
+  it('does not guess when multiple trace sources link back', () => {
+    expect(
+      resolveTraceSource(
+        [reverseLinked, { ...reverseLinked, id: 'other' }],
+        'deleted',
+        'logs',
+      ),
+    ).toBeUndefined();
+  });
+  it('does not use an unrelated trace source', () => {
+    expect(
+      resolveTraceSource([TRACE_SOURCE], 'deleted', 'logs'),
+    ).toBeUndefined();
+  });
+});
 
 describe('getEventBody', () => {
   it('returns spanNameExpression for trace kind source when both bodyExpression and spanNameExpression are present', () => {

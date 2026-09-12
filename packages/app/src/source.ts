@@ -172,19 +172,40 @@ export function useSources() {
   });
 }
 
+export function resolveTraceSource(
+  sources: TSource[],
+  id?: string | null,
+  logSourceId?: string,
+) {
+  const configured = sources.find(
+    s => s.id === id && s.kind === SourceKind.Trace,
+  );
+  if (configured) return configured;
+  if (!logSourceId) return undefined;
+  const linked = sources.filter(
+    (s): s is TTraceSource =>
+      s.kind === SourceKind.Trace && s.logSourceId === logSourceId,
+  );
+  return linked.length === 1 ? linked[0] : undefined;
+}
+
 export function useSource<K extends SourceKind>(opts: {
   id?: string | null;
   kinds: K[];
+  traceForLogSourceId?: string;
 }): UseQueryResult<Extract<TSource, { kind: K }> | undefined>;
 export function useSource(opts: {
   id?: string | null;
+  traceForLogSourceId?: string;
 }): UseQueryResult<TSource | undefined>;
 export function useSource({
   id,
   kinds,
+  traceForLogSourceId,
 }: {
   id?: string | null;
   kinds?: SourceKind[];
+  traceForLogSourceId?: string;
 }) {
   return useQuery({
     queryKey: ['sources'],
@@ -196,12 +217,14 @@ export function useSource({
       return rawSources.map(addDefaultsToSource);
     },
     select: (data: TSource[]) => {
-      const source = data.find(s => s.id === id);
+      const source = traceForLogSourceId
+        ? resolveTraceSource(data, id, traceForLogSourceId)
+        : data.find(s => s.id === id);
       if (source && kinds?.length && !kinds.includes(source.kind))
         return undefined;
       return source;
     },
-    enabled: id != null,
+    enabled: id != null || traceForLogSourceId != null,
   });
 }
 

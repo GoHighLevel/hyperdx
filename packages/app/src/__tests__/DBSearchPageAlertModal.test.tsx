@@ -10,6 +10,10 @@ import { fireEvent, screen, waitFor } from '@testing-library/react';
 import type { AlertChannelForm } from '@/components/Alerts';
 import { DBSearchPageAlertModal } from '@/DBSearchPageAlertModal';
 
+jest.mock('@/usePermissions', () => ({
+  usePermissions: () => ({ canManageShared: true }),
+}));
+
 // --- Mutation spies ------------------------------------------------------
 const createAlertMutateAsync = jest.fn().mockResolvedValue({ data: {} });
 const updateAlertMutateAsync = jest.fn().mockResolvedValue({ data: {} });

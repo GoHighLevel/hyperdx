@@ -4,28 +4,20 @@ import {
   ClickHouseQueryError,
   ColumnMetaType,
 } from '@hyperdx/common-utils/dist/clickhouse';
-import {
-  BuilderChartConfigWithDateRange,
-  TSource,
-} from '@hyperdx/common-utils/dist/types';
-import { Button, Group } from '@mantine/core';
+import { BuilderChartConfigWithDateRange } from '@hyperdx/common-utils/dist/types';
 import { SortingState } from '@tanstack/react-table';
 
 import { RowWhereResult, WithClause } from '@/hooks/useRowWhere';
 import { useSource } from '@/source';
-import TabBar from '@/TabBar';
-import { useLocalStorage } from '@/utils';
 import { parseAsStringEncoded } from '@/utils/queryParsers';
 
 import { ChartErrorStateVariant } from './charts/ChartErrorState';
-import { RowDataPanel, useRowData } from './DBRowDataPanel';
-import { RowOverviewPanel } from './DBRowOverviewPanel';
 import DBRowSidePanel, {
   RowSidePanelContext,
   RowSidePanelContextProps,
 } from './DBRowSidePanel';
-import { DBRowSidePanelErrorState } from './DBRowSidePanelErrorState';
 import { DBRowTableVariant, DBSqlRowTable } from './DBRowTable';
+import InlineLogDetails from './InlineLogDetails';
 
 interface Props {
   sourceId: string;
@@ -69,6 +61,7 @@ export default function DBSqlRowTableWithSideBar({
   collapseAllRows,
   isLive,
   enabled,
+  queryKeyPrefix = 'dbSqlRowTable',
   onSidebarOpen,
   onSortingChange,
   initialSortBy,
@@ -105,7 +98,7 @@ export default function DBSqlRowTableWithSideBar({
         return <div className="p-3 text-muted">Loading...</div>;
       }
       return (
-        <RowOverviewPanelWrapper
+        <InlineLogDetails
           source={sourceData}
           rowId={r.id}
           aliasWith={r.aliasWith}
@@ -137,7 +130,7 @@ export default function DBSqlRowTableWithSideBar({
         highlightedLineId={rowId ?? undefined}
         enabled={enabled}
         isLive={isLive ?? true}
-        queryKeyPrefix={'dbSqlRowTable'}
+        queryKeyPrefix={queryKeyPrefix}
         onSortingChange={onSortingChange}
         denoiseResults={denoiseResults}
         initialSortBy={initialSortBy}
@@ -153,83 +146,5 @@ export default function DBSqlRowTableWithSideBar({
         onResolvedColumnsChange={onResolvedColumnsChange}
       />
     </RowSidePanelContext>
-  );
-}
-
-enum InlineTab {
-  Overview = 'overview',
-  ColumnValues = 'columnValues',
-}
-
-function RowOverviewPanelWrapper({
-  source,
-  rowId,
-  aliasWith,
-  onOpenDetails,
-}: {
-  source: TSource;
-  rowId: string;
-  aliasWith?: WithClause[];
-  onOpenDetails: () => void;
-}) {
-  // Use localStorage to persist the selected tab
-  const [activeTab, setActiveTab] = useLocalStorage<InlineTab>(
-    'hdx-expanded-row-default-tab',
-    InlineTab.ColumnValues,
-  );
-
-  // Surface the same error state the row side panel shows (e.g. `SELECT *`
-  // failures on Distributed/Merge tables) rather than silently rendering an
-  // empty expanded row. Both tabs load the same row data, so a failure here
-  // affects the whole expanded row.
-  const { isError, error } = useRowData({ source, rowId, aliasWith });
-
-  if (isError && error) {
-    return (
-      <div className="position-relative">
-        <div className="px-3 py-3">
-          <DBRowSidePanelErrorState error={error} source={source} />
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="position-relative">
-      <Group className="px-3 pt-2 position-relative" justify="space-between">
-        <TabBar
-          className="fs-8"
-          items={[
-            {
-              text: 'Overview',
-              value: InlineTab.Overview,
-            },
-            {
-              text: 'Column Values',
-              value: InlineTab.ColumnValues,
-            },
-          ]}
-          activeItem={activeTab}
-          onClick={setActiveTab}
-        />
-        <Button variant="link" size="xs" onClick={onOpenDetails}>
-          Open details
-        </Button>
-      </Group>
-      <div>
-        {activeTab === InlineTab.Overview && (
-          <div className="inline-overview-panel">
-            <RowOverviewPanel
-              source={source}
-              rowId={rowId}
-              aliasWith={aliasWith}
-            />
-          </div>
-        )}
-        {activeTab === InlineTab.ColumnValues && (
-          <RowDataPanel source={source} rowId={rowId} aliasWith={aliasWith} />
-        )}
-      </div>
-    </div>
   );
 }

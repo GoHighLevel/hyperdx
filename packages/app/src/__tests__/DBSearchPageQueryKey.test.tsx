@@ -46,6 +46,8 @@ jest.mock('@/source', () => ({
 }));
 
 jest.mock('@/ChartUtils', () => ({
+  shouldFillNullsWithZero:
+    jest.requireActual('@/ChartUtils').shouldFillNullsWithZero,
   useTimeChartSettings: () => ({
     displayType: DisplayType.StackedBar,
     dateRange: [new Date('2024-01-01'), new Date('2024-01-02')],
