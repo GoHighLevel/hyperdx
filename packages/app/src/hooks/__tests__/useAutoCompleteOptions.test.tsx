@@ -33,6 +33,7 @@ jest.mock('@/searchFilters', () => ({
   usePinnedFilters: jest.fn().mockReturnValue({
     isFieldPinned: () => false,
     isSharedFieldPinned: () => false,
+    getPinnedFields: () => [],
   }),
   escapeFilterStateKeys: (state: unknown) => state,
 }));
@@ -43,8 +44,8 @@ jest.mock('../useMetadata', () => {
     __esModule: true,
     ...actual,
     useMetadataWithSettings: jest.fn().mockReturnValue({
-      getKeyValuesWithMVs: jest.fn(),
-      getAllKeyValues: jest.fn(),
+      getKeyValuesWithMVs: jest.fn().mockResolvedValue([]),
+      getAllKeyValues: jest.fn().mockResolvedValue([]),
     }),
     useAllFields: jest.fn(),
     useMultipleAllFields: jest.fn(),
@@ -194,13 +195,12 @@ describe('useAutoCompleteOptions', () => {
     (useGetKeyValues as jest.Mock).mockReturnValue({
       data: [
         {
-          key: 'ResourceAttributes',
-          value: [
-            {
-              'service.name': 'frontend',
-              'deployment.environment': 'production',
-            },
-          ],
+          key: "ResourceAttributes['service.name']",
+          value: ['frontend'],
+        },
+        {
+          key: "ResourceAttributes['deployment.environment']",
+          value: ['production'],
         },
       ],
       isFetching: false,
@@ -310,6 +310,36 @@ describe('useAutoCompleteOptions', () => {
 });
 
 describe('tokenizeAtCursor', () => {
+  it.each(['\n', '\r\n', '\t'])('recognizes %j between clauses', separator => {
+    const input = `Level:error${separator}ServiceName:api`;
+    const token = tokenizeAtCursor(input, input.length);
+    expect(token.token).toBe('ServiceName:api');
+    expect(input.slice(token.start, token.end)).toBe('ServiceName:api');
+    expect(
+      input.slice(0, token.start) +
+        'ServiceName:"worker"' +
+        input.slice(token.end),
+    ).toBe(`Level:error${separator}ServiceName:"worker"`);
+  });
+
+  it('completes inside grouped multiline clauses without removing parentheses', () => {
+    const input = '(Level:"error") AND\n(ServiceName:ap)';
+    const token = tokenizeAtCursor(input, input.length - 1);
+    expect(token.token).toBe('ServiceName:ap');
+    expect(
+      input.slice(0, token.start) +
+        'ServiceName:"api"' +
+        input.slice(token.end),
+    ).toBe('(Level:"error") AND\n(ServiceName:"api")');
+  });
+
+  it('preserves negation and escaped delimiters', () => {
+    const input = '-ServiceName:api\\(east\\)';
+    const token = tokenizeAtCursor(input, input.length);
+    expect(token.token).toBe('ServiceName:api\\(east\\)');
+    expect(token.start).toBe(1);
+  });
+
   // Each case is tokenized with the cursor at the end of the input, so
   // `expectedToken` is the token the user is currently typing into.
   const cases: {

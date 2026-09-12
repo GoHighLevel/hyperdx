@@ -826,7 +826,7 @@ function FilterGroupActions({
               </ActionIcon>
             </Tooltip>
           )}
-          {canManageShared && onColumnToggle && (
+          {onColumnToggle && (
             <Tooltip
               label={isColumnDisplayed ? 'Remove Column' : 'Add Column'}
               position="top"

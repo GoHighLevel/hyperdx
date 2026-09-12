@@ -1483,7 +1483,9 @@ export function DBSearchPage() {
   const chartSearchConfig = useMemo(
     () => ({
       select:
-        !canManageShared && searchedSource?.kind === SourceKind.Log
+        !canManageShared &&
+        searchedSource?.kind === SourceKind.Log &&
+        searchedConfig.select == null
           ? readableLogColumns(defaultSearchConfig.select ?? '', knownColumns)
           : (searchedConfig.select ?? ''),
       source: chartSourceId,
@@ -1972,7 +1974,7 @@ export function DBSearchPage() {
     () => ({
       onPropertyAddClick: searchFilters.setFilterValue,
       displayedColumns,
-      toggleColumn: canManageShared ? toggleColumn : undefined,
+      toggleColumn,
       generateSearchUrl,
       dbSqlRowTableConfig,
       isChildModalOpen: isDrawerChildModalOpen,
@@ -1981,7 +1983,6 @@ export function DBSearchPage() {
     }),
     [
       searchFilters.setFilterValue,
-      canManageShared,
       searchedSource,
       dbSqlRowTableConfig,
       displayedColumns,

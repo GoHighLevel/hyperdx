@@ -80,6 +80,7 @@ export default function SearchInputV2({
 
   const metadata = useMetadataWithSettings();
   const ref = useRef<HTMLTextAreaElement>(null);
+  const [cursorPosition, setCursorPosition] = useState<number>();
   const [parsedEnglishQuery, setParsedEnglishQuery] = useState<string>('');
 
   // Bare `$name` references only, no macros
@@ -109,7 +110,7 @@ export default function SearchInputV2({
       additionalSuggestions,
       dateRange,
       sourceId,
-      inputRef: ref,
+      cursorPosition,
     },
   );
 
@@ -143,6 +144,7 @@ export default function SearchInputV2({
   return (
     <AutocompleteInput
       inputRef={ref}
+      onCursorChange={setCursorPosition}
       value={value}
       onChange={onChange}
       placeholder={placeholder}

@@ -58,8 +58,11 @@ export type TokenInfo = {
   token: string;
   /** Index of the token in the tokens array */
   index: number;
-  /** All tokens from splitting the input on whitespace */
+  /** Tokens separated by unquoted whitespace, grouping, or unary prefixes. */
   tokens: string[];
+  /** Original text range to replace without changing whitespace or grouping. */
+  start: number;
+  end: number;
 };
 
 const IDENT_RE = /[A-Za-z0-9_.]/;
@@ -111,7 +114,8 @@ export function tokenizeAtCursor(value: string, cursorPos: number): TokenInfo {
       continue;
     }
 
-    if (ch === '\\' && inQuotes) {
+    if (ch === '\\') {
+      if (currentStart === -1) currentStart = i;
       current += ch;
       escaped = true;
       continue;
@@ -138,7 +142,10 @@ export function tokenizeAtCursor(value: string, cursorPos: number): TokenInfo {
       continue;
     }
 
-    if (!inQuotes && ch === ' ') {
+    if (
+      !inQuotes &&
+      (/\s|[()]/.test(ch) || (current === '' && (ch === '-' || ch === '+')))
+    ) {
       // Boundary: flush current token (even if empty, to mirror prior `split(' ')`
       // semantics where consecutive spaces produce empty tokens).
       tokens.push(current);
@@ -168,7 +175,9 @@ export function tokenizeAtCursor(value: string, cursorPos: number): TokenInfo {
     }
   }
 
-  return { token: tokens[idx] ?? '', index: idx, tokens };
+  const token = tokens[idx] ?? '';
+  const start = starts[idx] ?? value.length;
+  return { token, index: idx, tokens, start, end: start + token.length };
 }
 
 export interface ILanguageFormatter {
@@ -185,17 +194,16 @@ export function useAutoCompleteOptions(
     additionalSuggestions,
     sourceId,
     dateRange,
-    inputRef,
+    cursorPosition,
   }: {
     tableConnection?: TableConnection | TableConnection[];
     additionalSuggestions?: string[];
     sourceId?: string;
     dateRange?: [Date, Date];
-    inputRef?: React.RefObject<HTMLTextAreaElement | null>;
+    cursorPosition?: number;
   },
 ) {
   const { data: source } = useSource({ id: sourceId });
-  const value = useDebounce(_value, 300);
 
   const effectiveDateRange: [Date, Date] = useMemo(
     () => dateRange ?? [new Date(NOW - 24 * 60 * 60 * 1000), new Date(NOW)],
@@ -258,22 +266,20 @@ export function useAutoCompleteOptions(
 
   // Tokenize input at cursor position
   const tokenInfo = useMemo(() => {
-    // eslint-disable-next-line react-hooks/refs
-    const cursorPos = inputRef?.current?.selectionStart ?? value.length;
-    // eslint-disable-next-line react-hooks/refs
-    return tokenizeAtCursor(value, cursorPos);
-  }, [value, inputRef]);
+    return tokenizeAtCursor(_value, cursorPosition ?? _value.length);
+  }, [_value, cursorPosition]);
 
   // Extract the field name portion of the token (strip colon and value)
   const fieldNameAtCursor = useMemo(() => {
     const colonIdx = tokenInfo.token.indexOf(':');
     return colonIdx >= 0 ? tokenInfo.token.slice(0, colonIdx) : tokenInfo.token;
   }, [tokenInfo.token]);
+  const debouncedFieldName = useDebounce(fieldNameAtCursor, 300);
 
   // Derive the active search field from the token at cursor
   const searchField = useMemo(
-    () => fieldCompleteMap.get(fieldNameAtCursor) ?? null,
-    [fieldCompleteMap, fieldNameAtCursor],
+    () => fieldCompleteMap.get(debouncedFieldName) ?? null,
+    [fieldCompleteMap, debouncedFieldName],
   );
 
   // Map columns from the field list, so a path like `['LogAttributes', '1']`

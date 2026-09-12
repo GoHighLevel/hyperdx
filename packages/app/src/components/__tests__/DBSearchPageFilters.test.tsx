@@ -518,17 +518,19 @@ describe('FilterGroup', () => {
     expect(labels[2]).toHaveTextContent('<1%'); // banana
   });
 
-  it('hides column and distribution actions from developers', () => {
+  it('allows developers to add personal columns', async () => {
     jest.mocked(usePermissions).mockReturnValueOnce({ canManageShared: false });
+    const onColumnToggle = jest.fn();
     renderWithMantine(
-      <FilterGroup {...defaultProps} onColumnToggle={jest.fn()} />,
+      <FilterGroup {...defaultProps} onColumnToggle={onColumnToggle} />,
     );
     expect(
       screen.queryByTestId('toggle-distribution-button-Test Filter'),
     ).not.toBeInTheDocument();
-    expect(
-      screen.queryByTestId('toggle-column-button-Test Filter'),
-    ).not.toBeInTheDocument();
+    await userEvent.click(
+      screen.getByTestId('toggle-column-button-Test Filter'),
+    );
+    expect(onColumnToggle).toHaveBeenCalledTimes(1);
   });
 
   it('should handle excluded items', () => {

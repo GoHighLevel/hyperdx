@@ -6,15 +6,14 @@ import {
 } from '@hyperdx/common-utils/dist/clickhouse';
 import {
   BuilderChartConfigWithDateRange,
-  SourceKind,
   TSource,
 } from '@hyperdx/common-utils/dist/types';
+import { Button, Group } from '@mantine/core';
 import { SortingState } from '@tanstack/react-table';
 
 import { RowWhereResult, WithClause } from '@/hooks/useRowWhere';
 import { useSource } from '@/source';
 import TabBar from '@/TabBar';
-import { usePermissions } from '@/usePermissions';
 import { useLocalStorage } from '@/utils';
 import { parseAsStringEncoded } from '@/utils/queryParsers';
 
@@ -110,10 +109,13 @@ export default function DBSqlRowTableWithSideBar({
           source={sourceData}
           rowId={r.id}
           aliasWith={r.aliasWith}
+          onOpenDetails={() =>
+            onOpenSidebar({ where: r.id, aliasWith: r.aliasWith ?? [] })
+          }
         />
       );
     },
-    [sourceData],
+    [sourceData, onOpenSidebar],
   );
 
   return (
@@ -163,12 +165,13 @@ function RowOverviewPanelWrapper({
   source,
   rowId,
   aliasWith,
+  onOpenDetails,
 }: {
   source: TSource;
   rowId: string;
   aliasWith?: WithClause[];
+  onOpenDetails: () => void;
 }) {
-  const { canManageShared } = usePermissions();
   // Use localStorage to persist the selected tab
   const [activeTab, setActiveTab] = useLocalStorage<InlineTab>(
     'hdx-expanded-row-default-tab',
@@ -191,13 +194,9 @@ function RowOverviewPanelWrapper({
     );
   }
 
-  if (source.kind === SourceKind.Log && !canManageShared) {
-    return <RowDataPanel source={source} rowId={rowId} aliasWith={aliasWith} />;
-  }
-
   return (
     <div className="position-relative">
-      <div className="px-3 pt-2 position-relative">
+      <Group className="px-3 pt-2 position-relative" justify="space-between">
         <TabBar
           className="fs-8"
           items={[
@@ -213,7 +212,10 @@ function RowOverviewPanelWrapper({
           activeItem={activeTab}
           onClick={setActiveTab}
         />
-      </div>
+        <Button variant="link" size="xs" onClick={onOpenDetails}>
+          Open details
+        </Button>
+      </Group>
       <div>
         {activeTab === InlineTab.Overview && (
           <div className="inline-overview-panel">

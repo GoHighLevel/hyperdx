@@ -87,7 +87,10 @@ defaults determine the result layout. Admins retain those controls. Developers
 can still open shared searches and query all team logs; this is not row-level
 data access control.
 
-The sidebar omits chart and column actions for developers. Its values always
+Developers can add or remove columns using the sidebar plus/minus controls or
+the actions beside expanded JSON fields. Column changes belong to the current
+query URL and survive reloads; they do not update shared source/search defaults.
+The sidebar omits distribution chart actions for developers. Its values always
 follow the current search and time range. Admins can opt into the existing
 "Show all values" behavior. Filtering a field in expanded JSON immediately
 remembers it personally, including extracted fields absent from sampled metadata.
@@ -99,7 +102,20 @@ Long queries scroll inside the editor. Clicking a result expands its existing
 inline details; dragging to select text does not toggle the row. Log details in
 the developer view open directly as structured JSON, including valid JSON stored
 inside strings. Non-JSON text is preserved. Explicit sidebar links remain
-available for trace investigation and deep links.
+available for trace investigation and deep links. Expanded rows also retain
+the Overview tab and an **Open details** button. The details panel offers
+**Service Map** and **View Trace** when the log has a trace ID and its source
+links to an existing trace source.
+
+If trace correlation is missing, an admin should edit the log source and check
+**Correlated Trace Source**, trace ID and span ID expressions. A deleted/recreated
+trace source has a different ID and must be selected again. Logs without a trace
+ID cannot be correlated. These features are available to developers.
+
+Lucene autocomplete works across newlines and tabs, including inside grouped
+clauses. Choosing a suggestion replaces only the token at the cursor, preserving
+surrounding whitespace, parentheses, and other conditions. Moving the cursor to
+an earlier clause updates the available suggestions.
 
 User preferences include log font sizes of 12, 14, 16 or 18px (default 14px),
 applied to rows and expanded JSON. Like the existing appearance settings, font

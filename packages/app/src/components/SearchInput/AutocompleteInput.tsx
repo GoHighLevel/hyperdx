@@ -3,7 +3,10 @@ import cx from 'classnames';
 import Fuse from 'fuse.js';
 import { Loader, Popover, Textarea, UnstyledButton } from '@mantine/core';
 
-import type { TokenInfo } from '@/hooks/useAutoCompleteOptions';
+import {
+  type TokenInfo,
+  tokenizeAtCursor,
+} from '@/hooks/useAutoCompleteOptions';
 import { useQueryHistory } from '@/utils';
 
 import InputLanguageSwitch from './InputLanguageSwitch';
@@ -12,6 +15,7 @@ import styles from './AutocompleteInput.module.scss';
 
 export default function AutocompleteInput({
   inputRef,
+  onCursorChange,
   value,
   onChange,
   placeholder = 'Search your events for anything...',
@@ -33,6 +37,7 @@ export default function AutocompleteInput({
   'data-testid': dataTestId,
 }: {
   inputRef: React.RefObject<HTMLTextAreaElement | null>;
+  onCursorChange?: (position: number) => void;
   value?: string;
   onChange: (value: string) => void;
   onSubmit?: () => void;
@@ -161,20 +166,20 @@ export default function AutocompleteInput({
     // Replace the token at cursor with the suggestion — except for a variable,
     // which replaces only the `$var` fragment so anything the reference is
     // scoped to (`ServiceName:`) survives.
-    const tokens = [...tokenInfo.tokens];
-    const currentToken = tokens[tokenInfo.index] ?? '';
-    tokens[tokenInfo.index] =
+    const current = tokenizeAtCursor(
+      value,
+      inputRef.current?.selectionStart ?? value.length,
+    );
+    const currentToken = current.token;
+    const replacement =
       isVariable && variableFragment != null
         ? currentToken.slice(0, -variableFragment.length) + suggestion
         : suggestion;
-    const newValue = tokens.join(' ');
+    const newValue =
+      value.slice(0, current.start) + replacement + value.slice(current.end);
 
     // Place cursor right after the inserted suggestion
-    let newCursorPos = 0;
-    for (let i = 0; i <= tokenInfo.index; i++) {
-      newCursorPos += tokens[i].length;
-      if (i < tokenInfo.index) newCursorPos++; // space
-    }
+    const newCursorPos = current.start + replacement.length;
 
     onChange(newValue);
 
@@ -233,7 +238,11 @@ export default function AutocompleteInput({
             minRows={1}
             maxRows={8}
             data-testid={dataTestId}
-            onChange={e => onChange(e.target.value)}
+            onChange={e => {
+              onCursorChange?.(e.currentTarget.selectionStart);
+              onChange(e.target.value);
+            }}
+            onSelect={e => onCursorChange?.(e.currentTarget.selectionStart)}
             onFocus={() => {
               setSelectedAutocompleteIndex(-1);
               setSelectedQueryHistoryIndex(-1);
