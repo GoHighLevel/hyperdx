@@ -46,6 +46,7 @@ import {
   IconSearch,
   IconShadow,
   IconSitemap,
+  IconX,
 } from '@tabler/icons-react';
 
 import { IS_CLICKHOUSE_BUILD } from '@/config';
@@ -887,7 +888,7 @@ function FilterGroupActions({
               </ActionIcon>
             </Tooltip>
           )}
-          {onColumnToggle && (
+          {canManageShared && onColumnToggle && (
             <Tooltip
               label={isColumnDisplayed ? 'Remove Column' : 'Add Column'}
               position="top"
@@ -1152,6 +1153,7 @@ const DBSearchPageFiltersComponent = ({
   const { canManageShared } = usePermissions();
   const developerUI = useDeveloperUI();
   const [filterSearch, setFilterSearch] = useState('');
+  const [visibleFieldSearch, setVisibleFieldSearch] = useState('');
   const setFilterValue = useCallback(
     (
       property: string,
@@ -1537,7 +1539,21 @@ const DBSearchPageFiltersComponent = ({
     ) => {
       const { keyPrefix = '', isDefaultExpanded: forceExpanded } =
         options ?? {};
-      const { grouped, nonGrouped } = groupFacetsByBaseName(facets);
+      const matchingFacets = visibleFieldSearch.trim()
+        ? facets.filter(facet =>
+            cleanedFacetName(facet.key)
+              .toLowerCase()
+              .includes(visibleFieldSearch.trim().toLowerCase()),
+          )
+        : facets;
+      const { grouped, nonGrouped } = groupFacetsByBaseName(matchingFacets);
+      if (visibleFieldSearch.trim() && matchingFacets.length === 0) {
+        return (
+          <Text size="xs" c="dimmed">
+            No matching fields in this section
+          </Text>
+        );
+      }
 
       const makeValuePins = (key: string): ValuePinHandlers => ({
         onPinClick: (value: string | boolean) => toggleFilterPin(key, value),
@@ -1719,6 +1735,7 @@ const DBSearchPageFiltersComponent = ({
       tableMetadata,
       knownColumns,
       extraFacetKeys,
+      visibleFieldSearch,
     ],
   );
 
@@ -1781,6 +1798,26 @@ const DBSearchPageFiltersComponent = ({
               )}
             </Group>
           </Flex>
+          <TextInput
+            size="xs"
+            aria-label="Search visible fields"
+            placeholder="Search visible fields"
+            leftSection={<IconSearch size={14} />}
+            value={visibleFieldSearch}
+            onChange={event => setVisibleFieldSearch(event.currentTarget.value)}
+            rightSection={
+              visibleFieldSearch ? (
+                <ActionIcon
+                  variant="subtle"
+                  size="xs"
+                  aria-label="Clear field search"
+                  onClick={() => setVisibleFieldSearch('')}
+                >
+                  <IconX size={12} />
+                </ActionIcon>
+              ) : undefined
+            }
+          />
           {developerUI.analysisMode && (
             <Tabs
               value={analysisMode}

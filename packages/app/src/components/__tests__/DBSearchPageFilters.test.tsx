@@ -596,7 +596,7 @@ describe('FilterGroup', () => {
     expect(labels[2]).toHaveTextContent('<1%'); // banana
   });
 
-  it('allows developers to add personal columns', async () => {
+  it('keeps developer columns fixed while leaving personal filters available', () => {
     jest.mocked(usePermissions).mockReturnValueOnce({ canManageShared: false });
     const onColumnToggle = jest.fn();
     renderWithMantine(
@@ -605,10 +605,13 @@ describe('FilterGroup', () => {
     expect(
       screen.queryByTestId('toggle-distribution-button-Test Filter'),
     ).not.toBeInTheDocument();
-    await userEvent.click(
-      screen.getByTestId('toggle-column-button-Test Filter'),
-    );
-    expect(onColumnToggle).toHaveBeenCalledTimes(1);
+    expect(
+      screen.queryByTestId('toggle-column-button-Test Filter'),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getAllByTestId(/filter-checkbox-.+-input/).length,
+    ).toBeGreaterThan(0);
+    expect(onColumnToggle).not.toHaveBeenCalled();
   });
 
   it('should handle excluded items', () => {
