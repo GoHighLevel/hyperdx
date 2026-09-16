@@ -166,7 +166,10 @@ import useDashboardContainers, {
 import { useDashboardKioskMode } from '@/hooks/useDashboardKioskMode';
 import { useReleaseAnnotations } from '@/hooks/useReleaseAnnotations';
 import { dashboardHasMonitoring } from '@/utils/dashboardTimeRange';
-import { resolvePromqlDashboardGranularity } from '@/utils/promqlQueryStep';
+import {
+  resolveDashboardTileGranularity,
+  resolvePromqlDashboardGranularity,
+} from '@/utils/promqlQueryStep';
 import { calculateNextTilePosition, makeId } from '@/utils/tilePositioning';
 
 import ChartContainer, {
@@ -2428,9 +2431,11 @@ function DBDashboardPage({
           onEditClick={() => setEditedTile(chart)}
           readOnly={isKioskMode || !canManageShared}
           isLive={isRefreshEnabled}
-          granularity={
-            isRefreshEnabled ? granularityOverride : (granularity ?? undefined)
-          }
+          granularity={resolveDashboardTileGranularity(
+            chart.config,
+            granularity ?? undefined,
+            isRefreshEnabled ? granularityOverride : undefined,
+          )}
           filters={getTileFilters(tileSourceId)}
           variables={variables}
           unsatisfiedRequiredFilters={unsatisfiedRequiredFilters}

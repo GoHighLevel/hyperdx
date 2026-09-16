@@ -2,13 +2,29 @@ import {
   convertDateRangeToGranularityString,
   convertGranularityToSeconds,
 } from '@hyperdx/common-utils/dist/core/utils';
-import { ChartConfigWithOptDateRange } from '@hyperdx/common-utils/dist/types';
+import { isPromqlSavedChartConfig } from '@hyperdx/common-utils/dist/guards';
+import {
+  ChartConfigWithOptDateRange,
+  SavedChartConfig,
+} from '@hyperdx/common-utils/dist/types';
 
 type ChartGranularity = ChartConfigWithOptDateRange['granularity'];
 
 // A fixed, conservative display budget; independent of the backend safety cap.
 const AUTO_MAX_BUCKETS = 1000;
 const MAX_POINTS_PER_SERIES = 11000;
+
+/** Refresh cadence must not replace monitoring resolution or explicit precision. */
+export function resolveDashboardTileGranularity(
+  config: SavedChartConfig,
+  dashboard: ChartGranularity,
+  liveGranularity?: ChartGranularity,
+): ChartGranularity {
+  if (isPromqlSavedChartConfig(config)) return dashboard;
+  return dashboard && dashboard !== 'auto'
+    ? dashboard
+    : (liveGranularity ?? dashboard);
+}
 
 /** Dashboard Auto inherits a panel's saved interval; explicit overrides win. */
 export function resolvePromqlDashboardGranularity(
