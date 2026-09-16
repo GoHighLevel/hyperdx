@@ -1,0 +1,13 @@
+const end = 1789585208;
+const start = end - 90 * 86400;
+(async () => {
+  for (const filtered of [true, false]) {
+    const query = 'sum(count_over_time(stackdriver_global_logging_googleapis_com_billing_bytes_ingested' + (filtered ? '{project_id="highlevel-backend",job="stackdriver-exporter"}' : '') + '[1d]))';
+    const url = new URL('https://vmselect.platform.prd.msgsndr.net/select/100/prometheus/api/v1/query_range');
+    for (const [k,v] of Object.entries({query,start,end,step:'86400s'})) url.searchParams.set(k,String(v));
+    try {
+      const response = await fetch(url,{signal:AbortSignal.timeout(40000)});
+      console.log(JSON.stringify({query,start,end,step:'86400s',status:response.status,...await response.json()}));
+    } catch(e) { console.log(JSON.stringify({query,error:e.message})); }
+  }
+})();
