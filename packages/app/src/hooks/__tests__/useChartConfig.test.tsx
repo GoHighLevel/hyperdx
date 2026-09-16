@@ -421,6 +421,70 @@ describe('useChartConfig', () => {
         },
       };
 
+      it.each([
+        [14, '1800s'],
+        [30, '3600s'],
+        [90, '21600s'],
+      ])('sends an adaptive Auto step for %i days', async (days, step) => {
+        jest.mocked(prometheusApi.queryRange).mockResolvedValue(matrixResponse);
+        const end = new Date('2026-09-16T16:53:14.098Z');
+        const start = new Date(end.getTime() - days * 86400000);
+        const config = createPromqlConfig({
+          dateRange: [start, end],
+          granularity: 'auto',
+        });
+        const { result } = renderHook(() => useQueriedChartConfig(config), {
+          wrapper,
+        });
+        await waitFor(() => expect(result.current.isSuccess).toBe(true));
+        expect(prometheusApi.queryRange).toHaveBeenCalledWith(
+          expect.objectContaining({
+            step,
+            start: start.getTime() / 1000,
+            end: end.getTime() / 1000,
+          }),
+        );
+      });
+
+      it('keeps explicit day intervals instead of falling back to 60 seconds', async () => {
+        jest.mocked(prometheusApi.queryRange).mockResolvedValue(matrixResponse);
+        const { result } = renderHook(
+          () =>
+            useQueriedChartConfig(createPromqlConfig({ granularity: '7 day' })),
+          { wrapper },
+        );
+        await waitFor(() => expect(result.current.isSuccess).toBe(true));
+        expect(prometheusApi.queryRange).toHaveBeenCalledWith(
+          expect.objectContaining({ step: '604800s' }),
+        );
+      });
+
+      it('explains an oversized explicit interval without issuing a doomed request', async () => {
+        jest.mocked(prometheusApi.queryRange).mockClear();
+        const { result } = renderHook(
+          () =>
+            useQueriedChartConfig(
+              createPromqlConfig({
+                dateRange: [
+                  new Date('2026-09-02T00:00:00Z'),
+                  new Date('2026-09-16T00:00:00Z'),
+                ],
+                granularity: '15 second',
+              }),
+              { retry: false },
+            ),
+          { wrapper },
+        );
+        await waitFor(() => expect(result.current.isError).toBe(true));
+        expect(result.current.error?.message).toContain(
+          '80641 points per series',
+        );
+        expect(result.current.error?.message).toContain(
+          'Choose a larger interval',
+        );
+        expect(prometheusApi.queryRange).not.toHaveBeenCalled();
+      });
+
       it('renders series names from the legend template', async () => {
         jest.mocked(prometheusApi.queryRange).mockResolvedValue(matrixResponse);
 

@@ -165,6 +165,7 @@ import useDashboardContainers, {
 } from '@/hooks/useDashboardContainers';
 import { useDashboardKioskMode } from '@/hooks/useDashboardKioskMode';
 import { useReleaseAnnotations } from '@/hooks/useReleaseAnnotations';
+import { resolvePromqlDashboardGranularity } from '@/utils/promqlQueryStep';
 import { calculateNextTilePosition, makeId } from '@/utils/tilePositioning';
 
 import ChartContainer, {
@@ -628,7 +629,10 @@ const Tile = ({
           from: source.from,
           connection: source.connection,
           dateRange,
-          granularity,
+          granularity: resolvePromqlDashboardGranularity(
+            granularity,
+            chart.config.granularity,
+          ),
           variables: tileVariables,
         });
       }
@@ -1224,7 +1228,12 @@ const Tile = ({
         ? fullscreenDateRange
         : dateRange;
       const effectiveGranularity = isFullscreenView
-        ? fullscreenGranularity
+        ? isPromqlSavedChartConfig(chart.config)
+          ? resolvePromqlDashboardGranularity(
+              fullscreenGranularity,
+              chart.config.granularity,
+            )
+          : fullscreenGranularity
         : queriedConfig?.granularity;
       const effectiveQueriedConfig = queriedConfig
         ? {

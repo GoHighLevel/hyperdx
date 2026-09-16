@@ -1,4 +1,4 @@
-export const DEFAULT_VISIBLE_FILTERS = [
+const DEFAULT_VISIBLE_FILTERS = [
   'namespace_name',
   'deployment_name',
   'pod_name',

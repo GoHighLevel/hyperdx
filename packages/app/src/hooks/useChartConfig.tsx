@@ -45,6 +45,7 @@ import { IS_MTVIEWS_ENABLED } from '@/config';
 import { buildMTViewSelectQuery } from '@/hdxMTViews';
 import { useMetadataWithSettings } from '@/hooks/useMetadata';
 import { useSource } from '@/source';
+import { resolvePromqlQueryStep } from '@/utils/promqlQueryStep';
 import { generateTimeWindowsDescending } from '@/utils/searchWindows';
 
 import { useMVOptimizationExplanation } from './useMVOptimizationExplanation';
@@ -335,25 +336,10 @@ export function useQueriedChartConfig(
         const startSec = startDate.getTime() / 1000;
         const endSec = endDate.getTime() / 1000;
 
-        // Convert HyperDX granularity ("5 minute") to Prometheus step ("300s")
-        let stepStr = '60s';
-        if (config.granularity && config.granularity !== 'auto') {
-          const granToSec: Record<string, number> = {
-            '15 second': 15,
-            '30 second': 30,
-            '1 minute': 60,
-            '5 minute': 300,
-            '10 minute': 600,
-            '15 minute': 900,
-            '30 minute': 1800,
-            '1 hour': 3600,
-            '2 hour': 7200,
-            '6 hour': 21600,
-            '12 hour': 43200,
-            '1 day': 86400,
-          };
-          stepStr = `${granToSec[config.granularity] ?? 60}s`;
-        }
+        const stepStr = resolvePromqlQueryStep(
+          config.dateRange,
+          config.granularity,
+        );
 
         const resp = await prometheusApi.queryRange({
           query: promqlExpression,
