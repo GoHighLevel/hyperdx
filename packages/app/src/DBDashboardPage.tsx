@@ -165,6 +165,7 @@ import useDashboardContainers, {
 } from '@/hooks/useDashboardContainers';
 import { useDashboardKioskMode } from '@/hooks/useDashboardKioskMode';
 import { useReleaseAnnotations } from '@/hooks/useReleaseAnnotations';
+import { dashboardHasMonitoring } from '@/utils/dashboardTimeRange';
 import { resolvePromqlDashboardGranularity } from '@/utils/promqlQueryStep';
 import { calculateNextTilePosition, makeId } from '@/utils/tilePositioning';
 
@@ -2852,21 +2853,10 @@ function DBDashboardPage({
   const [isSaving, setIsSaving] = useState(false);
 
   const hasTiles = dashboard && dashboard.tiles.length > 0;
-  const queryTiles =
-    dashboard?.tiles.filter(tile =>
-      displayTypeRequiresSource(tile.config.displayType),
-    ) ?? [];
-  const isMonitoringDashboard =
-    queryTiles.length > 0 &&
-    queryTiles.every(
-      tile =>
-        isPromqlSavedChartConfig(tile.config) ||
-        sources?.some(
-          source =>
-            source.id === tile.config.source &&
-            source.kind === SourceKind.Metric,
-        ),
-    );
+  const isMonitoringDashboard = dashboardHasMonitoring(
+    dashboard?.tiles ?? [],
+    sources,
+  );
   const hasSavedQueryAndFilterDefaults = Boolean(
     dashboard?.savedQuery || dashboard?.savedFilterValues?.length,
   );

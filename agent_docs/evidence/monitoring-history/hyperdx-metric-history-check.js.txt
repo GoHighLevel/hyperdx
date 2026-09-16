@@ -1,0 +1,26 @@
+const end = Math.floor(Date.now() / 1000);
+const start = end - 90 * 86400;
+const queries = {
+  billing: 'sum(stackdriver_global_logging_googleapis_com_billing_bytes_ingested{project_id="highlevel-backend",job="stackdriver-exporter"})',
+  workloadBytes: 'sum(stackdriver_k_8_s_container_logging_googleapis_com_byte_count{project_id="highlevel-backend",job="stackdriver-exporter"})',
+  exporterUp: 'count(up{job="stackdriver-exporter"})',
+};
+(async () => {
+  for (const [backend, base] of Object.entries({
+    thanos: 'https://thanos.platform.prd.lcmsgsndr.net',
+    vm: 'https://vmselect.platform.prd.msgsndr.net/select/100/prometheus',
+  })) {
+    for (const [name, query] of Object.entries(queries)) {
+      const url = new URL(`${base}/api/v1/query_range`);
+      for (const [k, v] of Object.entries({ query, start, end, step: '86400s' })) url.searchParams.set(k, String(v));
+      const began = Date.now();
+      try {
+        const response = await fetch(url, { signal: AbortSignal.timeout(40000) });
+        const json = await response.json();
+        console.log(JSON.stringify({ backend, name, query, start, end, step: '86400s', status: response.status, durationMs: Date.now() - began, data: json.data, error: json.error, warnings: json.warnings }));
+      } catch (error) {
+        console.log(JSON.stringify({ backend, name, query, start, end, error: error.message, durationMs: Date.now() - began }));
+      }
+    }
+  }
+})();
