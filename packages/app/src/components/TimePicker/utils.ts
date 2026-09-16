@@ -110,13 +110,20 @@ export const RELATIVE_TIME_OPTIONS: (
   ['Last 30 days', ms('30d')],
 ];
 
+export const MONITORING_RELATIVE_TIME_OPTIONS: typeof RELATIVE_TIME_OPTIONS = [
+  ['Last 90 days', ms('90d'), true],
+];
+
 export function getRelativeTimeOptionLabel(value: number) {
   if (value === LIVE_TAIL_DURATION_MS) {
     return LIVE_TAIL_TIME_QUERY;
   }
-  const option = RELATIVE_TIME_OPTIONS.find(
-    option => option !== 'divider' && option[1] === value,
-  ) as [string, number, boolean] | undefined;
+  const option = [
+    ...RELATIVE_TIME_OPTIONS,
+    ...MONITORING_RELATIVE_TIME_OPTIONS,
+  ].find(option => option !== 'divider' && option[1] === value) as
+    | [string, number, boolean]
+    | undefined;
   return option ? option[0] : undefined;
 }
 
