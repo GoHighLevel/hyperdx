@@ -6,6 +6,7 @@ import {
 } from '@hyperdx/common-utils/dist/clickhouse';
 import {
   isBuilderChartConfig,
+  isPromqlChartConfig,
   isRawSqlChartConfig,
 } from '@hyperdx/common-utils/dist/guards';
 import {
@@ -238,6 +239,7 @@ export default function DBNumberChart({
     {
       placeholderData: (prev: any) => prev,
       queryKey: [queryKeyPrefix, queriedConfig],
+      promqlInstant: isPromqlChartConfig(queriedConfig),
       enabled,
     },
   );

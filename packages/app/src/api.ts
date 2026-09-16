@@ -636,6 +636,16 @@ type PrometheusLabelsResponse = {
   data?: string[];
   error?: string;
 };
+type PrometheusInstantResponse = {
+  status: 'success' | 'error';
+  data?:
+    | {
+        resultType: 'vector';
+        result: { metric: PrometheusMetric; value: [number, string] }[];
+      }
+    | { resultType: 'scalar'; result: [number, string] };
+  error?: string;
+};
 
 /** Reports the reason a Prometheus-shaped error body carries, not ky's. */
 async function withPrometheusError<T>(request: () => Promise<T>): Promise<T> {
@@ -675,6 +685,47 @@ const prometheusFetch = <T>(
   withPrometheusError(() => server.post(path, { searchParams }).json<T>());
 
 export const prometheusApi = {
+  // Normalize one-point vectors/scalars for the existing chart renderer.
+  queryInstant: async (params: {
+    query: string;
+    time: number;
+    connectionId: string;
+    database?: string;
+    table?: string;
+  }): Promise<PrometheusQueryRangeResponse> => {
+    const resp = await prometheusFetch<PrometheusInstantResponse>(
+      'v1/prometheus/query',
+      {
+        query: params.query,
+        time: String(params.time),
+        connectionId: params.connectionId,
+        ...(params.database ? { database: params.database } : {}),
+        ...(params.table ? { table: params.table } : {}),
+      },
+    );
+    if (resp.status !== 'success' || !resp.data) {
+      throw new Error(resp.error ?? 'PromQL query failed');
+    }
+    const { data } = resp;
+    if (data.resultType !== 'vector' && data.resultType !== 'scalar') {
+      throw new Error(
+        'PromQL number tiles require an instant vector or scalar.',
+      );
+    }
+    return {
+      status: 'success',
+      data: {
+        resultType: 'matrix',
+        result:
+          data.resultType === 'scalar'
+            ? [{ metric: {}, values: [data.result] }]
+            : data.result.map(series => ({
+                metric: series.metric,
+                values: [series.value],
+              })),
+      },
+    };
+  },
   queryRange: (params: {
     query: string;
     start: number;
