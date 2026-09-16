@@ -33,6 +33,10 @@ import {
   useQueryClient,
 } from '@tanstack/react-query';
 
+import {
+  fetchLabelsInWindows,
+  PrometheusLabelsResponse,
+} from './utils/prometheusLabelWindows';
 import { IS_LOCAL_MODE } from './config';
 import { getLocalDashboardTags } from './dashboard';
 type ServicesResponse = {
@@ -631,11 +635,6 @@ type PrometheusQueryRangeResponse = {
   };
   error?: string;
 };
-type PrometheusLabelsResponse = {
-  status: 'success' | 'error';
-  data?: string[];
-  error?: string;
-};
 type PrometheusInstantResponse = {
   status: 'success' | 'error';
   data?:
@@ -768,13 +767,15 @@ export const prometheusApi = {
     end?: number;
     match?: string;
   }): Promise<PrometheusLabelsResponse> =>
-    withPrometheusError(() =>
-      server
-        .get(`v1/prometheus/label/${params.label}/values`, {
-          searchParams: labelLookupSearchParams(params),
-        })
-        .json<PrometheusLabelsResponse>()
-        .then(uniqueLabels),
+    fetchLabelsInWindows(params.start, params.end, (start, end) =>
+      withPrometheusError(() =>
+        server
+          .get(`v1/prometheus/label/${params.label}/values`, {
+            searchParams: labelLookupSearchParams({ ...params, start, end }),
+          })
+          .json<PrometheusLabelsResponse>()
+          .then(uniqueLabels),
+      ),
     ),
 };
 

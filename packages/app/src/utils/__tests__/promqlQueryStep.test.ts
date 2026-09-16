@@ -1,4 +1,10 @@
 import {
+  DisplayType,
+  SavedChartConfig,
+} from '@hyperdx/common-utils/dist/types';
+
+import {
+  resolveDashboardTileGranularity,
   resolvePromqlDashboardGranularity,
   resolvePromqlQueryStep,
 } from '@/utils/promqlQueryStep';
@@ -8,6 +14,47 @@ const range = (days: number): [Date, Date] => [
   new Date(end.getTime() - days * 86_400_000),
   end,
 ];
+
+describe('live dashboard query resolution', () => {
+  const config = {
+    configType: 'promql',
+    connection: 'vm',
+    promqlExpression: 'up',
+    displayType: DisplayType.Line,
+  } satisfies SavedChartConfig;
+
+  it.each([undefined, '2 day'] as const)(
+    'keeps a saved hourly monitoring interval with refresh granularity %s',
+    live => {
+      const tile = resolveDashboardTileGranularity(config, 'auto', live);
+      expect(
+        resolvePromqlQueryStep(
+          range(90),
+          resolvePromqlDashboardGranularity(tile, '1 hour'),
+        ),
+      ).toBe('3600s');
+    },
+  );
+
+  it('preserves an explicit interval while live', () => {
+    expect(resolveDashboardTileGranularity(config, '30 second', '2 day')).toBe(
+      '30 second',
+    );
+  });
+
+  it('retains automatic live bucketing for SQL without replacing explicit precision', () => {
+    const sql = {
+      configType: 'sql',
+      connection: 'ch',
+      sqlTemplate: 'SELECT 1',
+      displayType: DisplayType.Line,
+    } satisfies SavedChartConfig;
+    expect(resolveDashboardTileGranularity(sql, 'auto', '2 day')).toBe('2 day');
+    expect(resolveDashboardTileGranularity(sql, '1 hour', '2 day')).toBe(
+      '1 hour',
+    );
+  });
+});
 
 describe('PromQL query resolution', () => {
   it.each([
