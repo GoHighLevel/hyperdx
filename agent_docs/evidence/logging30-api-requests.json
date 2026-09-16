@@ -1,0 +1,282 @@
+[
+  {
+    "time": "2026-09-16T18:07:47.646000+00:00",
+    "step": "43200s",
+    "start": ["1786990050"],
+    "end": ["1789582050"],
+    "status": 200,
+    "durationMs": 17141,
+    "queryPrefix": "last_over_time(((avg_over_time((sum (max by (project_id,resource_type) (stackdriver_g",
+    "query": "last_over_time(((avg_over_time((sum (max by (project_id,resource_type) (stackdriver_global_logging_googleapis_com_billing_bytes_ingested{project_id=\"highlevel-backend\",job=\"stackdriver-exporter\"})))[1h:5m])) / 1073741824)[30s:30s] @ end())"
+  },
+  {
+    "time": "2026-09-16T18:07:48.878000+00:00",
+    "step": "60s",
+    "start": ["1786990068.443"],
+    "end": ["1789582068.451"],
+    "status": 400,
+    "durationMs": 22,
+    "queryPrefix": "last_over_time((100 * (avg_over_time((sum (max by (project_id,cluster_name,namespace_",
+    "query": "last_over_time((100 * (avg_over_time((sum (max by (project_id,cluster_name,namespace_name,pod_name,container_name,log,severity) (stackdriver_k_8_s_container_logging_googleapis_com_byte_count{project_id=\"highlevel-backend\",job=\"stackdriver-exporter\",container_name=\"\"})))[1h:5m])) / ((avg_over_time((sum (max by (project_id,cluster_name,namespace_name,pod_name,container_name,log,severity) (stackdriver_k_8_s_container_logging_googleapis_com_byte_count{project_id=\"highlevel-backend\",job=\"stackdriver-exporter\"})))[1h:5m])) > 0))[30s:30s] @ end())"
+  },
+  {
+    "time": "2026-09-16T18:07:48.893000+00:00",
+    "step": "60s",
+    "start": ["1786990068.443"],
+    "end": ["1789582068.451"],
+    "status": 400,
+    "durationMs": 16,
+    "queryPrefix": "last_over_time(((avg_over_time((sum (max by (project_id,cluster_name,namespace_name,p",
+    "query": "last_over_time(((avg_over_time((sum (max by (project_id,cluster_name,namespace_name,pod_name,container_name,log,severity) (stackdriver_k_8_s_container_logging_googleapis_com_byte_count{project_id=\"highlevel-backend\",job=\"stackdriver-exporter\"})))[1h:5m])) / ((avg_over_time((sum (max by (project_id,cluster_name,namespace_name,pod_name,container_name,log,severity) (stackdriver_k_8_s_container_logging_googleapis_com_log_entry_count{project_id=\"highlevel-backend\",job=\"stackdriver-exporter\"})))[1h:5m])) > 0))[30s:30s] @ end())"
+  },
+  {
+    "time": "2026-09-16T18:07:48.968000+00:00",
+    "step": "60s",
+    "start": ["1786990068.443"],
+    "end": ["1789582068.451"],
+    "status": 400,
+    "durationMs": 33,
+    "queryPrefix": "last_over_time((100 * ((avg_over_time((sum (max by (project_id,resource_type) (stackd",
+    "query": "last_over_time((100 * ((avg_over_time((sum (max by (project_id,resource_type) (stackdriver_global_logging_googleapis_com_billing_bytes_ingested{project_id=\"highlevel-backend\",job=\"stackdriver-exporter\"})))[1h:5m])) / ((avg_over_time((sum (max by (project_id,resource_type) (stackdriver_global_logging_googleapis_com_billing_bytes_ingested{project_id=\"highlevel-backend\",job=\"stackdriver-exporter\"} offset 1d)))[1h:5m])) > 0) - 1))[30s:30s] @ end())"
+  },
+  {
+    "time": "2026-09-16T18:07:49.065000+00:00",
+    "step": "60s",
+    "start": ["1786990068.443"],
+    "end": ["1789582068.451"],
+    "status": 400,
+    "durationMs": 18,
+    "queryPrefix": "last_over_time(((avg_over_time((sum (max by (project_id,resource_type) (stackdriver_g",
+    "query": "last_over_time(((avg_over_time((sum (max by (project_id,resource_type) (stackdriver_global_logging_googleapis_com_billing_bytes_ingested{project_id=\"highlevel-backend\",job=\"stackdriver-exporter\"})))[1h:5m])) / 1073741824)[30s:30s] @ end())"
+  },
+  {
+    "time": "2026-09-16T18:07:50.185000+00:00",
+    "step": "60s",
+    "start": ["1786990068.443"],
+    "end": ["1789582068.451"],
+    "status": 400,
+    "durationMs": 13,
+    "queryPrefix": "last_over_time((100 * (avg_over_time((sum (max by (project_id,cluster_name,namespace_",
+    "query": "last_over_time((100 * (avg_over_time((sum (max by (project_id,cluster_name,namespace_name,pod_name,container_name,log,severity) (stackdriver_k_8_s_container_logging_googleapis_com_byte_count{project_id=\"highlevel-backend\",job=\"stackdriver-exporter\",container_name=\"\"})))[1h:5m])) / ((avg_over_time((sum (max by (project_id,cluster_name,namespace_name,pod_name,container_name,log,severity) (stackdriver_k_8_s_container_logging_googleapis_com_byte_count{project_id=\"highlevel-backend\",job=\"stackdriver-exporter\"})))[1h:5m])) > 0))[30s:30s] @ end())"
+  },
+  {
+    "time": "2026-09-16T18:07:50.213000+00:00",
+    "step": "60s",
+    "start": ["1786990068.443"],
+    "end": ["1789582068.451"],
+    "status": 400,
+    "durationMs": 18,
+    "queryPrefix": "last_over_time(((avg_over_time((sum (max by (project_id,cluster_name,namespace_name,p",
+    "query": "last_over_time(((avg_over_time((sum (max by (project_id,cluster_name,namespace_name,pod_name,container_name,log,severity) (stackdriver_k_8_s_container_logging_googleapis_com_byte_count{project_id=\"highlevel-backend\",job=\"stackdriver-exporter\"})))[1h:5m])) / ((avg_over_time((sum (max by (project_id,cluster_name,namespace_name,pod_name,container_name,log,severity) (stackdriver_k_8_s_container_logging_googleapis_com_log_entry_count{project_id=\"highlevel-backend\",job=\"stackdriver-exporter\"})))[1h:5m])) > 0))[30s:30s] @ end())"
+  },
+  {
+    "time": "2026-09-16T18:07:50.600000+00:00",
+    "step": "60s",
+    "start": ["1786990068.443"],
+    "end": ["1789582068.451"],
+    "status": 400,
+    "durationMs": 16,
+    "queryPrefix": "last_over_time((100 * ((avg_over_time((sum (max by (project_id,resource_type) (stackd",
+    "query": "last_over_time((100 * ((avg_over_time((sum (max by (project_id,resource_type) (stackdriver_global_logging_googleapis_com_billing_bytes_ingested{project_id=\"highlevel-backend\",job=\"stackdriver-exporter\"})))[1h:5m])) / ((avg_over_time((sum (max by (project_id,resource_type) (stackdriver_global_logging_googleapis_com_billing_bytes_ingested{project_id=\"highlevel-backend\",job=\"stackdriver-exporter\"} offset 1d)))[1h:5m])) > 0) - 1))[30s:30s] @ end())"
+  },
+  {
+    "time": "2026-09-16T18:07:50.663000+00:00",
+    "step": "60s",
+    "start": ["1786990068.443"],
+    "end": ["1789582068.451"],
+    "status": 400,
+    "durationMs": 17,
+    "queryPrefix": "last_over_time(((avg_over_time((sum (max by (project_id,resource_type) (stackdriver_g",
+    "query": "last_over_time(((avg_over_time((sum (max by (project_id,resource_type) (stackdriver_global_logging_googleapis_com_billing_bytes_ingested{project_id=\"highlevel-backend\",job=\"stackdriver-exporter\"})))[1h:5m])) / 1073741824)[30s:30s] @ end())"
+  },
+  {
+    "time": "2026-09-16T18:07:51.205000+00:00",
+    "step": "43200s",
+    "start": ["1786990050"],
+    "end": ["1789582050"],
+    "status": 200,
+    "durationMs": 20695,
+    "queryPrefix": "last_over_time((100 * ((avg_over_time((sum (max by (project_id,resource_type) (stackd",
+    "query": "last_over_time((100 * ((avg_over_time((sum (max by (project_id,resource_type) (stackdriver_global_logging_googleapis_com_billing_bytes_ingested{project_id=\"highlevel-backend\",job=\"stackdriver-exporter\"})))[1h:5m])) / ((avg_over_time((sum (max by (project_id,resource_type) (stackdriver_global_logging_googleapis_com_billing_bytes_ingested{project_id=\"highlevel-backend\",job=\"stackdriver-exporter\"} offset 1d)))[1h:5m])) > 0) - 1))[30s:30s] @ end())"
+  },
+  {
+    "time": "2026-09-16T18:08:00.644000+00:00",
+    "step": "43200s",
+    "start": ["1786968000"],
+    "end": ["1789603200"],
+    "status": 200,
+    "durationMs": 30113,
+    "queryPrefix": "topk(15, (avg_over_time((sum by (resource_type) (max by (project_id,resource_type) (s",
+    "query": "topk(15, (avg_over_time((sum by (resource_type) (max by (project_id,resource_type) (stackdriver_global_logging_googleapis_com_billing_bytes_ingested{project_id=\"highlevel-backend\",job=\"stackdriver-exporter\"})))[1h:5m])) / 1073741824)"
+  },
+  {
+    "time": "2026-09-16T18:08:14.094000+00:00",
+    "step": "1800s",
+    "start": ["1786990050"],
+    "end": ["1789582050"],
+    "status": 200,
+    "durationMs": 43611,
+    "queryPrefix": "last_over_time(((avg_over_time((sum (max by (project_id,resource_type) (stackdriver_g",
+    "query": "last_over_time(((avg_over_time((sum (max by (project_id,resource_type) (stackdriver_global_logging_googleapis_com_billing_bytes_ingested{project_id=\"highlevel-backend\",job=\"stackdriver-exporter\"})))[1h:5m])) / 1073741824)[30s:30s] @ end())"
+  },
+  {
+    "time": "2026-09-16T18:08:15.451000+00:00",
+    "step": "1800s",
+    "start": ["1786990050"],
+    "end": ["1789582050"],
+    "status": 200,
+    "durationMs": 44983,
+    "queryPrefix": "last_over_time((100 * ((avg_over_time((sum (max by (project_id,resource_type) (stackd",
+    "query": "last_over_time((100 * ((avg_over_time((sum (max by (project_id,resource_type) (stackdriver_global_logging_googleapis_com_billing_bytes_ingested{project_id=\"highlevel-backend\",job=\"stackdriver-exporter\"})))[1h:5m])) / ((avg_over_time((sum (max by (project_id,resource_type) (stackdriver_global_logging_googleapis_com_billing_bytes_ingested{project_id=\"highlevel-backend\",job=\"stackdriver-exporter\"} offset 1d)))[1h:5m])) > 0) - 1))[30s:30s] @ end())"
+  },
+  {
+    "time": "2026-09-16T18:08:30.463000+00:00",
+    "step": "1800s",
+    "start": ["1786990050"],
+    "end": ["1789582050"],
+    "status": null,
+    "durationMs": 59968,
+    "queryPrefix": "last_over_time((100 * (avg_over_time((sum (max by (project_id,cluster_name,namespace_",
+    "query": "last_over_time((100 * (avg_over_time((sum (max by (project_id,cluster_name,namespace_name,pod_name,container_name,log,severity) (stackdriver_k_8_s_container_logging_googleapis_com_byte_count{project_id=\"highlevel-backend\",job=\"stackdriver-exporter\",container_name=\"\"})))[1h:5m])) / ((avg_over_time((sum (max by (project_id,cluster_name,namespace_name,pod_name,container_name,log,severity) (stackdriver_k_8_s_container_logging_googleapis_com_byte_count{project_id=\"highlevel-backend\",job=\"stackdriver-exporter\"})))[1h:5m])) > 0))[30s:30s] @ end())"
+  },
+  {
+    "time": "2026-09-16T18:08:30.463000+00:00",
+    "step": "1800s",
+    "start": ["1786990050"],
+    "end": ["1789582050"],
+    "status": null,
+    "durationMs": 59963,
+    "queryPrefix": "last_over_time(((avg_over_time((sum (max by (project_id,cluster_name,namespace_name,p",
+    "query": "last_over_time(((avg_over_time((sum (max by (project_id,cluster_name,namespace_name,pod_name,container_name,log,severity) (stackdriver_k_8_s_container_logging_googleapis_com_byte_count{project_id=\"highlevel-backend\",job=\"stackdriver-exporter\"})))[1h:5m])) / ((avg_over_time((sum (max by (project_id,cluster_name,namespace_name,pod_name,container_name,log,severity) (stackdriver_k_8_s_container_logging_googleapis_com_log_entry_count{project_id=\"highlevel-backend\",job=\"stackdriver-exporter\"})))[1h:5m])) > 0))[30s:30s] @ end())"
+  },
+  {
+    "time": "2026-09-16T18:08:30.464000+00:00",
+    "step": "1800s",
+    "start": ["1786989600"],
+    "end": ["1789583400"],
+    "status": null,
+    "durationMs": 59956,
+    "queryPrefix": "topk(15, 100 * (clamp_min((avg_over_time((sum by (cluster_name,namespace_name,contain",
+    "query": "topk(15, 100 * (clamp_min((avg_over_time((sum by (cluster_name,namespace_name,container_name) (max by (project_id,cluster_name,namespace_name,pod_name,container_name,log,severity) (stackdriver_k_8_s_container_logging_googleapis_com_byte_count{project_id=\"highlevel-backend\",job=\"stackdriver-exporter\"})))[1h:5m])) - (avg_over_time((sum by (cluster_name,namespace_name,container_name) (max by (project_id,cluster_name,namespace_name,pod_name,container_name,log,severity) (stackdriver_k_8_s_container_logging_googleapis_com_byte_count{project_id=\"highlevel-backend\",job=\"stackdriver-exporter\"} offset 1d)))[1h:5m])), 0)) / scalar(sum(clamp_min((avg_over_time((sum by (cluster_name,namespace_name,container_name) (max by (project_id,cluster_name,namespace_name,pod_name,container_name,log,severity) (stackdriver_k_8_s_container_logging_googleapis_com_byte_count{project_id=\"highlevel-backend\",job=\"stackdriver-exporter\"})))[1h:5m])) - (avg_over_time((sum by (cluster_name,namespace_name,container_name) (max by (project_id,cluster_name,namespace_name,pod_name,container_name,log,severity) (stackdriver_k_8_s_container_logging_googleapis_com_byte_count{project_id=\"highlevel-backend\",job=\"stackdriver-exporter\"} offset 1d)))[1h:5m])), 0)) > 0))"
+  },
+  {
+    "time": "2026-09-16T18:08:30.464000+00:00",
+    "step": "43200s",
+    "start": ["1786990050"],
+    "end": ["1789582050"],
+    "status": null,
+    "durationMs": 59950,
+    "queryPrefix": "last_over_time((100 * (avg_over_time((sum (max by (project_id,cluster_name,namespace_",
+    "query": "last_over_time((100 * (avg_over_time((sum (max by (project_id,cluster_name,namespace_name,pod_name,container_name,log,severity) (stackdriver_k_8_s_container_logging_googleapis_com_byte_count{project_id=\"highlevel-backend\",job=\"stackdriver-exporter\",container_name=\"\"})))[1h:5m])) / ((avg_over_time((sum (max by (project_id,cluster_name,namespace_name,pod_name,container_name,log,severity) (stackdriver_k_8_s_container_logging_googleapis_com_byte_count{project_id=\"highlevel-backend\",job=\"stackdriver-exporter\"})))[1h:5m])) > 0))[30s:30s] @ end())"
+  },
+  {
+    "time": "2026-09-16T18:08:30.465000+00:00",
+    "step": "43200s",
+    "start": ["1786968000"],
+    "end": ["1789603200"],
+    "status": null,
+    "durationMs": 59946,
+    "queryPrefix": "topk(15, 100 * (clamp_min((avg_over_time((sum by (cluster_name,namespace_name,contain",
+    "query": "topk(15, 100 * (clamp_min((avg_over_time((sum by (cluster_name,namespace_name,container_name) (max by (project_id,cluster_name,namespace_name,pod_name,container_name,log,severity) (stackdriver_k_8_s_container_logging_googleapis_com_byte_count{project_id=\"highlevel-backend\",job=\"stackdriver-exporter\"})))[1h:5m])) - (avg_over_time((sum by (cluster_name,namespace_name,container_name) (max by (project_id,cluster_name,namespace_name,pod_name,container_name,log,severity) (stackdriver_k_8_s_container_logging_googleapis_com_byte_count{project_id=\"highlevel-backend\",job=\"stackdriver-exporter\"} offset 1d)))[1h:5m])), 0)) / scalar(sum(clamp_min((avg_over_time((sum by (cluster_name,namespace_name,container_name) (max by (project_id,cluster_name,namespace_name,pod_name,container_name,log,severity) (stackdriver_k_8_s_container_logging_googleapis_com_byte_count{project_id=\"highlevel-backend\",job=\"stackdriver-exporter\"})))[1h:5m])) - (avg_over_time((sum by (cluster_name,namespace_name,container_name) (max by (project_id,cluster_name,namespace_name,pod_name,container_name,log,severity) (stackdriver_k_8_s_container_logging_googleapis_com_byte_count{project_id=\"highlevel-backend\",job=\"stackdriver-exporter\"} offset 1d)))[1h:5m])), 0)) > 0))"
+  },
+  {
+    "time": "2026-09-16T18:08:30.465000+00:00",
+    "step": "1800s",
+    "start": ["1786989600"],
+    "end": ["1789583400"],
+    "status": null,
+    "durationMs": 59960,
+    "queryPrefix": "topk(15, (avg_over_time((sum by (cluster_name,namespace_name,container_name) (max by ",
+    "query": "topk(15, (avg_over_time((sum by (cluster_name,namespace_name,container_name) (max by (project_id,cluster_name,namespace_name,pod_name,container_name,log,severity) (stackdriver_k_8_s_container_logging_googleapis_com_byte_count{project_id=\"highlevel-backend\",job=\"stackdriver-exporter\"})))[1h:5m])) / 1048576)"
+  },
+  {
+    "time": "2026-09-16T18:08:30.466000+00:00",
+    "step": "1800s",
+    "start": ["1786989600"],
+    "end": ["1789583400"],
+    "status": null,
+    "durationMs": 59949,
+    "queryPrefix": "topk(15, (avg_over_time((sum by (resource_type) (max by (project_id,resource_type) (s",
+    "query": "topk(15, (avg_over_time((sum by (resource_type) (max by (project_id,resource_type) (stackdriver_global_logging_googleapis_com_billing_bytes_ingested{project_id=\"highlevel-backend\",job=\"stackdriver-exporter\"})))[1h:5m])) / 1073741824)"
+  },
+  {
+    "time": "2026-09-16T18:08:30.466000+00:00",
+    "step": "43200s",
+    "start": ["1786990050"],
+    "end": ["1789582050"],
+    "status": null,
+    "durationMs": 59937,
+    "queryPrefix": "last_over_time(((avg_over_time((sum (max by (project_id,cluster_name,namespace_name,p",
+    "query": "last_over_time(((avg_over_time((sum (max by (project_id,cluster_name,namespace_name,pod_name,container_name,log,severity) (stackdriver_k_8_s_container_logging_googleapis_com_byte_count{project_id=\"highlevel-backend\",job=\"stackdriver-exporter\"})))[1h:5m])) / ((avg_over_time((sum (max by (project_id,cluster_name,namespace_name,pod_name,container_name,log,severity) (stackdriver_k_8_s_container_logging_googleapis_com_log_entry_count{project_id=\"highlevel-backend\",job=\"stackdriver-exporter\"})))[1h:5m])) > 0))[30s:30s] @ end())"
+  },
+  {
+    "time": "2026-09-16T18:08:30.466000+00:00",
+    "step": "43200s",
+    "start": ["1786968000"],
+    "end": ["1789603200"],
+    "status": null,
+    "durationMs": 59944,
+    "queryPrefix": "topk(15, (avg_over_time((sum by (cluster_name,namespace_name,container_name) (max by ",
+    "query": "topk(15, (avg_over_time((sum by (cluster_name,namespace_name,container_name) (max by (project_id,cluster_name,namespace_name,pod_name,container_name,log,severity) (stackdriver_k_8_s_container_logging_googleapis_com_byte_count{project_id=\"highlevel-backend\",job=\"stackdriver-exporter\"})))[1h:5m])) / 1048576)"
+  },
+  {
+    "time": "2026-09-16T18:08:42.002000+00:00",
+    "step": "43200s",
+    "start": ["1786968000"],
+    "end": ["1789603200"],
+    "status": null,
+    "durationMs": 59814,
+    "queryPrefix": "topk(15, ((avg_over_time((sum by (cluster_name,namespace_name,container_name) (max by",
+    "query": "topk(15, ((avg_over_time((sum by (cluster_name,namespace_name,container_name) (max by (project_id,cluster_name,namespace_name,pod_name,container_name,log,severity) (stackdriver_k_8_s_container_logging_googleapis_com_byte_count{project_id=\"highlevel-backend\",job=\"stackdriver-exporter\"})))[1h:5m])) unless (avg_over_time((sum by (cluster_name,namespace_name,container_name) (max by (project_id,cluster_name,namespace_name,pod_name,container_name,log,severity) (stackdriver_k_8_s_container_logging_googleapis_com_byte_count{project_id=\"highlevel-backend\",job=\"stackdriver-exporter\"} offset 1d)))[1h:5m]))) / 1048576)"
+  },
+  {
+    "time": "2026-09-16T18:08:42.004000+00:00",
+    "step": "43200s",
+    "start": ["1786968000"],
+    "end": ["1789603200"],
+    "status": null,
+    "durationMs": 59993,
+    "queryPrefix": "topk(15, (avg_over_time((sum by (log,severity) (max by (project_id,cluster_name,names",
+    "query": "topk(15, (avg_over_time((sum by (log,severity) (max by (project_id,cluster_name,namespace_name,pod_name,container_name,log,severity) (stackdriver_k_8_s_container_logging_googleapis_com_byte_count{project_id=\"highlevel-backend\",job=\"stackdriver-exporter\"})))[1h:5m])) / 1073741824)"
+  },
+  {
+    "time": "2026-09-16T18:09:09.687000+00:00",
+    "step": "43200s",
+    "start": ["1786968000"],
+    "end": ["1789603200"],
+    "status": 200,
+    "durationMs": 26384,
+    "queryPrefix": "topk(15, (avg_over_time((sum by (log,severity) (max by (project_id,cluster_name,names",
+    "query": "topk(15, (avg_over_time((sum by (log,severity) (max by (project_id,cluster_name,namespace_name,pod_name,container_name,log,severity) (stackdriver_k_8_s_container_logging_googleapis_com_byte_count{project_id=\"highlevel-backend\",job=\"stackdriver-exporter\"})))[1h:5m])) / 1073741824)"
+  },
+  {
+    "time": "2026-09-16T18:09:13.166000+00:00",
+    "step": "43200s",
+    "start": ["1786968000"],
+    "end": ["1789603200"],
+    "status": 200,
+    "durationMs": 41370,
+    "queryPrefix": "topk(15, (avg_over_time((sum by (cluster_name,namespace_name,container_name) (max by ",
+    "query": "topk(15, (avg_over_time((sum by (cluster_name,namespace_name,container_name) (max by (project_id,cluster_name,namespace_name,pod_name,container_name,log,severity) (stackdriver_k_8_s_container_logging_googleapis_com_byte_count{project_id=\"highlevel-backend\",job=\"stackdriver-exporter\"})))[1h:5m])) / 1048576)"
+  },
+  {
+    "time": "2026-09-16T18:09:28.165000+00:00",
+    "step": "43200s",
+    "start": ["1786968000"],
+    "end": ["1789603200"],
+    "status": 200,
+    "durationMs": 44860,
+    "queryPrefix": "topk(15, ((avg_over_time((sum by (cluster_name,namespace_name,container_name) (max by",
+    "query": "topk(15, ((avg_over_time((sum by (cluster_name,namespace_name,container_name) (max by (project_id,cluster_name,namespace_name,pod_name,container_name,log,severity) (stackdriver_k_8_s_container_logging_googleapis_com_byte_count{project_id=\"highlevel-backend\",job=\"stackdriver-exporter\"})))[1h:5m])) unless (avg_over_time((sum by (cluster_name,namespace_name,container_name) (max by (project_id,cluster_name,namespace_name,pod_name,container_name,log,severity) (stackdriver_k_8_s_container_logging_googleapis_com_byte_count{project_id=\"highlevel-backend\",job=\"stackdriver-exporter\"} offset 1d)))[1h:5m]))) / 1048576)"
+  },
+  {
+    "time": "2026-09-16T18:09:31.778000+00:00",
+    "step": "43200s",
+    "start": ["1786968000"],
+    "end": ["1789603200"],
+    "status": null,
+    "durationMs": 59992,
+    "queryPrefix": "topk(15, 100 * (clamp_min((avg_over_time((sum by (cluster_name,namespace_name,contain",
+    "query": "topk(15, 100 * (clamp_min((avg_over_time((sum by (cluster_name,namespace_name,container_name) (max by (project_id,cluster_name,namespace_name,pod_name,container_name,log,severity) (stackdriver_k_8_s_container_logging_googleapis_com_byte_count{project_id=\"highlevel-backend\",job=\"stackdriver-exporter\"})))[1h:5m])) - (avg_over_time((sum by (cluster_name,namespace_name,container_name) (max by (project_id,cluster_name,namespace_name,pod_name,container_name,log,severity) (stackdriver_k_8_s_container_logging_googleapis_com_byte_count{project_id=\"highlevel-backend\",job=\"stackdriver-exporter\"} offset 1d)))[1h:5m])), 0)) / scalar(sum(clamp_min((avg_over_time((sum by (cluster_name,namespace_name,container_name) (max by (project_id,cluster_name,namespace_name,pod_name,container_name,log,severity) (stackdriver_k_8_s_container_logging_googleapis_com_byte_count{project_id=\"highlevel-backend\",job=\"stackdriver-exporter\"})))[1h:5m])) - (avg_over_time((sum by (cluster_name,namespace_name,container_name) (max by (project_id,cluster_name,namespace_name,pod_name,container_name,log,severity) (stackdriver_k_8_s_container_logging_googleapis_com_byte_count{project_id=\"highlevel-backend\",job=\"stackdriver-exporter\"} offset 1d)))[1h:5m])), 0)) > 0))"
+  }
+]

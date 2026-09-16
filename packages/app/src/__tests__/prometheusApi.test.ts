@@ -16,6 +16,75 @@ import { prometheusApi } from '@/api';
 const requestedParams = () =>
   new URLSearchParams(get.mock.calls[0][1].searchParams);
 
+describe('prometheusApi.queryInstant', () => {
+  const params = {
+    query: 'vector(42)',
+    time: 1789582068.451,
+    connectionId: 'conn',
+  };
+  beforeEach(() => post.mockReset());
+
+  it.each([
+    { resultType: 'scalar', result: [1789582068.451, '42'] },
+    {
+      resultType: 'vector',
+      result: [{ metric: {}, value: [1789582068.451, '42'] }],
+    },
+  ])(
+    'renders $resultType as one point and sends an instant request',
+    async data => {
+      post.mockReturnValue({
+        json: () => Promise.resolve({ status: 'success', data }),
+      });
+      const result = await prometheusApi.queryInstant(params);
+      expect(post).toHaveBeenCalledWith('v1/prometheus/query', {
+        searchParams: {
+          query: 'vector(42)',
+          time: '1789582068.451',
+          connectionId: 'conn',
+        },
+      });
+      expect(result.data?.result).toEqual([
+        { metric: {}, values: [[1789582068.451, '42']] },
+      ]);
+    },
+  );
+
+  it('keeps missing data empty rather than inventing a zero', async () => {
+    post.mockReturnValue({
+      json: () =>
+        Promise.resolve({
+          status: 'success',
+          data: { resultType: 'vector', result: [] },
+        }),
+    });
+    expect((await prometheusApi.queryInstant(params)).data?.result).toEqual([]);
+  });
+
+  it('reports backend errors', async () => {
+    post.mockReturnValue({
+      json: () =>
+        Promise.resolve({ status: 'error', error: 'query timed out' }),
+    });
+    await expect(prometheusApi.queryInstant(params)).rejects.toThrow(
+      'query timed out',
+    );
+  });
+
+  it('rejects a range vector for a number tile', async () => {
+    post.mockReturnValue({
+      json: () =>
+        Promise.resolve({
+          status: 'success',
+          data: { resultType: 'matrix', result: [] },
+        }),
+    });
+    await expect(prometheusApi.queryInstant(params)).rejects.toThrow(
+      'instant vector or scalar',
+    );
+  });
+});
+
 describe('prometheusApi.labelValues', () => {
   beforeEach(() => {
     get.mockReset();

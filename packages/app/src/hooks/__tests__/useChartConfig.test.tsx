@@ -77,6 +77,7 @@ jest.mock('@/api', () => ({
   ...jest.requireActual('@/api'),
   prometheusApi: {
     queryRange: jest.fn(),
+    queryInstant: jest.fn(),
   },
 }));
 
@@ -458,6 +459,66 @@ describe('useChartConfig', () => {
           expect.objectContaining({ step: '604800s' }),
         );
       });
+
+      it('evaluates a number once at the exact end, retaining variables and lookbacks', async () => {
+        jest
+          .mocked(prometheusApi.queryInstant)
+          .mockResolvedValue(matrixResponse);
+        const config = createPromqlConfig({
+          dateRange: [new Date(1786990068443), new Date(1789582068451)],
+          granularity: '15 second',
+          promqlExpression: 'sum(increase(requests{service=~"$service"}[30d]))',
+          variables: [{ name: 'service', values: ['api', 'web'] }],
+        });
+        const { result } = renderHook(
+          () => useQueriedChartConfig(config, { promqlInstant: true }),
+          { wrapper },
+        );
+        await waitFor(() => expect(result.current.isSuccess).toBe(true));
+        expect(prometheusApi.queryInstant).toHaveBeenCalledWith(
+          expect.objectContaining({
+            time: 1789582068.451,
+            query: 'sum(increase(requests{service=~"(api|web)"}[30d]))',
+          }),
+        );
+        expect(prometheusApi.queryRange).not.toHaveBeenCalled();
+      });
+
+      it.each([undefined, ['shared-panel-key']])(
+        'separates instant and range caches with caller key %p',
+        async queryKey => {
+          const config = createPromqlConfig();
+          jest
+            .mocked(prometheusApi.queryRange)
+            .mockResolvedValue(matrixResponse);
+          jest.mocked(prometheusApi.queryInstant).mockResolvedValue({
+            status: 'success',
+            data: { resultType: 'matrix', result: [] },
+          });
+          const { result } = renderHook(
+            () => ({
+              range: useQueriedChartConfig(config, {
+                queryKey,
+                staleTime: Infinity,
+              }),
+              instant: useQueriedChartConfig(config, {
+                queryKey,
+                staleTime: Infinity,
+                promqlInstant: true,
+              }),
+            }),
+            { wrapper },
+          );
+          await waitFor(() => {
+            expect(result.current.range.isSuccess).toBe(true);
+            expect(result.current.instant.isSuccess).toBe(true);
+          });
+          expect(result.current.range.data?.rows).toBe(2);
+          expect(result.current.instant.data?.rows).toBe(0);
+          expect(prometheusApi.queryRange).toHaveBeenCalledTimes(1);
+          expect(prometheusApi.queryInstant).toHaveBeenCalledTimes(1);
+        },
+      );
 
       it('explains an oversized explicit interval without issuing a doomed request', async () => {
         jest.mocked(prometheusApi.queryRange).mockClear();

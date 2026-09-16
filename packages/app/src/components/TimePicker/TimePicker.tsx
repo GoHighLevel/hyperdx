@@ -35,6 +35,7 @@ import {
   DURATIONS,
   LIVE_TAIL_DURATION_MS,
   LIVE_TAIL_TIME_QUERY,
+  MONITORING_RELATIVE_TIME_OPTIONS,
   parseTimeRangeInput,
   RELATIVE_TIME_OPTIONS,
 } from './utils';
@@ -106,6 +107,7 @@ const TimePickerComponent = ({
   showLive = false,
   isLiveMode = false,
   defaultRelativeTimeMode = false,
+  monitoring = false,
   width = 350,
   size = 'sm',
 }: {
@@ -117,6 +119,8 @@ const TimePickerComponent = ({
   showLive?: boolean;
   isLiveMode?: boolean;
   defaultRelativeTimeMode?: boolean;
+  /** Offer longer presets only when the selected view queries metrics. */
+  monitoring?: boolean;
   width?: number | string;
   size?: 'xs' | 'sm';
 }) => {
@@ -137,8 +141,9 @@ const TimePickerComponent = ({
         ? [[LIVE_TAIL_TIME_QUERY, LIVE_TAIL_DURATION_MS], 'divider' as const]
         : []) satisfies typeof RELATIVE_TIME_OPTIONS),
       ...RELATIVE_TIME_OPTIONS,
+      ...(monitoring ? MONITORING_RELATIVE_TIME_OPTIONS : []),
     ];
-  }, [showLive]);
+  }, [showLive, monitoring]);
 
   const [mode, setMode] = useAtom(modeAtom);
   const form = useTimePickerForm({ mode });

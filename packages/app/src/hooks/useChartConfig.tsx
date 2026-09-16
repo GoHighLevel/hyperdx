@@ -60,6 +60,8 @@ interface AdditionalUseQueriedChartConfigOptions {
    */
   enableQueryChunking?: boolean;
   enableParallelQueries?: boolean;
+  /** Evaluate PromQL number tiles once, at the selected end time. */
+  promqlInstant?: boolean;
 }
 
 type TimeWindow = {
@@ -301,6 +303,7 @@ export function useQueriedChartConfig(
     AdditionalUseQueriedChartConfigOptions,
 ) {
   const { enabled = true } = options ?? {};
+  const promqlInstant = isPromqlChartConfig(config) && !!options?.promqlInstant;
   const clickhouseClient = useClickhouseClient();
   const queryClient = useQueryClient();
   const metadata = useMetadataWithSettings();
@@ -317,13 +320,6 @@ export function useQueriedChartConfig(
   });
 
   const query = useQuery<TQueryFnData, ClickHouseQueryError | Error>({
-    // Include enableQueryChunking in the query key to ensure that queries with the
-    // same config but different enableQueryChunking values do not share a query
-    queryKey: [
-      config,
-      options?.enableQueryChunking ?? false,
-      options?.enableParallelQueries ?? false,
-    ],
     // TODO: Replace this with `streamedQuery` when it is no longer experimental. Use 'replace' refetch mode.
     // https://tanstack.com/query/latest/docs/reference/streamedQuery
     queryFn: async context => {
@@ -336,20 +332,25 @@ export function useQueriedChartConfig(
         const startSec = startDate.getTime() / 1000;
         const endSec = endDate.getTime() / 1000;
 
-        const stepStr = resolvePromqlQueryStep(
-          config.dateRange,
-          config.granularity,
-        );
-
-        const resp = await prometheusApi.queryRange({
+        const params = {
           query: promqlExpression,
-          start: startSec,
-          end: endSec,
-          step: stepStr,
           connectionId: config.connection,
           database: config.from?.databaseName,
           table: config.from?.tableName,
-        });
+        };
+        // Instant queries preserve expression lookbacks without evaluating the
+        // same number at every step or passing through range-splitting caches.
+        const resp = promqlInstant
+          ? await prometheusApi.queryInstant({ ...params, time: endSec })
+          : await prometheusApi.queryRange({
+              ...params,
+              start: startSec,
+              end: endSec,
+              step: resolvePromqlQueryStep(
+                config.dateRange,
+                config.granularity,
+              ),
+            });
 
         if (resp.status !== 'success' || !resp.data) {
           throw new Error(resp.error ?? 'PromQL query failed');
@@ -466,6 +467,15 @@ export function useQueriedChartConfig(
     retry: 1,
     refetchOnWindowFocus: false,
     ...options,
+    // Even caller-supplied keys must distinguish number and time-series queries.
+    queryKey: [
+      ...(options?.queryKey ?? [
+        config,
+        options?.enableQueryChunking ?? false,
+        options?.enableParallelQueries ?? false,
+      ]),
+      ...(promqlInstant ? ['promql-instant'] : []),
+    ],
     enabled: enabled && !isLoadingMVOptimization && !isSourceLoading,
   });
 

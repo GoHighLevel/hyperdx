@@ -1591,6 +1591,10 @@ const Tile = ({
             <Flex justify="flex-end" gap="sm">
               <TimePicker
                 inputValue={fullscreenInputValue}
+                monitoring={
+                  isPromqlSavedChartConfig(chart.config) ||
+                  source?.kind === SourceKind.Metric
+                }
                 setInputValue={setFullscreenInputValue}
                 onSearch={handleFullscreenSearch}
               />
@@ -2848,6 +2852,21 @@ function DBDashboardPage({
   const [isSaving, setIsSaving] = useState(false);
 
   const hasTiles = dashboard && dashboard.tiles.length > 0;
+  const queryTiles =
+    dashboard?.tiles.filter(tile =>
+      displayTypeRequiresSource(tile.config.displayType),
+    ) ?? [];
+  const isMonitoringDashboard =
+    queryTiles.length > 0 &&
+    queryTiles.every(
+      tile =>
+        isPromqlSavedChartConfig(tile.config) ||
+        sources?.some(
+          source =>
+            source.id === tile.config.source &&
+            source.kind === SourceKind.Metric,
+        ),
+    );
   const hasSavedQueryAndFilterDefaults = Boolean(
     dashboard?.savedQuery || dashboard?.savedFilterValues?.length,
   );
@@ -3138,6 +3157,7 @@ function DBDashboardPage({
       />
       <TimePicker
         inputValue={displayedTimeInputValue}
+        monitoring={isMonitoringDashboard}
         setInputValue={setDisplayedTimeInputValue}
         onSearch={range => {
           onSearch(range);
