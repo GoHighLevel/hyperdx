@@ -862,7 +862,7 @@ const Tile = ({
       <Flex
         gap="0px"
         align="center"
-        onMouseDown={e => e.stopPropagation()}
+        data-dashboard-no-drag
         key="hover-toolbar"
         my={2} // Margin to ensure that the Alert Indicator doesn't clip on non-Line/Bar display types
       >
@@ -948,7 +948,7 @@ const Tile = ({
               </ActionIcon>
             </Tooltip>
           </Menu.Target>
-          <Menu.Dropdown onMouseDown={e => e.stopPropagation()}>
+          <Menu.Dropdown data-dashboard-no-drag>
             <Menu.Item
               data-testid={`tile-duplicate-button-${chart.id}`}
               leftSection={<IconCopy size={14} />}
@@ -1571,7 +1571,7 @@ const Tile = ({
           ref={inViewportRef}
           className="fs-7 text-muted flex-grow-1 overflow-hidden cursor-default"
           style={{ paddingInline: DASHBOARD_TILE_PADDING_INLINE }}
-          onMouseDown={e => e.stopPropagation()}
+          data-dashboard-no-drag
         >
           <CollapsedToolbarProvider
             menuItems={collapsedMenuItems}
