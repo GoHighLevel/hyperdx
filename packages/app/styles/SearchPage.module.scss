@@ -1,13 +1,22 @@
 /* stylelint-disable selector-pseudo-class-no-unknown */
 .filtersPanel {
   position: relative;
-  min-width: 200px;
+  min-width: 260px;
   max-width: 50%;
   height: 100%;
   display: flex;
   flex-direction: column;
   background-color: var(--color-bg-body);
-  word-break: break-all;
+  word-break: normal;
+  font-family: var(--font-roboto, var(--font-inter)), sans-serif;
+  font-size: 13px;
+  line-height: 1.5;
+
+  --mantine-font-family: var(--font-roboto, var(--font-inter)), sans-serif;
+  --mantine-font-size-xs: 13px;
+  --mantine-primary-color-filled: var(--color-chart-info);
+  --mantine-primary-color-light-color: var(--color-chart-info);
+
   flex-shrink: 0;
   flex-grow: 0;
   border-right: 1px solid var(--color-border);
@@ -19,21 +28,31 @@
   }
 
   :global(.mantine-TextInput-input) {
-    height: 20px;
-    min-height: 20px;
-    background-color: transparent;
+    height: 30px;
+    min-height: 30px;
+    background-color: var(--color-bg-muted);
+    border: 1px solid var(--color-border);
+    border-radius: 4px;
     color: var(--color-text-secondary);
     font-size: var(--mantine-font-size-xs);
   }
 
   :global(.mantine-TextInput-input::placeholder) {
     color: var(--color-text-muted);
-    font-weight: bold;
+    font-weight: 400;
   }
 
   :global(.mantine-TextInput-input:focus) {
-    border: none;
-    outline: none;
+    outline: 2px solid var(--color-chart-info);
+    outline-offset: -2px;
+  }
+
+  :global(.mantine-Accordion-control) {
+    min-height: 32px;
+  }
+
+  @media (width <= 800px) {
+    min-width: 210px;
   }
 }
 
@@ -55,7 +74,7 @@
   width: 100%;
   display: grid;
   grid-template-columns: 1fr 13px;
-  padding: 2px 6px;
+  padding: 4px 6px;
   justify-content: space-between;
   align-items: center;
   cursor: pointer;
@@ -96,7 +115,8 @@
     }
   }
 
-  &:hover {
+  &:hover,
+  &:focus-within {
     input {
       opacity: 1;
     }
@@ -148,6 +168,10 @@
 }
 
 .searchStatsContainer {
+  font-family: var(--font-roboto, var(--font-inter)), sans-serif;
+
+  --mantine-font-family: var(--font-roboto, var(--font-inter)), sans-serif;
+
   background-color: var(--color-bg-body);
   padding-inline: var(--mantine-spacing-sm);
   padding-block: var(--mantine-spacing-xxs);
@@ -163,6 +187,10 @@
 }
 
 .searchForm {
+  font-family: var(--font-roboto, var(--font-inter)), sans-serif;
+
+  --mantine-font-family: var(--font-roboto, var(--font-inter)), sans-serif;
+
   background: var(--color-bg-body);
   z-index: 4;
   padding-bottom: var(--mantine-spacing-xs);

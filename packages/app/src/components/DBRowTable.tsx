@@ -94,6 +94,7 @@ import {
   UNDEFINED_WIDTH,
 } from '@/tableUtils';
 import { FormatTime } from '@/useFormatTime';
+import { usePermissions } from '@/usePermissions';
 import { useUserPreferences } from '@/useUserPreferences';
 import {
   getChartColorInfo,
@@ -163,9 +164,9 @@ function getResolvedColumnSize(
   const stored = opts.columnSizeStorage[columnId];
   if (stored != null) return stored;
   const jsType = opts.columnTypeMap.get(column)?._type;
-  if (jsType === JSDataType.Date) return 170;
-  if (column === opts.logLevelColumn) return 115;
-  return 160;
+  if (jsType === JSDataType.Date) return 190;
+  if (column === opts.logLevelColumn) return 84;
+  return 150;
 }
 
 function inferLogLevelColumn(rows: Record<string, any>[]) {
@@ -409,6 +410,7 @@ export const RawLogTable = memo(
     variant?: DBRowTableVariant;
     onRemoveColumn?: (column: string) => void;
   }) => {
+    const { canManageShared } = usePermissions();
     const dedupedRows = useMemo(() => {
       const lIds = new Set();
       const returnedRows = dedupRows
@@ -523,14 +525,40 @@ export const RawLogTable = memo(
     });
 
     const columnSizeOpts = useMemo(
-      () => ({ aliasMap, columnTypeMap, logLevelColumn, columnSizeStorage }),
-      [aliasMap, columnTypeMap, logLevelColumn, columnSizeStorage],
+      () => ({
+        aliasMap,
+        columnTypeMap,
+        logLevelColumn,
+        columnSizeStorage: canManageShared ? columnSizeStorage : {},
+      }),
+      [
+        aliasMap,
+        columnTypeMap,
+        logLevelColumn,
+        columnSizeStorage,
+        canManageShared,
+      ],
     );
 
-    const lastColumnWidth = useMemo(() => {
+    // Reserve spare space for the message even when it isn't the final column.
+    // Other tables retain their usual last-column layout.
+    const messageColumn =
+      displayedColumns.find(
+        column =>
+          source &&
+          'bodyExpression' in source &&
+          source.bodyExpression &&
+          (column === source.bodyExpression ||
+            aliasMap?.[column] === source.bodyExpression),
+      ) ??
+      displayedColumns.find(column =>
+        /^(log|log_message|message|body)$/i.test(column),
+      );
+    const growingColumn = messageColumn ?? displayedColumns.at(-1);
+    const growingColumnWidth = useMemo(() => {
       if (displayedColumns.length === 0) return MIN_LAST_COLUMN_WIDTH;
 
-      const lastCol = displayedColumns[displayedColumns.length - 1];
+      const lastCol = growingColumn!;
       const lastColId = columnSizeOpts.aliasMap?.[lastCol]
         ? `"${lastCol}"`
         : lastCol;
@@ -542,17 +570,24 @@ export const RawLogTable = memo(
 
       const expandWidth = showExpandButton ? 32 : 0;
       const nonLastSum = displayedColumns
-        .slice(0, -1)
+        .filter(column => column !== growingColumn)
         .reduce(
           (total, column) =>
             total + getResolvedColumnSize(column, columnSizeOpts),
           0,
         );
       return Math.max(
-        MIN_LAST_COLUMN_WIDTH,
+        messageColumn ? 360 : MIN_LAST_COLUMN_WIDTH,
         containerWidth - nonLastSum - expandWidth,
       );
-    }, [displayedColumns, columnSizeOpts, showExpandButton, containerWidth]);
+    }, [
+      displayedColumns,
+      columnSizeOpts,
+      showExpandButton,
+      containerWidth,
+      growingColumn,
+      messageColumn,
+    ]);
 
     const [wrapLinesEnabled, setWrapLinesEnabled] = useLocalStorage<boolean>(
       `${tableId}-wrap-lines`,
@@ -570,7 +605,7 @@ export const RawLogTable = memo(
               ),
             ]
           : []),
-        ...(displayedColumns.map((column, i) => {
+        ...(displayedColumns.map(column => {
           const jsColumnType = columnTypeMap.get(column)?._type;
           const isDate = jsColumnType === JSDataType.Date;
           return {
@@ -612,7 +647,17 @@ export const RawLogTable = memo(
 
               if (column === logLevelColumn) {
                 return (
-                  <LogLevel level={strValue} style={{ fontSize: 'inherit' }} />
+                  <LogLevel
+                    level={strValue}
+                    style={{
+                      fontSize: 'inherit',
+                      color: ['info', 'warn', 'error'].includes(
+                        getLogLevelClass(strValue) ?? '',
+                      )
+                        ? 'color-mix(in srgb, var(--log-severity-color) 75%, var(--color-text) 25%)'
+                        : 'var(--color-text-muted)',
+                    }}
+                  />
                 );
               }
 
@@ -641,6 +686,10 @@ export const RawLogTable = memo(
               return (
                 <span
                   className={cx({
+                    [styles.serviceValue]:
+                      /^(deployment_name|service_name|service\.name)$/i.test(
+                        column,
+                      ),
                     'text-muted': value === SPECIAL_VALUES.not_available,
                   })}
                 >
@@ -649,8 +698,8 @@ export const RawLogTable = memo(
               );
             },
             size:
-              i === displayedColumns.length - 1
-                ? lastColumnWidth
+              column === growingColumn
+                ? growingColumnWidth
                 : getResolvedColumnSize(column, columnSizeOpts),
           };
         }) as ColumnDef<any>[]),
@@ -667,7 +716,8 @@ export const RawLogTable = memo(
         toggleRowExpansion,
         showExpandButton,
         aliasMap,
-        lastColumnWidth,
+        growingColumn,
+        growingColumnWidth,
         wrapLinesEnabled,
         tableSearch.searchQuery,
         tableSearch.matchIndices,
@@ -704,7 +754,7 @@ export const RawLogTable = memo(
       const onColumnSizingChange = (updaterOrValue: any) => {
         const state =
           updaterOrValue instanceof Function
-            ? updaterOrValue()
+            ? updaterOrValue(columnSizeStorage)
             : updaterOrValue;
         setColumnSizeStorage({ ...columnSizeStorage, ...state });
       };
@@ -730,18 +780,19 @@ export const RawLogTable = memo(
         defaultColumn: {
           minSize: MIN_COLUMN_WIDTH,
         },
-        enableColumnResizing: true,
+        enableColumnResizing: canManageShared,
         columnResizeMode: 'onChange' as ColumnResizeMode,
       } satisfies TableOptions<any>;
 
       const columnSizeProps = {
         state: {
+          sorting: sortOrder ?? [],
           columnSizing: columnSizeStorage,
         },
         onColumnSizingChange: onColumnSizingChange,
       };
 
-      return tableId
+      return tableId && canManageShared
         ? { ...initReactTableProps, ...columnSizeProps }
         : initReactTableProps;
     }, [
@@ -753,6 +804,7 @@ export const RawLogTable = memo(
       onSortingChange,
       columnSizeStorage,
       setColumnSizeStorage,
+      canManageShared,
     ]);
 
     const table = useReactTable(reactTableProps);
@@ -765,15 +817,24 @@ export const RawLogTable = memo(
       const expandWidth = showExpandButton ? EXPAND_COLUMN_SIZE : 0;
       return (
         expandWidth +
-        displayedColumns.reduce((total, column, i) => {
+        displayedColumns.reduce((total, column) => {
           const size = getResolvedColumnSize(column, columnSizeOpts);
-          if (i === displayedColumns.length - 1) {
-            return total + Math.max(MIN_LAST_COLUMN_WIDTH, size);
+          if (column === growingColumn) {
+            return (
+              total +
+              Math.max(messageColumn ? 360 : MIN_LAST_COLUMN_WIDTH, size)
+            );
           }
           return total + size;
         }, 0)
       );
-    }, [displayedColumns, columnSizeOpts, showExpandButton]);
+    }, [
+      displayedColumns,
+      columnSizeOpts,
+      showExpandButton,
+      growingColumn,
+      messageColumn,
+    ]);
 
     const { rows: _rows } = table.getRowModel();
 
@@ -785,7 +846,7 @@ export const RawLogTable = memo(
         [tableContainerRef],
       ),
       estimateSize: useCallback(
-        () => Math.ceil(logFontSize * 1.5) + 2,
+        () => Math.ceil(logFontSize * 1.5) + 6,
         [logFontSize],
       ),
       overscan: 30,
@@ -1006,15 +1067,17 @@ export const RawLogTable = memo(
                 {displayedColumns.length > 0 &&
                   table.getHeaderGroups().map(headerGroup => (
                     <tr key={headerGroup.id}>
-                      {headerGroup.headers.map((header, headerIndex) => {
+                      {headerGroup.headers.map(header => {
                         const isLast =
-                          headerIndex === headerGroup.headers.length - 1;
+                          (header.column.columnDef.meta as { column?: string })
+                            ?.column === growingColumn;
                         return (
                           <TableHeader
                             key={header.id}
                             header={header}
                             isLast={isLast}
                             onRemoveColumn={
+                              canManageShared &&
                               onRemoveColumn &&
                               (header.column.columnDef.meta as any)?.column
                                 ? () => {
@@ -1032,7 +1095,8 @@ export const RawLogTable = memo(
                                 wrap="nowrap"
                                 align="center"
                               >
-                                {tableId &&
+                                {canManageShared &&
+                                  tableId &&
                                   Object.keys(columnSizeStorage).length > 0 && (
                                     <UnstyledButton
                                       onClick={() => setColumnSizeStorage({})}
@@ -1085,7 +1149,7 @@ export const RawLogTable = memo(
                                     <IconDownload size={16} />
                                   </MantineTooltip>
                                 </CsvExportButton>
-                                {onSettingsClick != null && (
+                                {canManageShared && onSettingsClick != null && (
                                   <UnstyledButton
                                     onClick={() => onSettingsClick()}
                                     title="Settings"

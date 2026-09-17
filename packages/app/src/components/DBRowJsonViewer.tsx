@@ -34,6 +34,7 @@ import HyperJson, {
   LineAction,
 } from '@/components/HyperJson';
 import { useFormatTime } from '@/useFormatTime';
+import { usePermissions } from '@/usePermissions';
 import { useUserPreferences } from '@/useUserPreferences';
 import { mergePath } from '@/utils';
 import {
@@ -356,6 +357,7 @@ export function DBRowJsonViewer({
   mapColumns?: string[];
 }) {
   const formatTime = useFormatTime();
+  const { canManageShared } = usePermissions();
   const {
     userPreferences: { logFontSize = 14 },
   } = useUserPreferences();
@@ -572,7 +574,7 @@ export function DBRowJsonViewer({
       }
 
       // Toggle column action (non-object values)
-      if (toggleColumn && typeof value !== 'object') {
+      if (canManageShared && toggleColumn && typeof value !== 'object') {
         let columnFieldPath = fieldPath;
 
         // Handle parsed JSON from string columns using JSONExtractString
@@ -678,6 +680,7 @@ export function DBRowJsonViewer({
       onPropertyAddClick,
       rowData,
       toggleColumn,
+      canManageShared,
       jsonColumns,
       mapColumns,
     ],

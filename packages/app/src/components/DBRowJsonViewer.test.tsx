@@ -1,6 +1,12 @@
 import React from 'react';
 import { fireEvent, screen, within } from '@testing-library/react';
 
+import { usePermissions } from '@/usePermissions';
+
+jest.mock('@/usePermissions', () => ({
+  usePermissions: jest.fn(() => ({ canManageShared: true })),
+}));
+
 import { buildJSONExtractQuery, DBRowJsonViewer } from './DBRowJsonViewer';
 import { RowSidePanelContext } from './DBRowSidePanel';
 
@@ -57,6 +63,7 @@ describe('DBRowJsonViewer', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    jest.mocked(usePermissions).mockReturnValue({ canManageShared: true });
     mockFormatTime.mockImplementation((time, { format } = {}) => {
       const date = time instanceof Date ? time : new Date(time);
       if (format === 'withMs') {
@@ -127,6 +134,17 @@ describe('DBRowJsonViewer', () => {
       where: "LogAttributes['field1'] = 'value1'",
       whereLanguage: 'sql',
     });
+  });
+
+  it('keeps developer column edits hidden while allowing a JSON field to filter logs', () => {
+    jest.mocked(usePermissions).mockReturnValue({ canManageShared: false });
+    renderComponent(logData);
+    expect(
+      screen.queryByTitle(/column to results table/i),
+    ).not.toBeInTheDocument();
+    clickLineButton('field1', 'Add to Filters');
+    expect(mockOnPropertyAddClick).toHaveBeenCalled();
+    expect(mockToggleColumn).not.toHaveBeenCalled();
   });
 
   it('formats span attributes correctly', () => {

@@ -1,3 +1,4 @@
+import { MantineProvider } from '@mantine/core';
 import { fireEvent, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
@@ -7,6 +8,11 @@ import {
 } from '@/components/DBRowTable';
 import * as useChartConfigModule from '@/hooks/useChartConfig';
 import { RowWhereResult } from '@/hooks/useRowWhere';
+import { usePermissions } from '@/usePermissions';
+
+jest.mock('@/usePermissions', () => ({
+  usePermissions: jest.fn(() => ({ canManageShared: true })),
+}));
 
 const mockRowWhereResult: RowWhereResult = { where: '', aliasWith: [] };
 
@@ -18,6 +24,7 @@ jest.mock('nuqs', () => ({
 describe('RawLogTable', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    jest.mocked(usePermissions).mockReturnValue({ canManageShared: true });
     jest
       .spyOn(useChartConfigModule, 'useAliasMapFromChartConfig')
       .mockReturnValue({
@@ -250,6 +257,64 @@ describe('RawLogTable', () => {
       const headers = container.querySelectorAll('th');
       expect(headers).toHaveLength(2);
       expect((headers[0] as HTMLElement).style.width).not.toBe('250px');
+    });
+
+    it('locks developer columns, ignores old widths, and keeps the log wide even when not last', () => {
+      jest.mocked(usePermissions).mockReturnValue({ canManageShared: false });
+      window.localStorage.setItem(
+        'fixed-column-sizes',
+        JSON.stringify({ log: 80, col1: 600 }),
+      );
+      const onRemoveColumn = jest.fn();
+      const { container, rerender } = renderWithMantine(
+        <RawLogTable
+          {...baseProps}
+          displayedColumns={['log', 'col1']}
+          rows={[{ log: 'Request completed', col1: 'service' }]}
+          tableId="fixed"
+          onRemoveColumn={onRemoveColumn}
+        />,
+      );
+      const widths = () =>
+        Array.from(container.querySelectorAll('th')).map(th => th.style.width);
+      expect(widths()).toEqual(['360px', '150px']);
+      expect(container.querySelector('.resizer')).toBeNull();
+      expect(screen.queryByTitle('Remove column')).not.toBeInTheDocument();
+      expect(
+        screen.queryByTitle('Reset Column Widths'),
+      ).not.toBeInTheDocument();
+      rerender(
+        <MantineProvider>
+          <RawLogTable
+            {...baseProps}
+            displayedColumns={['log', 'col1']}
+            rows={[{ log: 'A new live log message', col1: 'service' }]}
+            tableId="fixed"
+            onRemoveColumn={onRemoveColumn}
+          />
+        </MantineProvider>,
+      );
+      expect(widths()).toEqual(['360px', '150px']);
+      expect(onRemoveColumn).not.toHaveBeenCalled();
+    });
+
+    it('keeps sorting controlled when admin column widths are stored', () => {
+      window.localStorage.setItem(
+        'sorted-column-sizes',
+        JSON.stringify({ col1: 250 }),
+      );
+      const { container } = renderWithMantine(
+        <RawLogTable
+          {...baseProps}
+          tableId="sorted"
+          enableSorting
+          sortOrder={[{ id: 'col1', desc: true }]}
+        />,
+      );
+      expect(container.querySelector('.resizer')).not.toBeNull();
+      expect(screen.getByTestId('raw-log-table-sort-indicator')).toHaveClass(
+        'sorted-desc',
+      );
     });
   });
 
