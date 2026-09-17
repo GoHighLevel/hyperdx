@@ -273,7 +273,7 @@ const TimePickerComponent = ({
       position="bottom-start"
       closeOnEscape
       opened={opened}
-      onClose={close}
+      onDismiss={close}
       zIndex={getDefaultZIndex('popover') + 2}
     >
       <Popover.Target>
