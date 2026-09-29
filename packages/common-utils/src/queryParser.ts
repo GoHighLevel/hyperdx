@@ -99,7 +99,11 @@ export function decodeSpecialTokensToSource(query: string): string {
 }
 
 export function parse(query: string): lucene.AST {
-  return lucene.parse(encodeSpecialTokens(query));
+  const uncommentedQuery = query
+    .split('\n')
+    .filter(line => !line.trimStart().startsWith('//'))
+    .join('\n');
+  return lucene.parse(encodeSpecialTokens(uncommentedQuery));
 }
 
 /** Escape the LIKE/ILIKE metacharacters `\`, `%` and `_` so a term matches literally */

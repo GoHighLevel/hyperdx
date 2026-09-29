@@ -7,6 +7,7 @@ import {
   resolveDashboardTileGranularity,
   resolvePromqlDashboardGranularity,
   resolvePromqlQueryStep,
+  substitutePromqlRangeMacros,
 } from '@/utils/promqlQueryStep';
 
 const end = new Date('2026-09-16T16:53:14.098Z');
@@ -57,6 +58,30 @@ describe('live dashboard query resolution', () => {
 });
 
 describe('PromQL query resolution', () => {
+  it('substitutes the selected dashboard range in PromQL expressions', () => {
+    expect(
+      substitutePromqlRangeMacros(
+        'sum(increase(http_requests_total[$__range])) / $__range_s',
+        range(2),
+      ),
+    ).toBe('sum(increase(http_requests_total[172800s])) / 172800');
+  });
+
+  it('supports braced selected-range macros', () => {
+    expect(
+      substitutePromqlRangeMacros(
+        'increase(http_requests_total[${__range}]) / ${__range_s}',
+        range(1),
+      ),
+    ).toBe('increase(http_requests_total[86400s]) / 86400');
+  });
+
+  it('rejects invalid selected ranges before sending PromQL', () => {
+    expect(() =>
+      substitutePromqlRangeMacros('increase(up[$__range])', [end, new Date(0)]),
+    ).toThrow('Invalid PromQL time range');
+  });
+
   it.each([
     [1, '300s'],
     [14, '1800s'],

@@ -241,7 +241,7 @@ describe('useFetchFacets', () => {
     expect(result.current.data.keyValues?.[0].value).toEqual(['404']);
   });
 
-  it('fetches only the default fields until Add filter is opened', () => {
+  it('lists all fields while fetching values only for default and expanded fields', () => {
     setupDefaultMocks({ withMVs: false });
     useAllFields.mockReturnValue({
       data: ['log_level', 'namespace_name', 'host', 'label_team'].map(name => ({
@@ -251,28 +251,114 @@ describe('useFetchFacets', () => {
       })),
     } as ReturnType<typeof useMetadataModule.useAllFields>);
     const { wrapper } = makeWrapper();
-    const { rerender } = renderHook(
-      ({ showMoreFields }) =>
+    const { result, rerender } = renderHook(
+      ({ expandedFacetKeys }) =>
         useFetchFacets({
           chartConfig: CHART_CONFIG,
           sourceId: 'source1',
           dateRange: DATE_RANGE,
           mode: 'all',
-          showMoreFields,
+          expandedFacetKeys,
         }),
-      { wrapper, initialProps: { showMoreFields: false } },
+      { wrapper, initialProps: { expandedFacetKeys: [] as string[] } },
     );
     expect(useGetKeyValues.mock.calls.at(-1)?.[0]?.keys).toEqual([
       'log_level',
       'namespace_name',
     ]);
-    rerender({ showMoreFields: true });
-    expect(useGetKeyValues.mock.calls.at(-1)?.[0]?.keys).toEqual([
+    expect(result.current.data.facetKeys).toEqual([
       'log_level',
       'namespace_name',
       'host',
       'label_team',
     ]);
+
+    rerender({ expandedFacetKeys: ['host'] });
+    expect(useGetKeyValues.mock.calls.at(-1)?.[0]?.keys).toEqual([
+      'host',
+      'log_level',
+      'namespace_name',
+    ]);
+  });
+
+  it('prioritizes the most recently expanded field before eager fields', () => {
+    setupDefaultMocks({ withMVs: false });
+    useAllFields.mockReturnValue({
+      data: ['log_level', 'namespace_name', 'host', 'label_team'].map(name => ({
+        path: [name],
+        type: 'LowCardinality(String)',
+        jsType: 'string',
+      })),
+    } as ReturnType<typeof useMetadataModule.useAllFields>);
+    const { wrapper } = makeWrapper();
+    renderHook(
+      () =>
+        useFetchFacets({
+          chartConfig: CHART_CONFIG,
+          sourceId: 'source1',
+          dateRange: DATE_RANGE,
+          mode: 'exact',
+          expandedFacetKeys: ['label_team', 'host'],
+        }),
+      { wrapper },
+    );
+
+    expect(useGetKeyValues.mock.calls.at(-1)?.[0]?.keys).toEqual([
+      'label_team',
+      'log_level',
+      'namespace_name',
+      'host',
+    ]);
+  });
+
+  it('retains values loaded before a newly expanded field hits the key cap', async () => {
+    setupDefaultMocks({ withMVs: false });
+    useAllFields.mockReturnValue({
+      data: ['log_level', 'host'].map(name => ({
+        path: [name],
+        type: 'LowCardinality(String)',
+        jsType: 'string',
+      })),
+    } as ReturnType<typeof useMetadataModule.useAllFields>);
+    useGetKeyValues.mockReturnValue({
+      data: [{ key: 'log_level', value: ['info'] }],
+      isPlaceholderData: false,
+      isLoading: false,
+      isFetching: false,
+    } as unknown as ReturnType<typeof useGetKeyValues>);
+    const { wrapper } = makeWrapper();
+    const { result, rerender } = renderHook(
+      ({ expandedFacetKeys }) =>
+        useFetchFacets({
+          chartConfig: CHART_CONFIG,
+          sourceId: 'source1',
+          dateRange: DATE_RANGE,
+          mode: 'exact',
+          expandedFacetKeys,
+        }),
+      { wrapper, initialProps: { expandedFacetKeys: [] as string[] } },
+    );
+
+    await waitFor(() =>
+      expect(result.current.data.keyValues).toEqual([
+        { key: 'log_level', value: ['info'] },
+      ]),
+    );
+
+    useGetKeyValues.mockReturnValue({
+      data: [{ key: 'host', value: ['api-1'] }],
+      isPlaceholderData: false,
+      isLoading: false,
+      isFetching: false,
+    } as unknown as ReturnType<typeof useGetKeyValues>);
+    rerender({ expandedFacetKeys: ['host'] });
+
+    await waitFor(() =>
+      expect(result.current.data.keyValues).toEqual([
+        { key: 'log_level', value: ['info'] },
+        { key: 'host', value: ['api-1'] },
+      ]),
+    );
   });
 
   it('uses the displayed Level alias for developer severity filtering', () => {

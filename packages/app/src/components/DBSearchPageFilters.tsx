@@ -13,7 +13,6 @@ import {
   Accordion,
   ActionIcon,
   Box,
-  Button,
   Center,
   Checkbox,
   Collapse,
@@ -71,7 +70,6 @@ import { useLocalStorage } from '@/utils';
 import { FilterSettingsPanel } from './DBSearchPageFilters/FilterSettingsPopover';
 import { useFetchFacets } from './DBSearchPageFilters/hooks';
 import { NestedFilterGroup } from './DBSearchPageFilters/NestedFilterGroup';
-import { isDefaultVisibleFilter } from './DBSearchPageFilters/personalFilterDefaults';
 import {
   PinShareIndicator,
   PinShareMenu,
@@ -99,6 +97,34 @@ export function cleanedFacetName(key: string): string {
   return filterKeyPath(key)
     .join('.')
     .replace(/`([^`]+)`/g, '$1');
+}
+
+export function mergeJsonFacets(
+  facets: { key: string; value: (string | boolean)[] }[],
+  jsonColumns: string[],
+) {
+  const mergedFacets = new Map<
+    string,
+    { key: string; value: (string | boolean)[] }
+  >();
+  for (const facet of facets) {
+    const key = normalizeJsonFacetKey(facet.key, jsonColumns);
+    const existing = mergedFacets.get(key);
+    if (!existing) {
+      mergedFacets.set(key, { key, value: [...facet.value] });
+      continue;
+    }
+    for (const value of facet.value) {
+      if (!existing.value.includes(value)) existing.value.push(value);
+    }
+  }
+  return Array.from(mergedFacets.values());
+}
+
+export function normalizeJsonFacetKey(key: string, jsonColumns: string[]) {
+  return jsonColumns.some(column => key.startsWith(`${column}.`))
+    ? `toString(${key})`
+    : key;
 }
 
 /** Value-level pin callbacks and state (personal + shared). */
@@ -434,6 +460,7 @@ export type FilterGroupProps = {
   onLoadMore: (key: string) => void;
   loadMoreLoading: boolean;
   hasLoadedMore: boolean;
+  onExpand?: VoidFunction;
   isDefaultExpanded?: boolean;
   showFilterCounts?: boolean;
   showLogCounts?: boolean;
@@ -608,7 +635,7 @@ const FilterGroupBody = ({
     }
 
     // When not searching, sort by personal pinned, shared pinned, selected,
-    // distribution, then alphabetically
+    // matching log count, distribution, then alphabetically.
     return augmentedOptions.toSorted((a, b) => {
       const aPinned = isPinned(a.value);
       const aShared = isSharedPinned?.(a.value) ?? false;
@@ -635,6 +662,23 @@ const FilterGroupBody = ({
       if (aExcluded && !bExcluded) return -1;
       if (!aExcluded && bExcluded) return 1;
 
+      // Match the GCP Logs Explorer field pane: show the most frequent values
+      // first. Counts are strings so values beyond Number.MAX_SAFE_INTEGER
+      // retain their correct ordering.
+      if (showLogCounts && !countsError) {
+        const parseCount = (value: string | boolean) => {
+          const count = logCounts?.get(String(value));
+          return count != null && /^\d+$/.test(count) ? BigInt(count) : null;
+        };
+        const aCount = parseCount(a.value);
+        const bCount = parseCount(b.value);
+        if (aCount !== bCount) {
+          if (aCount == null) return 1;
+          if (bCount == null) return -1;
+          return aCount > bCount ? -1 : 1;
+        }
+      }
+
       // Then sort by estimated percentage of rows with this value, if available
       const aPercentage = distributionData?.get(a.value.toString()) ?? 0;
       const bPercentage = distributionData?.get(b.value.toString()) ?? 0;
@@ -652,6 +696,9 @@ const FilterGroupBody = ({
     isSharedPinned,
     selectedValues.included,
     selectedValues.excluded,
+    showLogCounts,
+    countsError,
+    logCounts,
     distributionData,
   ]);
 
@@ -958,6 +1005,7 @@ export const FilterGroup = ({
   onLoadMore,
   loadMoreLoading,
   hasLoadedMore,
+  onExpand,
   isDefaultExpanded,
   showFilterCounts,
   showLogCounts = true,
@@ -970,6 +1018,7 @@ export const FilterGroup = ({
   const [isExpanded, setExpanded] = useState(isDefaultExpanded ?? false);
   const [showDistributions, setShowDistributions] = useState(false);
   const [isFetchingDistribution, setIsFetchingDistribution] = useState(false);
+  const hasRequestedInitialValuesRef = useRef(false);
 
   const selectedValues: SelectedValues = useMemo(
     () => _selectedValues ?? { included: new Set(), excluded: new Set() },
@@ -979,13 +1028,12 @@ export const FilterGroup = ({
   const hasRange = selectedValues.range != null;
 
   const toggleShowDistributions = useCallback(() => {
-    setShowDistributions(prev => {
-      if (!prev) {
-        setExpanded(true);
-      }
-      return !prev;
-    });
-  }, []);
+    if (!showDistributions) {
+      onExpand?.();
+      setExpanded(true);
+    }
+    setShowDistributions(!showDistributions);
+  }, [onExpand, showDistributions]);
 
   const onDistributionError = useCallback(() => {
     setShowDistributions(false);
@@ -994,8 +1042,12 @@ export const FilterGroup = ({
   useEffect(() => {
     if (isDefaultExpanded) {
       setExpanded(true);
+      if (!hasRequestedInitialValuesRef.current) {
+        hasRequestedInitialValuesRef.current = true;
+        onExpand?.();
+      }
     }
-  }, [isDefaultExpanded]);
+  }, [isDefaultExpanded, onExpand]);
 
   const totalAppliedFiltersSize =
     selectedValues.included.size +
@@ -1015,7 +1067,9 @@ export const FilterGroup = ({
       classNames={{ chevron: classes.chevron }}
       value={isExpanded ? displayName : null}
       onChange={v => {
-        setExpanded(v === displayName);
+        const willExpand = v === displayName;
+        if (willExpand && !isExpanded) onExpand?.();
+        setExpanded(willExpand);
       }}
     >
       <Accordion.Item value={displayName} data-testid={dataTestId}>
@@ -1044,13 +1098,14 @@ export const FilterGroup = ({
               >
                 <Text size="xs" fw="500" truncate="end">
                   {displayName}
-                  {showFilterCounts && (
-                    <Text
-                      component="span"
-                      size="xs"
-                      c="dimmed"
-                    >{` (${totalAppliedFiltersSize > 0 ? totalAppliedFiltersSize : options.length})`}</Text>
-                  )}
+                  {showFilterCounts &&
+                    (totalAppliedFiltersSize > 0 || options.length > 0) && (
+                      <Text
+                        component="span"
+                        size="xs"
+                        c="dimmed"
+                      >{` (${totalAppliedFiltersSize > 0 ? totalAppliedFiltersSize : options.length})`}</Text>
+                    )}
                 </Text>
               </Tooltip>
             </Accordion.Control>
@@ -1261,7 +1316,13 @@ const DBSearchPageFiltersComponent = ({
     [columns],
   );
 
-  const [showMoreFields, setShowMoreFields] = useState(false);
+  const [expandedFacetKeys, setExpandedFacetKeys] = useState<string[]>([]);
+  const handleFacetExpand = useCallback((key: string) => {
+    setExpandedFacetKeys(current => [
+      key,
+      ...current.filter(currentKey => currentKey !== key),
+    ]);
+  }, []);
   const {
     data: fetchFacetsData,
     isLoading: isFacetsLoading,
@@ -1277,9 +1338,10 @@ const DBSearchPageFiltersComponent = ({
     dateRange,
     mode: canManageShared && showAllValues ? 'all' : 'exact',
     filterState,
-    showMoreFields,
+    expandedFacetKeys,
   });
   const facets = fetchFacetsData.keyValues;
+  const availableFacetKeys = fetchFacetsData.facetKeys;
   useEffect(() => {
     if (queriedFields?.length) rememberFields(queriedFields);
   }, [queriedFields, rememberFields, personalPinsLoaded]);
@@ -1300,6 +1362,7 @@ const DBSearchPageFiltersComponent = ({
     const facetsMap = new Map((facets ?? []).map(f => [f.key, f.value]));
     const mergedKeys = new Set<string>([
       ...facetsMap.keys(),
+      ...availableFacetKeys,
       ...Object.keys(pinnedFilters),
       ...getPinnedFields(),
     ]);
@@ -1314,7 +1377,12 @@ const DBSearchPageFiltersComponent = ({
 
       return { key, value: Array.from(mergedValues) };
     });
-  }, [facets, pinnedFilters, getPinnedFields]);
+  }, [facets, availableFacetKeys, pinnedFilters, getPinnedFields]);
+
+  const normalizedFacetsWithPinnedValues = useMemo(
+    () => mergeJsonFacets(facetsWithPinnedValues, jsonColumns ?? []),
+    [facetsWithPinnedValues, jsonColumns],
+  );
 
   // Build the set of team-pinned fields for the Shared Filters section,
   // so we can avoid duplicating them in the regular Filters list below.
@@ -1323,8 +1391,12 @@ const DBSearchPageFiltersComponent = ({
       return new Set<string>();
     }
     const team = pinnedFiltersApiData.team;
-    return new Set([...team.fields, ...Object.keys(team.filters)]);
-  }, [isSharedFiltersVisible, pinnedFiltersApiData]);
+    return new Set(
+      [...team.fields, ...Object.keys(team.filters)].map(key =>
+        normalizeJsonFacetKey(key, jsonColumns ?? []),
+      ),
+    );
+  }, [isSharedFiltersVisible, pinnedFiltersApiData, jsonColumns]);
 
   // Build the facet list for the Shared Filters section.
   // For each team-pinned field: merge pinned values with dynamic facet values.
@@ -1332,11 +1404,15 @@ const DBSearchPageFiltersComponent = ({
     if (sharedFilterKeys.size === 0) return [];
 
     const facetMap = new Map(
-      (facetsWithPinnedValues ?? []).map(f => [f.key, f.value]),
+      normalizedFacetsWithPinnedValues.map(f => [f.key, f.value]),
     );
 
     return Array.from(sharedFilterKeys).map(key => {
-      const teamVals = pinnedFiltersApiData?.team?.filters[key] ?? [];
+      const teamVals =
+        Object.entries(pinnedFiltersApiData?.team?.filters ?? {}).find(
+          ([teamKey]) =>
+            normalizeJsonFacetKey(teamKey, jsonColumns ?? []) === key,
+        )?.[1] ?? [];
       const dynamicValues = facetMap.get(key) ?? [];
 
       let merged: (string | boolean)[];
@@ -1354,48 +1430,35 @@ const DBSearchPageFiltersComponent = ({
 
       return { key, value: merged };
     });
-  }, [sharedFilterKeys, facetsWithPinnedValues, pinnedFiltersApiData]);
+  }, [
+    sharedFilterKeys,
+    normalizedFacetsWithPinnedValues,
+    pinnedFiltersApiData,
+    jsonColumns,
+  ]);
 
   const shownFacets = useMemo(() => {
     const _facets: { key: string; value: (string | boolean)[] }[] = [];
-    for (const _facet of facetsWithPinnedValues ?? []) {
-      const facet = structuredClone(_facet);
-      if (jsonColumns?.some(col => facet.key.startsWith(col))) {
-        facet.key = `toString(${facet.key})`;
-      }
-
+    for (const facet of normalizedFacetsWithPinnedValues) {
       // Skip fields already shown in the Shared Filters section
       if (sharedFilterKeys.has(facet.key)) {
         continue;
       }
 
-      // don't include empty facets, unless they are already selected or pinned
-      const filter = filterState[facet.key];
-      const hasSelectedValues =
-        filter && (filter.included.size > 0 || filter.excluded.size > 0);
-      const isPinned =
-        isFieldPinned(facet.key) || !!queriedFields?.includes(facet.key);
-      if (
-        !showMoreFields &&
-        !isDefaultVisibleFilter(facet.key) &&
-        !isPinned &&
-        !hasSelectedValues &&
-        !filter?.range
-      )
-        continue;
-      if (facet.value?.length > 0 || hasSelectedValues || isPinned) {
-        _facets.push(facet);
-      }
+      _facets.push(facet);
     }
     // get remaining filterState that are not in _facets
-    const remainingFilterState = Object.keys(filterState).filter(
-      key =>
-        !_facets.some(facet => facet.key === key) && !sharedFilterKeys.has(key),
-    );
-    for (const key of remainingFilterState) {
+    const remainingFilterState = Object.keys(filterState).filter(rawKey => {
+      const key = normalizeJsonFacetKey(rawKey, jsonColumns ?? []);
+      return (
+        !_facets.some(facet => facet.key === key) && !sharedFilterKeys.has(key)
+      );
+    });
+    for (const rawKey of remainingFilterState) {
+      const key = normalizeJsonFacetKey(rawKey, jsonColumns ?? []);
       _facets.push({
         key,
-        value: Array.from(filterState[key].included),
+        value: Array.from(filterState[rawKey].included),
       });
     }
 
@@ -1436,21 +1499,19 @@ const DBSearchPageFiltersComponent = ({
       return 0;
     });
 
-    return showMoreFields && filterSearch
+    return filterSearch
       ? _facets.filter(facet =>
           facet.key.toLowerCase().includes(filterSearch.toLowerCase()),
         )
       : _facets;
   }, [
-    facetsWithPinnedValues,
-    queriedFields,
+    normalizedFacetsWithPinnedValues,
     filterState,
     tableMetadata,
     isFieldPinned,
     isSharedFieldPinned,
     jsonColumns,
     sharedFilterKeys,
-    showMoreFields,
     filterSearch,
   ]);
 
@@ -1603,6 +1664,10 @@ const DBSearchPageFiltersComponent = ({
               onColumnToggle={onColumnToggle}
               displayedColumns={displayedColumns}
               onLoadMore={loadMoreFacetsForKey}
+              onFieldExpand={handleFacetExpand}
+              loadingFieldKey={
+                isFacetsFetching ? expandedFacetKeys[0] : undefined
+              }
               loadMoreLoading={group.children.reduce(
                 (acc, child) => {
                   acc[child.key] = loadMoreLoadingKeys.has(child.key);
@@ -1650,7 +1715,12 @@ const DBSearchPageFiltersComponent = ({
                   value,
                   label: value.toString(),
                 }))}
-                optionsLoading={isFacetsLoading}
+                optionsLoading={
+                  isFacetsLoading ||
+                  (isFacetsFetching &&
+                    expandedFacetKeys[0] === facet.key &&
+                    facet.value.length === 0)
+                }
                 selectedValues={
                   getFilterStateEntry(filterState, facet.key) ?? {
                     included: new Set(),
@@ -1670,6 +1740,7 @@ const DBSearchPageFiltersComponent = ({
                 }
                 isColumnDisplayed={displayedColumns?.includes(facetSqlKey)}
                 onLoadMore={loadMoreFacetsForKey}
+                onExpand={() => handleFacetExpand(facet.key)}
                 loadMoreLoading={loadMoreLoadingKeys.has(facet.key)}
                 hasLoadedMore={extraFacetKeys.has(facet.key)}
                 isDefaultExpanded={(() => {
@@ -1709,10 +1780,13 @@ const DBSearchPageFiltersComponent = ({
       onColumnToggle,
       displayedColumns,
       loadMoreFacetsForKey,
+      handleFacetExpand,
       loadMoreLoadingKeys,
       showFilterCounts,
       showLogCounts,
       isFacetsLoading,
+      isFacetsFetching,
+      expandedFacetKeys,
       chartConfig,
       isLive,
       setFilterRange,
@@ -1961,45 +2035,16 @@ const DBSearchPageFiltersComponent = ({
                     )
                   )}
                   {/* Show facets even when loading to ensure pinned filters are visible while loading */}
-                  {showMoreFields && (
-                    <TextInput
-                      size="xs"
-                      aria-label="Find a filter"
-                      placeholder="Find a filter"
-                      value={filterSearch}
-                      onChange={event =>
-                        setFilterSearch(event.currentTarget.value)
-                      }
-                    />
-                  )}
-                  {renderFacetList(shownFacets)}
-
-                  <Button
-                    variant="secondary"
-                    size="compact-xs"
-                    loading={isFacetsFetching}
-                    rightSection={
-                      showMoreFields ? (
-                        <IconChevronUp size={14} />
-                      ) : (
-                        <IconChevronDown size={14} />
-                      )
+                  <TextInput
+                    size="xs"
+                    aria-label="Find a filter"
+                    placeholder="Find a filter"
+                    value={filterSearch}
+                    onChange={event =>
+                      setFilterSearch(event.currentTarget.value)
                     }
-                    onClick={() => setShowMoreFields(!showMoreFields)}
-                  >
-                    {showMoreFields ? 'Done adding filters' : 'Add filter'}
-                  </Button>
-
-                  {showMoreFields && (
-                    <div>
-                      <Text size="xs" fw="bold">
-                        Not seeing a filter?
-                      </Text>
-                      <Text size="xxs">
-                        {`Try searching instead (e.g. column:foo)`}
-                      </Text>
-                    </div>
-                  )}
+                  />
+                  {renderFacetList(shownFacets)}
                 </Stack>
               </Collapse>
             </Stack>

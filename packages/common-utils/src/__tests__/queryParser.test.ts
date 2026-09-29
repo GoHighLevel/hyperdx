@@ -6,6 +6,7 @@ import {
   decodeSpecialTokensToSource,
   encodeSpecialTokens,
   genEnglishExplanation,
+  parse,
   parseKvItemsCastExpression,
   parseKvItemsExpression,
   SearchQueryBuilder,
@@ -24,6 +25,16 @@ afterAll(() => {
 });
 
 describe('special token encoding', () => {
+  it('ignores fully commented Lucene lines', () => {
+    expect(parse('// deployment_name:"old"\ndeployment_name:"api"')).toEqual(
+      parse('deployment_name:"api"'),
+    );
+  });
+
+  it('does not treat URL tokens as comments', () => {
+    expect(() => parse('Url:https://example.com/path')).not.toThrow();
+  });
+
   it('keeps escaped dots in literal JSON keys', () => {
     expect(splitLuceneField('log.request\\.id')).toEqual(['log', 'request.id']);
     expect(splitLuceneField('log.request.id')).toEqual([

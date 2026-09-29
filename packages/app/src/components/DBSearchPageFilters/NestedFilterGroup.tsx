@@ -36,6 +36,8 @@ type NestedFilterGroupProps = {
   onColumnToggle?: (column: string) => void;
   displayedColumns?: string[];
   onLoadMore: (key: string) => void;
+  onFieldExpand?: (key: string) => void;
+  loadingFieldKey?: string;
   loadMoreLoading: Record<string, boolean>;
   hasLoadedMore: Record<string, boolean>;
   isDefaultExpanded?: boolean;
@@ -68,6 +70,8 @@ export const NestedFilterGroup = ({
   onColumnToggle,
   displayedColumns,
   onLoadMore,
+  onFieldExpand,
+  loadingFieldKey,
   loadMoreLoading,
   hasLoadedMore,
   isDefaultExpanded,
@@ -211,7 +215,10 @@ export const NestedFilterGroup = ({
                               value: value,
                               label: value.toString(),
                             }))}
-                            optionsLoading={false}
+                            optionsLoading={
+                              loadingFieldKey === child.key &&
+                              child.value.length === 0
+                            }
                             selectedValues={childSelectedValues}
                             onChange={value => onChange(child.key, value)}
                             onClearClick={() => onClearClick(child.key)}
@@ -249,6 +256,7 @@ export const NestedFilterGroup = ({
                               child.sqlKey ?? child.key,
                             )}
                             onLoadMore={() => onLoadMore(child.key)}
+                            onExpand={() => onFieldExpand?.(child.key)}
                             loadMoreLoading={
                               loadMoreLoading[child.key] || false
                             }

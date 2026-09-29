@@ -45,7 +45,10 @@ import { IS_MTVIEWS_ENABLED } from '@/config';
 import { buildMTViewSelectQuery } from '@/hdxMTViews';
 import { useMetadataWithSettings } from '@/hooks/useMetadata';
 import { useSource } from '@/source';
-import { resolvePromqlQueryStep } from '@/utils/promqlQueryStep';
+import {
+  resolvePromqlQueryStep,
+  substitutePromqlRangeMacros,
+} from '@/utils/promqlQueryStep';
 import { generateTimeWindowsDescending } from '@/utils/searchWindows';
 
 import { useMVOptimizationExplanation } from './useMVOptimizationExplanation';
@@ -326,11 +329,15 @@ export function useQueriedChartConfig(
       // PromQL queries go through the Prometheus API route, not ClickHouse proxy
       if (isPromqlChartConfig(config) && config.dateRange) {
         // Expand dashboard variables in the PromQL expression before sending to Prometheus API.
-        const { promqlExpression } =
+        const { promqlExpression: variableExpandedExpression } =
           substitutePromqlChartConfigVariables(config);
         const [startDate, endDate] = config.dateRange;
         const startSec = startDate.getTime() / 1000;
         const endSec = endDate.getTime() / 1000;
+        const promqlExpression = substitutePromqlRangeMacros(
+          variableExpandedExpression,
+          config.dateRange,
+        );
 
         const params = {
           query: promqlExpression,

@@ -9,18 +9,20 @@ import {
   Completion,
   startCompletion,
 } from '@codemirror/autocomplete';
+import { toggleComment } from '@codemirror/commands';
 import {
   Field,
   TableConnectionChoice,
 } from '@hyperdx/common-utils/dist/core/metadata';
 import {
+  ActionIcon,
   Flex,
   Paper,
   Text,
   Tooltip,
   useMantineColorScheme,
 } from '@mantine/core';
-import { IconInfoCircle } from '@tabler/icons-react';
+import { IconInfoCircle, IconMessageCode } from '@tabler/icons-react';
 import CodeMirror, {
   Compartment,
   EditorView,
@@ -77,7 +79,13 @@ type SQLInlineEditorProps = {
   // Whether the dashboard variables in scope apply to this expression: offer
   // them as completions, and warn about the references that won't work.
   enableVariables?: boolean;
+  enableCommentToggle?: boolean;
 };
+
+export const createToggleCommentKeyBinding = () => ({
+  key: 'Mod-/',
+  run: toggleComment,
+});
 
 const MAX_EDITOR_HEIGHT = '150px';
 
@@ -105,6 +113,7 @@ export default function SQLInlineEditor({
   sourceId,
   intersectFields,
   enableVariables = false,
+  enableCommentToggle = false,
 }: SQLInlineEditorProps & TableConnectionChoice) {
   const { colorScheme } = useMantineColorScheme();
   const _tableConnections = tableConnection
@@ -317,6 +326,9 @@ export default function SQLInlineEditor({
                 },
               ]
             : []),
+          ...(allowMultiline && enableCommentToggle
+            ? [createToggleCommentKeyBinding()]
+            : []),
         ]),
       ),
       keymap.of([
@@ -326,13 +338,27 @@ export default function SQLInlineEditor({
         },
       ]),
     ],
-    [allowMultiline, onSubmit, queryHistoryType, setQueryHistory, tooltipExt],
+    [
+      allowMultiline,
+      enableCommentToggle,
+      onSubmit,
+      queryHistoryType,
+      setQueryHistory,
+      tooltipExt,
+    ],
   );
 
   const onClickCodeMirror = useCallback(() => {
     if (ref?.current?.view) {
       startCompletion(ref.current.view);
     }
+  }, []);
+
+  const onToggleComment = useCallback(() => {
+    const view = ref.current?.view;
+    if (view == null) return;
+    toggleComment(view);
+    view.focus();
   }, []);
 
   const isExpanded = allowMultiline;
@@ -399,6 +425,19 @@ export default function SQLInlineEditor({
           />
         </div>
         <VariableIssueIndicator issues={variableIssues} />
+        {enableCommentToggle && (
+          <Tooltip label="Comment or uncomment query lines (Command/Ctrl+/)">
+            <ActionIcon
+              className={styles.commentToggle}
+              variant="subtle"
+              size="sm"
+              aria-label="Comment or uncomment query lines"
+              onClick={onToggleComment}
+            >
+              <IconMessageCode size={16} />
+            </ActionIcon>
+          </Tooltip>
+        )}
         {onLanguageChange != null && language != null && (
           <div className={styles.languageSwitchWrapper}>
             <InputLanguageSwitch

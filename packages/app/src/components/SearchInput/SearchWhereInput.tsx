@@ -247,6 +247,7 @@ export default function SearchWhereInput({
               sourceId={sourceId}
               parentRef={parentRef}
               enableVariables={enableVariables}
+              enableCommentToggle
             />
           ) : (
             <SearchInputV2
@@ -263,6 +264,7 @@ export default function SearchWhereInput({
               dateRange={dateRange}
               sourceId={sourceId}
               enableVariables={enableVariables}
+              enableCommentToggle
             />
           )}
           {enableHotkey && (

@@ -56,6 +56,7 @@ export default function SearchInputV2({
   dateRange,
   sourceId,
   enableVariables = false,
+  enableCommentToggle = false,
   'data-testid': dataTestId,
   ...props
 }: {
@@ -71,6 +72,7 @@ export default function SearchInputV2({
   dateRange?: [Date, Date];
   sourceId?: string;
   enableVariables?: boolean;
+  enableCommentToggle?: boolean;
   'data-testid'?: string;
 } & UseControllerProps<any> &
   TableConnectionChoice) {
@@ -158,6 +160,7 @@ export default function SearchInputV2({
       onLanguageChange={onLanguageChange}
       onSubmit={onSubmit}
       queryHistoryType={queryHistoryType}
+      enableCommentToggle={enableCommentToggle}
       data-testid={dataTestId}
       rightAdornment={
         hasVariableIssues(variableIssues) ? (

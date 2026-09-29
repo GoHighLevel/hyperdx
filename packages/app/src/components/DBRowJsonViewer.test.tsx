@@ -80,6 +80,7 @@ describe('DBRowJsonViewer', () => {
   const ACTION_TITLE: Record<string, string> = {
     Search: 'search for this value only',
     'Add to Filters': 'filter by this field',
+    'Exclude from Filters': 'exclude from filters',
     Column: 'column to results table',
     'Copy Object': 'copy object',
     'Copy Value': 'copy value',
@@ -164,6 +165,17 @@ describe('DBRowJsonViewer', () => {
     );
   });
 
+  it('excludes filters with correct path formatting', () => {
+    renderComponent(logData);
+    clickLineButton('field1', 'Exclude from Filters');
+
+    expect(mockOnPropertyAddClick).toHaveBeenCalledWith(
+      "LogAttributes['field1']",
+      'value1',
+      'exclude',
+    );
+  });
+
   // HDX-4427: "Add to Filters" on a value inside parsed JSON from a String
   // column must hand searchFilters the JSONExtract* expression, which is what
   // gets serialized into the WHERE clause. Body here is a String column holding
@@ -176,6 +188,18 @@ describe('DBRowJsonViewer', () => {
     expect(mockOnPropertyAddClick).toHaveBeenCalledWith(
       "JSONExtractString(Body, 'app.user.currency')",
       'USD',
+    );
+  });
+
+  it('excludes a JSONExtractString filter for a value inside parsed JSON', () => {
+    renderComponent({ Body: JSON.stringify({ 'app.user.currency': 'USD' }) });
+
+    expandAndClickButton('Body', 'app.user.currency', 'Exclude from Filters');
+
+    expect(mockOnPropertyAddClick).toHaveBeenCalledWith(
+      "JSONExtractString(Body, 'app.user.currency')",
+      'USD',
+      'exclude',
     );
   });
 

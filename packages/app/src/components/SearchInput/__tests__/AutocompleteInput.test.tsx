@@ -22,6 +22,7 @@ function Editor({ initial }: { initial: string }) {
           { value: 'service:"api"', label: 'service:"api"' },
           { value: 'namespace:"payments"', label: 'namespace:"payments"' },
         ]}
+        enableCommentToggle
       />
     </MantineProvider>
   );
@@ -45,4 +46,37 @@ it('updates suggestions when the cursor moves without changing text', async () =
   fireEvent.select(input);
   await userEvent.click(await screen.findByText('service:"api"'));
   expect(input).toHaveValue('service:"api" AND\nnamespace:');
+});
+
+it('comments and uncomments the selected Lucene lines from the keyboard', async () => {
+  render(<Editor initial={'service:"api"\nnamespace:"payments"'} />);
+  const input = screen.getByRole<HTMLTextAreaElement>('textbox');
+  await userEvent.click(input);
+  input.setSelectionRange(0, input.value.length);
+
+  fireEvent.keyDown(input, { key: '/', metaKey: true });
+  expect(input).toHaveValue('// service:"api"\n// namespace:"payments"');
+
+  input.setSelectionRange(0, input.value.length);
+  fireEvent.keyDown(input, { key: '/', metaKey: true });
+  expect(input).toHaveValue('service:"api"\nnamespace:"payments"');
+});
+
+it('offers an accessible Lucene comment toggle', async () => {
+  render(<Editor initial={'service:"api"'} />);
+
+  await userEvent.click(
+    screen.getByRole('button', { name: 'Comment or uncomment query lines' }),
+  );
+
+  expect(screen.getByRole('textbox')).toHaveValue('// service:"api"');
+});
+
+it('visually distinguishes commented Lucene lines', () => {
+  render(<Editor initial={'// service:"api"\nnamespace:"payments"'} />);
+
+  const overlay = screen.getByTestId('lucene-comment-highlighting');
+  expect(overlay.querySelector('.commentedLine')).toHaveTextContent(
+    '// service:"api"',
+  );
 });

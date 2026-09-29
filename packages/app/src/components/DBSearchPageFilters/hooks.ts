@@ -7,6 +7,7 @@ import {
 import {
   FilterState,
   filtersToQuery,
+  serializeFilterState,
 } from '@hyperdx/common-utils/dist/filters';
 import {
   BuilderChartConfigWithDateRange,
@@ -36,6 +37,12 @@ const INITIAL_LOAD_LIMIT = 20;
 
 /* The maximum number of values per filter to load when "Load More" is clicked */
 const LOAD_MORE_LOAD_LIMIT = 10000;
+
+export function mergeLatestFacets(previous: Facet[], latest: Facet[]): Facet[] {
+  const merged = new Map(previous.map(facet => [facet.key, facet]));
+  for (const facet of latest) merged.set(facet.key, facet);
+  return Array.from(merged.values());
+}
 
 /**
  * Decide which table key-value discovery reads from.
@@ -69,7 +76,7 @@ function useFacets({
   mode,
   dateRange,
   filterState,
-  showMoreFields,
+  expandedFacetKeys,
   enabled,
   disableValues,
 }: {
@@ -83,7 +90,7 @@ function useFacets({
   mode: 'all' | 'exact';
   dateRange: [Date, Date];
   filterState?: FilterState;
-  showMoreFields?: boolean;
+  expandedFacetKeys?: readonly string[];
   enabled?: boolean;
   disableValues?: boolean;
 }) {
@@ -122,10 +129,10 @@ function useFacets({
   const { isFieldPinned, isSharedFieldPinned, getPinnedFields } =
     usePinnedFilters(sourceId ?? null);
 
-  const keysToFetch = useMemo(() => {
+  const availableFacetKeys = useMemo(() => {
     const aliases = new Set(chartConfig.with?.map(clause => clause.name));
     const hasLevelAlias = aliases.has('Level');
-    const strings = [...(allFields ?? [])]
+    return [...(allFields ?? [])]
       .sort((a, b) => {
         // First show low cardinality fields
         const isLowCardinality = (type: string) =>
@@ -149,27 +156,41 @@ function useFacets({
           isMapSubField: path.length > 1,
         };
       })
-      .filter(
-        field =>
-          showMoreFields ||
-          isDefaultVisibleFilter(field.path) ||
-          (filterState && Object.keys(filterState).includes(field.path)) || // keep selected fields
-          isFieldPinned(field.path) || // keep personally pinned fields
-          isSharedFieldPinned(field.path), // keep team-shared fields
-      )
       .map(({ path }) => path)
       .filter(
         path =>
           !['body', 'timestamp', '_hdx_body'].includes(path.toLowerCase()),
       );
+  }, [allFields, chartConfig.with, jsonColumns, mapColumns]);
+
+  const keysToFetch = useMemo(() => {
+    const aliases = new Set(chartConfig.with?.map(clause => clause.name));
+    const isEagerField = (field: string) =>
+      isDefaultVisibleFilter(field) ||
+      (filterState && Object.keys(filterState).includes(field)) ||
+      isFieldPinned(field) ||
+      isSharedFieldPinned(field);
+
+    const expandedDiscoveredKeys = (expandedFacetKeys ?? []).flatMap(
+      expandedKey => {
+        const discoveredKey = availableFacetKeys.find(
+          field =>
+            expandedKey === field || expandedKey === `toString(${field})`,
+        );
+        return discoveredKey ? [discoveredKey] : [];
+      },
+    );
+    const eagerDiscoveredKeys = availableFacetKeys.filter(isEagerField);
     // A field selected from a log may be absent from sampled metadata (or be
     // a JSONExtract expression). Keep it queryable after the filter is cleared.
     return Array.from(
       new Set([
-        ...strings,
+        ...expandedDiscoveredKeys.slice(0, 1),
+        ...Object.keys(filterState ?? {}),
         ...getPinnedFields(),
         ...(queriedFields ?? []),
-        ...Object.keys(filterState ?? {}),
+        ...eagerDiscoveredKeys,
+        ...expandedDiscoveredKeys.slice(1),
       ]),
     ).filter(
       key =>
@@ -178,13 +199,11 @@ function useFacets({
         knownColumns.has(key),
     );
   }, [
-    allFields,
+    availableFacetKeys,
     chartConfig.with,
     knownColumns,
-    jsonColumns,
-    mapColumns,
     filterState,
-    showMoreFields,
+    expandedFacetKeys,
     isFieldPinned,
     isSharedFieldPinned,
     getPinnedFields,
@@ -315,7 +334,11 @@ function useFacets({
   return {
     ...rest,
     error: allFieldsError ?? rest.error,
-    data: { keys: allFields, keyValues: facets },
+    data: {
+      keys: allFields,
+      keyValues: facets,
+      facetKeys: availableFacetKeys,
+    },
     queriedFields,
     isLoading: isAllFieldsLoading || rest.isLoading,
     loadMoreFacetsForKey,
@@ -329,7 +352,7 @@ export function useFetchFacets({
   dateRange,
   mode,
   filterState,
-  showMoreFields,
+  expandedFacetKeys,
   disableValues,
 }: {
   chartConfig: BuilderChartConfigWithDateRange;
@@ -342,7 +365,7 @@ export function useFetchFacets({
   dateRange: [Date, Date];
   mode: 'all' | 'exact';
   filterState?: FilterState;
-  showMoreFields?: boolean;
+  expandedFacetKeys?: readonly string[];
   disableValues?: boolean;
 }) {
   const facetsQuery = useFacets({
@@ -352,14 +375,58 @@ export function useFetchFacets({
     mode,
     dateRange,
     filterState,
-    showMoreFields,
+    expandedFacetKeys,
     enabled: true,
     disableValues,
   });
 
+  // `useGetKeyValues` caps the requested key list at the team's configured
+  // limit. Keep the most recent result for every key in the current query
+  // scope so prioritizing a newly expanded field does not evict values that
+  // were already loaded for another field.
+  const facetScope = JSON.stringify({
+    sourceId,
+    tableConnection,
+    dateRange: dateRange.map(date => date.toISOString()),
+    mode,
+    filterState: serializeFilterState(filterState ?? {}),
+    chartConfig,
+    disableValues,
+  });
+  const [cachedQueryFacets, setCachedQueryFacets] = useState<{
+    scope: string;
+    facets: Facet[];
+  }>({ scope: facetScope, facets: [] });
+
+  useEffect(() => {
+    const latest = facetsQuery.data.keyValues;
+    if (latest === undefined || facetsQuery.isPlaceholderData) return;
+
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setCachedQueryFacets(previous => ({
+      scope: facetScope,
+      facets: mergeLatestFacets(
+        previous.scope === facetScope ? previous.facets : [],
+        latest,
+      ),
+    }));
+  }, [facetScope, facetsQuery.data.keyValues, facetsQuery.isPlaceholderData]);
+
+  const queryFacets = useMemo(() => {
+    const previous =
+      cachedQueryFacets.scope === facetScope ? cachedQueryFacets.facets : [];
+    const latest = facetsQuery.isPlaceholderData
+      ? []
+      : (facetsQuery.data.keyValues ?? []);
+    if (previous.length === 0 && latest.length === 0) {
+      return facetsQuery.data.keyValues === undefined ? undefined : [];
+    }
+    return mergeLatestFacets(previous, latest);
+  }, [cachedQueryFacets, facetScope, facetsQuery]);
+
   const [extraFacets, setExtraFacets] = useState<Facet[] | null>(null);
   const facets = useMemo<Facet[] | undefined>(() => {
-    const base = facetsQuery.data.keyValues;
+    const base = queryFacets;
     const hasExtras = !!extraFacets && extraFacets.length > 0;
 
     if (base === undefined && !hasExtras) return undefined;
@@ -393,7 +460,7 @@ export function useFetchFacets({
       }
     }
     return output;
-  }, [facetsQuery.data, extraFacets]);
+  }, [queryFacets, extraFacets]);
 
   const [extraFacetKeys, setExtraFacetKeys] = useState<Set<string>>(
     () => new Set(),
@@ -434,21 +501,15 @@ export function useFetchFacets({
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setExtraFacets(null);
     setExtraFacetKeys(new Set());
-  }, [
-    sourceId,
-    tableConnection?.databaseName,
-    tableConnection?.tableName,
-    tableConnection?.connectionId,
-    dateRange,
-    mode,
-    filterState,
-    chartConfig.where,
-    chartConfig.whereLanguage,
-  ]);
+  }, [facetScope]);
 
   return {
     ...facetsQuery,
-    data: { keys: facetsQuery.data.keys, keyValues: facets },
+    data: {
+      keys: facetsQuery.data.keys,
+      keyValues: facets,
+      facetKeys: facetsQuery.data.facetKeys,
+    },
     loadMoreFacetsForKey,
     areExtraFacetsLoading,
     loadMoreLoadingKeys,

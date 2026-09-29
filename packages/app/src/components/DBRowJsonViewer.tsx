@@ -21,6 +21,7 @@ import {
   IconCheck,
   IconCopy,
   IconFilter,
+  IconFilterX,
   IconMinus,
   IconPlus,
   IconSearch,
@@ -431,56 +432,63 @@ export function DBRowJsonViewer({
         fieldPath != 'Timestamp' &&
         fieldPath != 'TimestampTime'
       ) {
+        const getFilterFieldPath = () => {
+          if (isInParsedJson && parsedJsonRootPath) {
+            const jsonExtractFn: JSONExtractFn =
+              typeof value === 'number'
+                ? 'JSONExtractFloat'
+                : typeof value === 'boolean'
+                  ? 'JSONExtractBool'
+                  : 'JSONExtractString';
+            const jsonQuery = buildJSONExtractQuery(
+              keyPath,
+              parsedJsonRootPath,
+              jsonColumns,
+              jsonExtractFn,
+              mapColumns,
+            );
+            if (jsonQuery) return jsonQuery;
+          }
+          return isJsonColumn ? `toString(${fieldPath})` : fieldPath;
+        };
+        const filterValue = (filterFieldPath: string) =>
+          (filterFieldPath.startsWith('toString(') || typeof value !== 'boolean'
+            ? String(value)
+            : value) as string;
+        const addFilter = (action?: 'exclude') => {
+          const filterFieldPath = getFilterFieldPath();
+          if (action === 'exclude') {
+            onPropertyAddClick(
+              filterFieldPath,
+              filterValue(filterFieldPath),
+              'exclude',
+            );
+          } else {
+            onPropertyAddClick(filterFieldPath, filterValue(filterFieldPath));
+          }
+          notifications.show({
+            color: 'green',
+            message:
+              action === 'exclude'
+                ? `Excluded "${fieldPath} = ${String(value)}" from filters`
+                : `Added "${fieldPath} = ${String(value)}" to filters`,
+          });
+        };
+
         actions.push({
           key: 'add-to-search',
           label: <IconFilter size={14} />,
           title: 'Filter by this field',
           onClick: () => {
-            let filterFieldPath = fieldPath;
-
-            // Handle parsed JSON from string columns using JSONExtractString
-            if (isInParsedJson && parsedJsonRootPath) {
-              let jsonExtractFn: JSONExtractFn = 'JSONExtractString';
-
-              if (typeof value === 'number') {
-                jsonExtractFn = 'JSONExtractFloat';
-              } else if (typeof value === 'boolean') {
-                jsonExtractFn = 'JSONExtractBool';
-              }
-
-              const jsonQuery = buildJSONExtractQuery(
-                keyPath,
-                parsedJsonRootPath,
-                jsonColumns,
-                jsonExtractFn,
-                mapColumns,
-              );
-              if (jsonQuery) {
-                filterFieldPath = jsonQuery;
-              } else {
-                // We're at the root of the parsed JSON, treat as string
-                filterFieldPath = isJsonColumn
-                  ? `toString(${fieldPath})`
-                  : fieldPath;
-              }
-            } else {
-              // Regular JSON column or non-JSON field
-              filterFieldPath = isJsonColumn
-                ? `toString(${fieldPath})`
-                : fieldPath;
-            }
-
-            onPropertyAddClick(
-              filterFieldPath,
-              (filterFieldPath.startsWith('toString(') ||
-              typeof value !== 'boolean'
-                ? String(value)
-                : value) as string,
-            );
-            notifications.show({
-              color: 'green',
-              message: `Added "${fieldPath} = ${String(value)}" to filters`,
-            });
+            addFilter();
+          },
+        });
+        actions.push({
+          key: 'exclude-from-search',
+          label: <IconFilterX size={14} />,
+          title: 'Exclude from Filters',
+          onClick: () => {
+            addFilter('exclude');
           },
         });
       }

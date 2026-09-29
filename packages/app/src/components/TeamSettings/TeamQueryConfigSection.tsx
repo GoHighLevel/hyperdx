@@ -320,7 +320,7 @@ export default function TeamQueryConfigSection() {
           <ClickhouseSettingForm
             settingKey="filterKeysFetchLimit"
             label="Filter Keys Fetch Limit"
-            tooltip="The number of filter keys to fetch when clicking 'More filters' on the search page"
+            tooltip="The maximum number of filter fields whose values are fetched in one search-page query"
             type="number"
             defaultValue={DEFAULT_FILTER_KEYS_FETCH_LIMIT}
             placeholder={`default = ${DEFAULT_FILTER_KEYS_FETCH_LIMIT}`}
