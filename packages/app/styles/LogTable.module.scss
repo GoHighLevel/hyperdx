@@ -4,10 +4,21 @@ $button-height: 18px;
   overflow: auto;
   height: 100%;
   font-size: var(--log-font-size, 14px);
+  line-height: 1.5;
+  color: color-mix(
+    in srgb,
+    var(--color-text-secondary) 85%,
+    var(--color-text) 15%
+  );
 
   /* CSS custom properties for variant support */
   --log-table-bg: var(--color-bg-body);
   --log-table-muted-bg: var(--color-bg-muted);
+  --log-accent: color-mix(
+    in srgb,
+    var(--color-chart-info) 60%,
+    var(--color-text) 40%
+  );
 
   &.muted {
     --log-table-bg: var(--color-bg-muted);
@@ -21,7 +32,9 @@ $button-height: 18px;
   border-spacing: 0;
   border-collapse: separate;
   background: var(--log-table-bg);
-  font-family: var(--font-ibm-plex-mono);
+  font-family: var(--font-roboto-mono, var(--font-ibm-plex-mono)), monospace;
+  font-size: inherit;
+  line-height: inherit;
 }
 
 .tableHead {
@@ -29,27 +42,61 @@ $button-height: 18px;
   position: sticky;
   top: 0;
   z-index: 1;
-  height: 24px;
+  height: 30px;
+  font-family: var(--font-roboto, var(--font-inter)), sans-serif;
+  font-weight: 500;
+
+  th {
+    border-block: 1px solid var(--color-border);
+    padding-block: 4px;
+  }
 }
 
 .tableRow {
   position: relative;
+
   --log-severity-color: transparent;
 
-  &[data-severity='info'] { --log-severity-color: var(--color-chart-info); }
-  &[data-severity='warn'] { --log-severity-color: var(--color-chart-warning); }
-  &[data-severity='error'] { --log-severity-color: var(--color-chart-error); }
-
-  background-color: color-mix(in srgb, var(--log-severity-color) 7%, var(--log-table-bg));
-  td:first-child { box-shadow: inset 3px 0 var(--log-severity-color); }
-  &:hover { background-color: color-mix(in srgb, var(--log-severity-color) 12%, var(--log-table-muted-bg)); }
-
-  &__selected, &__selected:hover {
-    background-color: var(--log-table-muted-bg);
-    font-weight: bold;
+  &[data-severity='info'] {
+    --log-severity-color: var(--color-chart-info);
   }
 
-  &:hover .rowButtons {
+  &[data-severity='warn'] {
+    --log-severity-color: var(--color-chart-warning);
+  }
+
+  &[data-severity='error'] {
+    --log-severity-color: var(--color-chart-error);
+  }
+
+  background-color: var(--log-table-bg);
+
+  td {
+    border-bottom: 1px solid
+      color-mix(in srgb, var(--color-border) 55%, transparent);
+  }
+
+  td:first-child {
+    box-shadow: inset 2px 0
+      color-mix(in srgb, var(--log-severity-color) 55%, transparent);
+  }
+
+  &:hover {
+    background-color: var(--log-table-muted-bg);
+  }
+
+  &__selected,
+  &__selected:hover {
+    background-color: color-mix(
+      in srgb,
+      var(--log-accent) 12%,
+      var(--log-table-bg)
+    );
+    font-weight: normal;
+  }
+
+  &:hover .rowButtons,
+  &:focus-within .rowButtons {
     opacity: 1;
   }
 
@@ -64,6 +111,15 @@ $button-height: 18px;
   &:has(.expandButton:hover) .rowContentButton {
     background-color: transparent !important;
   }
+}
+
+.serviceValue {
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--log-accent) 14%, var(--log-table-bg));
+  color: var(--color-text-secondary);
+  font-family: var(--font-roboto, var(--font-inter)), sans-serif;
+  font-size: 0.9em;
 }
 
 .expandedRowContent {
@@ -89,10 +145,10 @@ $button-height: 18px;
     background-color: var(--log-table-muted-bg);
   }
 
-  &:focus,
   &:focus-visible {
     background-color: var(--log-table-muted-bg);
-    outline: none;
+    outline: 2px solid var(--log-accent);
+    outline-offset: -2px;
   }
 
   &:active {
@@ -143,10 +199,10 @@ $button-height: 18px;
     opacity: 1;
   }
 
-  &:focus,
   &:focus-visible {
     background-color: var(--log-table-muted-bg);
-    outline: none;
+    outline: 2px solid var(--log-accent);
+    outline-offset: -2px;
   }
 
   &:active {
@@ -212,7 +268,7 @@ $button-height: 18px;
 
 .fieldText {
   overflow: hidden;
-  padding: 2px 4px;
+  padding: 3px 6px;
   cursor: pointer;
   transition: background-color 0.2s ease-in-out;
 
