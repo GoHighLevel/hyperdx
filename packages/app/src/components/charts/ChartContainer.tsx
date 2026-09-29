@@ -187,7 +187,7 @@ function ChartContainer({
                           </ActionIcon>
                         </Tooltip>
                       </Menu.Target>
-                      <Menu.Dropdown data-dashboard-no-drag>
+                      <Menu.Dropdown onMouseDown={e => e.stopPropagation()}>
                         {hasInlineItems && (
                           <div className={styles.inlineSection}>
                             <Group

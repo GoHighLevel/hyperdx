@@ -50,7 +50,6 @@ export default function SnapGridLayout({
   rowHeight = 150,
   margin = DEFAULT_MARGIN,
   containerPadding = DEFAULT_CONTAINER_PADDING,
-  draggableCancel,
   ...rest
 }: GridLayoutProps) {
   const [isActive, setIsActive] = useState(false);
@@ -140,16 +139,6 @@ export default function SnapGridLayout({
       )}
       <GridLayout
         {...rest}
-        // Keep chart interactions out of dragging without blocking the document
-        // listeners that dismiss menus and popovers. React portal events still
-        // bubble to the owning tile, so exclude those DOM roots as well.
-        draggableCancel={[
-          '[data-dashboard-no-drag]',
-          '[data-portal]',
-          draggableCancel,
-        ]
-          .filter(Boolean)
-          .join(',')}
         cols={cols}
         rowHeight={rowHeight}
         margin={margin}
