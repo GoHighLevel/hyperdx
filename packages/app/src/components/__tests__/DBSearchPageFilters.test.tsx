@@ -6,6 +6,7 @@ import {
   cleanedFacetName,
   FilterGroup,
   type FilterGroupProps,
+  mergeJsonFacets,
 } from '@/components/DBSearchPageFilters';
 import { NestedFilterGroup } from '@/components/DBSearchPageFilters/NestedFilterGroup';
 import {
@@ -260,6 +261,31 @@ describe('cleanedFacetName', () => {
   });
 });
 
+describe('mergeJsonFacets', () => {
+  it('merges raw and normalized native JSON keys into one field', () => {
+    expect(
+      mergeJsonFacets(
+        [
+          { key: 'Body.`service`.`name`', value: ['api'] },
+          { key: 'toString(Body.`service`.`name`)', value: ['worker'] },
+        ],
+        ['Body'],
+      ),
+    ).toEqual([
+      {
+        key: 'toString(Body.`service`.`name`)',
+        value: ['api', 'worker'],
+      },
+    ]);
+  });
+
+  it('does not treat similarly prefixed flat columns as JSON paths', () => {
+    expect(
+      mergeJsonFacets([{ key: 'BodyText', value: ['message'] }], ['Body']),
+    ).toEqual([{ key: 'BodyText', value: ['message'] }]);
+  });
+});
+
 describe('parseMapFieldName', () => {
   it('should parse ResourceAttributes map access', () => {
     expect(parseMapFieldName("ResourceAttributes['service.name']")).toEqual({
@@ -439,6 +465,68 @@ describe('FilterGroup', () => {
     },
   };
 
+  it('requests facet values when a collapsed field is expanded', async () => {
+    const onExpand = jest.fn();
+    renderWithMantine(
+      <FilterGroup
+        {...defaultProps}
+        isDefaultExpanded={false}
+        onExpand={onExpand}
+      />,
+    );
+
+    await userEvent.click(screen.getByTestId('filter-group-control'));
+
+    expect(onExpand).toHaveBeenCalledTimes(1);
+  });
+
+  it('requests facet values for a field that starts expanded', () => {
+    const onExpand = jest.fn();
+    renderWithMantine(<FilterGroup {...defaultProps} onExpand={onExpand} />);
+
+    expect(onExpand).toHaveBeenCalledTimes(1);
+  });
+
+  it('requests facet values when distribution expands a collapsed field', async () => {
+    const onExpand = jest.fn();
+    renderWithMantine(
+      <FilterGroup
+        {...defaultProps}
+        isDefaultExpanded={false}
+        onExpand={onExpand}
+      />,
+    );
+
+    await userEvent.click(
+      screen.getByTestId('toggle-distribution-button-Test Filter'),
+    );
+
+    expect(onExpand).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not label a lazy field as having zero values before it loads', () => {
+    renderWithMantine(
+      <FilterGroup
+        {...defaultProps}
+        options={[]}
+        isDefaultExpanded={false}
+        showFilterCounts
+      />,
+    );
+
+    expect(screen.getByText('Test Filter')).toBeInTheDocument();
+    expect(screen.queryByText('(0)')).not.toBeInTheDocument();
+  });
+
+  it('shows loading instead of an empty result while lazy values are fetched', () => {
+    renderWithMantine(
+      <FilterGroup {...defaultProps} options={[]} optionsLoading />,
+    );
+
+    expect(screen.getByText('Loading...')).toBeInTheDocument();
+    expect(screen.queryByText('No options found')).not.toBeInTheDocument();
+  });
+
   it('should sort options alphabetically by default', () => {
     renderWithMantine(<FilterGroup {...defaultProps} />);
 
@@ -470,6 +558,54 @@ describe('FilterGroup', () => {
     expect(
       screen.getByTestId('filter-count-Test Filter-zebra'),
     ).toHaveTextContent('23');
+  });
+
+  it('sorts unselected values by matching log count', () => {
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
+    jest.mocked(useGetValueCounts).mockReturnValueOnce({
+      data: new Map([
+        ['apple', '9007199254740992'],
+        ['banana', '9007199254740993'],
+        ['zebra', '5'],
+      ]),
+      isFetching: false,
+      error: null,
+    } as unknown as ReturnType<typeof useGetValueCounts>);
+
+    renderWithMantine(<FilterGroup {...defaultProps} />);
+
+    const labels = screen.getAllByText(/apple|banana|zebra/);
+    expect(labels[0]).toHaveTextContent('banana');
+    expect(labels[1]).toHaveTextContent('apple');
+    expect(labels[2]).toHaveTextContent('zebra');
+  });
+
+  it('keeps selected values above higher-count unselected values', () => {
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
+    jest.mocked(useGetValueCounts).mockReturnValueOnce({
+      data: new Map([
+        ['apple', '1'],
+        ['banana', '5'],
+        ['zebra', '10'],
+      ]),
+      isFetching: false,
+      error: null,
+    } as unknown as ReturnType<typeof useGetValueCounts>);
+
+    renderWithMantine(
+      <FilterGroup
+        {...defaultProps}
+        selectedValues={{
+          included: new Set(['apple']),
+          excluded: new Set(),
+        }}
+      />,
+    );
+
+    const labels = screen.getAllByText(/apple|banana|zebra/);
+    expect(labels[0]).toHaveTextContent('apple');
+    expect(labels[1]).toHaveTextContent('zebra');
+    expect(labels[2]).toHaveTextContent('banana');
   });
 
   it('shows unavailable on failure even if previous counts exist', () => {

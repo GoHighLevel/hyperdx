@@ -4,6 +4,58 @@
   min-height: var(--autocomplete-base-height, 36px);
 }
 
+.inputContainer {
+  position: relative;
+}
+
+.commentHighlightEnabled {
+  textarea {
+    color: transparent;
+    -webkit-text-fill-color: transparent;
+    caret-color: var(--color-text);
+  }
+
+  textarea::placeholder {
+    color: var(--mantine-color-placeholder);
+    -webkit-text-fill-color: var(--mantine-color-placeholder);
+  }
+}
+
+.commentOverlay {
+  position: absolute;
+  z-index: 1;
+  inset: 1px;
+  margin: 0;
+  overflow: hidden;
+  pointer-events: none;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-all;
+  color: var(--color-text);
+  font-family: inherit;
+  font-size: var(--mantine-font-size-sm);
+  line-height: var(--mantine-line-height-sm);
+}
+
+.size-xs {
+  padding: 5px 10px;
+  font-size: var(--mantine-font-size-xs);
+}
+
+.size-sm {
+  padding: 7px 12px;
+}
+
+.size-lg {
+  padding: 9px 16px;
+  font-size: var(--mantine-font-size-lg);
+}
+
+.commentedLine {
+  color: var(--mantine-color-violet-4);
+  font-style: italic;
+}
+
 /* The measured right section: an optional adornment, then the language switch */
 .rightSection {
   display: flex;

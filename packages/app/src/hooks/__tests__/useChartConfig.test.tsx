@@ -484,6 +484,29 @@ describe('useChartConfig', () => {
         expect(prometheusApi.queryRange).not.toHaveBeenCalled();
       });
 
+      it('evaluates selected-range macros before issuing an instant query', async () => {
+        jest
+          .mocked(prometheusApi.queryInstant)
+          .mockResolvedValue(matrixResponse);
+        const end = new Date('2026-09-16T16:53:14.000Z');
+        const start = new Date(end.getTime() - 2 * 86_400_000);
+        const config = createPromqlConfig({
+          dateRange: [start, end],
+          promqlExpression:
+            'sum(increase(requests_total[$__range])) / $__range_s',
+        });
+        const { result } = renderHook(
+          () => useQueriedChartConfig(config, { promqlInstant: true }),
+          { wrapper },
+        );
+        await waitFor(() => expect(result.current.isSuccess).toBe(true));
+        expect(prometheusApi.queryInstant).toHaveBeenCalledWith(
+          expect.objectContaining({
+            query: 'sum(increase(requests_total[172800s])) / 172800',
+          }),
+        );
+      });
+
       it.each([undefined, ['shared-panel-key']])(
         'separates instant and range caches with caller key %p',
         async queryKey => {

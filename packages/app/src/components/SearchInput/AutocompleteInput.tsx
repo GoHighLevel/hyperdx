@@ -1,7 +1,15 @@
 import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import cx from 'classnames';
 import Fuse from 'fuse.js';
-import { Loader, Popover, Textarea, UnstyledButton } from '@mantine/core';
+import {
+  ActionIcon,
+  Loader,
+  Popover,
+  Textarea,
+  Tooltip,
+  UnstyledButton,
+} from '@mantine/core';
+import { IconMessageCode } from '@tabler/icons-react';
 
 import {
   type TokenInfo,
@@ -10,6 +18,7 @@ import {
 import { useQueryHistory } from '@/utils';
 
 import InputLanguageSwitch from './InputLanguageSwitch';
+import { toggleLuceneLineComments } from './queryComments';
 
 import styles from './AutocompleteInput.module.scss';
 
@@ -34,6 +43,7 @@ export default function AutocompleteInput({
   language,
   onSubmit,
   queryHistoryType,
+  enableCommentToggle = false,
   'data-testid': dataTestId,
 }: {
   inputRef: React.RefObject<HTMLTextAreaElement | null>;
@@ -57,6 +67,7 @@ export default function AutocompleteInput({
   onLanguageChange?: (language: 'sql' | 'lucene') => void;
   language?: 'sql' | 'lucene';
   queryHistoryType?: string;
+  enableCommentToggle?: boolean;
   'data-testid'?: string;
 }) {
   const suggestionsLimit = 10;
@@ -74,6 +85,7 @@ export default function AutocompleteInput({
     'auto',
   );
   const [inputWidth, setInputWidth] = useState<number>(720);
+  const commentOverlayRef = useRef<HTMLPreElement>(null);
 
   const [selectedAutocompleteIndex, setSelectedAutocompleteIndex] =
     useState(-1);
@@ -188,6 +200,21 @@ export default function AutocompleteInput({
       inputRef.current?.focus();
     });
   };
+
+  const onToggleComment = useCallback(() => {
+    const input = inputRef.current;
+    if (input == null) return;
+    const result = toggleLuceneLineComments(
+      value ?? '',
+      input.selectionStart,
+      input.selectionEnd,
+    );
+    onChange(result.value);
+    requestAnimationFrame(() => {
+      input.setSelectionRange(result.selectionStart, result.selectionEnd);
+      input.focus();
+    });
+  }, [inputRef, onChange, value]);
   const ref = useRef<HTMLDivElement>(null);
   useLayoutEffect(() => {
     if (ref.current) {
@@ -225,122 +252,189 @@ export default function AutocompleteInput({
         }}
       >
         <Popover.Target>
-          <Textarea
-            ref={inputRef}
-            placeholder={placeholder}
-            className={cx(
-              styles.textarea,
-              isSearchInputFocused && styles.focused,
-            )}
-            value={value}
-            size={size}
-            autosize
-            minRows={1}
-            maxRows={8}
-            data-testid={dataTestId}
-            onChange={e => {
-              onCursorChange?.(e.currentTarget.selectionStart);
-              onChange(e.target.value);
-            }}
-            onSelect={e => onCursorChange?.(e.currentTarget.selectionStart)}
-            onFocus={() => {
-              setSelectedAutocompleteIndex(-1);
-              setSelectedQueryHistoryIndex(-1);
-              setIsSearchInputFocused(true);
-            }}
-            onBlur={() => {
-              setSelectedAutocompleteIndex(-1);
-              setSelectedQueryHistoryIndex(-1);
-              setIsSearchInputFocused(false);
-            }}
-            onKeyDown={e => {
-              if (
-                e.key === 'Escape' &&
-                e.target instanceof HTMLTextAreaElement
-              ) {
-                e.preventDefault();
-                setIsInputDropdownOpen(false);
-                e.target.blur();
-              }
-
-              // Autocomplete Navigation/Acceptance Keys
-              if (e.key === 'Tab' && e.target instanceof HTMLTextAreaElement) {
-                if (
-                  suggestions.length > 0 &&
-                  selectedAutocompleteIndex < suggestions.length &&
-                  selectedAutocompleteIndex >= 0
-                ) {
-                  e.preventDefault();
-                  const selected = suggestions[selectedAutocompleteIndex];
-                  onAcceptSuggestion(selected.value, selected.isVariable);
+          <div className={styles.inputContainer}>
+            <Textarea
+              ref={inputRef}
+              placeholder={placeholder}
+              className={cx(
+                styles.textarea,
+                isSearchInputFocused && styles.focused,
+                enableCommentToggle && styles.commentHighlightEnabled,
+              )}
+              value={value}
+              size={size}
+              autosize
+              minRows={1}
+              maxRows={8}
+              data-testid={dataTestId}
+              onChange={e => {
+                onCursorChange?.(e.currentTarget.selectionStart);
+                onChange(e.target.value);
+              }}
+              onSelect={e => onCursorChange?.(e.currentTarget.selectionStart)}
+              onScroll={e => {
+                if (commentOverlayRef.current != null) {
+                  commentOverlayRef.current.scrollTop =
+                    e.currentTarget.scrollTop;
+                  commentOverlayRef.current.scrollLeft =
+                    e.currentTarget.scrollLeft;
                 }
-              }
-              if (
-                e.key === 'Enter' &&
-                e.target instanceof HTMLTextAreaElement
-              ) {
+              }}
+              onFocus={() => {
+                setSelectedAutocompleteIndex(-1);
+                setSelectedQueryHistoryIndex(-1);
+                setIsSearchInputFocused(true);
+              }}
+              onBlur={() => {
+                setSelectedAutocompleteIndex(-1);
+                setSelectedQueryHistoryIndex(-1);
+                setIsSearchInputFocused(false);
+              }}
+              onKeyDown={e => {
                 if (
-                  suggestions.length > 0 &&
-                  selectedAutocompleteIndex < suggestions.length &&
-                  selectedAutocompleteIndex >= 0
+                  enableCommentToggle &&
+                  e.key === '/' &&
+                  (e.metaKey || e.ctrlKey)
                 ) {
                   e.preventDefault();
-                  const selected = suggestions[selectedAutocompleteIndex];
-                  onAcceptSuggestion(selected.value, selected.isVariable);
-                } else {
-                  // Allow shift+enter to still create new lines
-                  if (!e.shiftKey) {
+                  onToggleComment();
+                  return;
+                }
+
+                if (
+                  e.key === 'Escape' &&
+                  e.target instanceof HTMLTextAreaElement
+                ) {
+                  e.preventDefault();
+                  setIsInputDropdownOpen(false);
+                  e.target.blur();
+                }
+
+                // Autocomplete Navigation/Acceptance Keys
+                if (
+                  e.key === 'Tab' &&
+                  e.target instanceof HTMLTextAreaElement
+                ) {
+                  if (
+                    suggestions.length > 0 &&
+                    selectedAutocompleteIndex < suggestions.length &&
+                    selectedAutocompleteIndex >= 0
+                  ) {
                     e.preventDefault();
-                    if (queryHistoryType && value) {
-                      setQueryHistory(value);
-                    }
-                    onSubmit?.();
+                    const selected = suggestions[selectedAutocompleteIndex];
+                    onAcceptSuggestion(selected.value, selected.isVariable);
                   }
                 }
-              }
-              if (
-                e.key === 'ArrowDown' &&
-                e.target instanceof HTMLTextAreaElement
-              ) {
-                if (suggestions.length > 0) {
-                  e.preventDefault();
-                  setSelectedAutocompleteIndex(
-                    Math.min(
-                      selectedAutocompleteIndex + 1,
-                      suggestions.length - 1,
-                      suggestionsLimit - 1,
-                    ),
-                  );
+                if (
+                  e.key === 'Enter' &&
+                  e.target instanceof HTMLTextAreaElement
+                ) {
+                  if (
+                    suggestions.length > 0 &&
+                    selectedAutocompleteIndex < suggestions.length &&
+                    selectedAutocompleteIndex >= 0
+                  ) {
+                    e.preventDefault();
+                    const selected = suggestions[selectedAutocompleteIndex];
+                    onAcceptSuggestion(selected.value, selected.isVariable);
+                  } else {
+                    // Allow shift+enter to still create new lines
+                    if (!e.shiftKey) {
+                      e.preventDefault();
+                      if (queryHistoryType && value) {
+                        setQueryHistory(value);
+                      }
+                      onSubmit?.();
+                    }
+                  }
                 }
-              }
-              if (
-                e.key === 'ArrowUp' &&
-                e.target instanceof HTMLTextAreaElement
-              ) {
-                if (suggestions.length > 0) {
-                  e.preventDefault();
-                  setSelectedAutocompleteIndex(
-                    Math.max(selectedAutocompleteIndex - 1, 0),
-                  );
+                if (
+                  e.key === 'ArrowDown' &&
+                  e.target instanceof HTMLTextAreaElement
+                ) {
+                  if (suggestions.length > 0) {
+                    e.preventDefault();
+                    setSelectedAutocompleteIndex(
+                      Math.min(
+                        selectedAutocompleteIndex + 1,
+                        suggestions.length - 1,
+                        suggestionsLimit - 1,
+                      ),
+                    );
+                  }
                 }
+                if (
+                  e.key === 'ArrowUp' &&
+                  e.target instanceof HTMLTextAreaElement
+                ) {
+                  if (suggestions.length > 0) {
+                    e.preventDefault();
+                    setSelectedAutocompleteIndex(
+                      Math.max(selectedAutocompleteIndex - 1, 0),
+                    );
+                  }
+                }
+              }}
+              rightSectionWidth={rightSectionWidth}
+              rightSection={
+                rightAdornment != null ||
+                enableCommentToggle ||
+                (language != null && onLanguageChange != null) ? (
+                  <div ref={ref} className={styles.rightSection}>
+                    {rightAdornment}
+                    {enableCommentToggle && (
+                      <Tooltip label="Comment or uncomment query lines (Command/Ctrl+/)">
+                        <ActionIcon
+                          variant="subtle"
+                          size="sm"
+                          aria-label="Comment or uncomment query lines"
+                          onMouseDown={event => event.preventDefault()}
+                          onClick={onToggleComment}
+                        >
+                          <IconMessageCode size={16} />
+                        </ActionIcon>
+                      </Tooltip>
+                    )}
+                    {language != null && onLanguageChange != null && (
+                      <InputLanguageSwitch
+                        language={language}
+                        onLanguageChange={onLanguageChange}
+                      />
+                    )}
+                  </div>
+                ) : undefined
               }
-            }}
-            rightSectionWidth={rightSectionWidth}
-            rightSection={
-              rightAdornment != null ||
-              (language != null && onLanguageChange != null) ? (
-                <div ref={ref} className={styles.rightSection}>
-                  {rightAdornment}
-                  {language != null && onLanguageChange != null && (
-                    <InputLanguageSwitch
-                      language={language}
-                      onLanguageChange={onLanguageChange}
-                    />
-                  )}
-                </div>
-              ) : undefined
-            }
-          />
+            />
+            {enableCommentToggle && (
+              <pre
+                ref={commentOverlayRef}
+                className={cx(styles.commentOverlay, styles[`size-${size}`])}
+                style={{
+                  paddingRight:
+                    typeof rightSectionWidth === 'number'
+                      ? rightSectionWidth + 12
+                      : undefined,
+                }}
+                aria-hidden="true"
+                data-testid="lucene-comment-highlighting"
+              >
+                {(value ?? '').split('\n').map((line, index, lines) => (
+                  <span key={index}>
+                    <span
+                      className={
+                        line.trimStart().startsWith('//')
+                          ? styles.commentedLine
+                          : undefined
+                      }
+                    >
+                      {line}
+                    </span>
+                    {index < lines.length - 1 ? '\n' : null}
+                  </span>
+                ))}
+              </pre>
+            )}
+          </div>
         </Popover.Target>
         <Popover.Dropdown className={styles.dropdown}>
           {aboveSuggestions != null && (

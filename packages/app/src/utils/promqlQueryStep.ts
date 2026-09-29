@@ -14,6 +14,28 @@ type ChartGranularity = ChartConfigWithOptDateRange['granularity'];
 const AUTO_MAX_BUCKETS = 1000;
 const MAX_POINTS_PER_SERIES = 11000;
 
+/** Expand Grafana-compatible selected-range macros before querying Prometheus. */
+export function substitutePromqlRangeMacros(
+  expression: string,
+  dateRange: [Date, Date],
+): string {
+  const durationSeconds = Math.ceil(
+    (dateRange[1].getTime() - dateRange[0].getTime()) / 1000,
+  );
+  if (!Number.isFinite(durationSeconds) || durationSeconds < 0) {
+    throw new Error(
+      'Invalid PromQL time range. Choose a valid start and end time.',
+    );
+  }
+
+  const seconds = Math.max(1, durationSeconds);
+  return expression
+    .replaceAll('${__range_s}', `${seconds}`)
+    .replaceAll('$__range_s', `${seconds}`)
+    .replaceAll('${__range}', `${seconds}s`)
+    .replaceAll('$__range', `${seconds}s`);
+}
+
 /** Refresh cadence must not replace monitoring resolution or explicit precision. */
 export function resolveDashboardTileGranularity(
   config: SavedChartConfig,

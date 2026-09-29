@@ -72,6 +72,11 @@
   min-height: 100%;
 }
 
+.commentToggle {
+  flex: 0 0 auto;
+  margin-top: 2px;
+}
+
 /* Fade at the bottom when allowMultiline and collapsed (single-line) so text doesn't appear hard-cut */
 .collapseFade::after {
   content: '';

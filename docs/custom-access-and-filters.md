@@ -48,10 +48,12 @@ and `log_level`, when present in the source. The list is defined once in
 `packages/app/src/components/DBSearchPageFilters/personalFilterDefaults.ts`.
 Admins can also curate shared pins through the existing pin menu.
 
-**Add filter** opens the remaining fields with a search box. Using an include,
-exclude, or range filter remembers the field in that user's sidebar. Active
-values remain part of the current URL/query, not automatically saved defaults.
-Explicit value pins remember suggestions without applying a filter.
+The sidebar lists all discovered string fields and includes a search box to
+narrow the list. Default, pinned, and active fields load values up front; other
+fields load values when expanded. Using an include, exclude, or range filter
+remembers the field in that user's sidebar. Active values remain part of the
+current URL/query, not automatically saved defaults. Explicit value pins
+remember suggestions without applying a filter.
 
 Personal pins are stored in MongoDB's `personalpinnedfilters` collection with a
 unique `(team, user, source)` index. Account/source IDs come from the authenticated

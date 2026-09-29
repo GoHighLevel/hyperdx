@@ -101,6 +101,16 @@ describe('SearchWhereInput', () => {
         expect(input).toHaveValue('level:error');
       });
     });
+
+    it('offers comment toggling for Lucene queries', () => {
+      renderWithMantine(<TestWrapper defaultLanguage="lucene" />);
+
+      expect(
+        screen.getByRole('button', {
+          name: 'Comment or uncomment query lines',
+        }),
+      ).toBeInTheDocument();
+    });
   });
 
   describe('SQL Mode', () => {
@@ -137,6 +147,16 @@ describe('SearchWhereInput', () => {
       screen.queryByText(/SQL WHERE clause/i);
       // If placeholder is not directly visible, the component should still render
       expect(screen.getByText('WHERE')).toBeInTheDocument();
+    });
+
+    it('offers comment toggling for multiline SQL queries', () => {
+      renderWithMantine(<TestWrapper defaultLanguage="sql" />);
+
+      expect(
+        screen.getByRole('button', {
+          name: 'Comment or uncomment query lines',
+        }),
+      ).toBeInTheDocument();
     });
   });
 
