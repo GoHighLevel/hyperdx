@@ -1,8 +1,19 @@
 import {
   dateParser,
   parseTimeRangeInput,
+  RELATIVE_TIME_OPTIONS,
   timeRangeInputToSeconds,
 } from '@/components/TimePicker/utils';
+
+it('allows every preset through 30 days in relative mode', () => {
+  const ranges = RELATIVE_TIME_OPTIONS.filter(option => option !== 'divider');
+  expect(ranges.every(option => option[2] === true)).toBe(true);
+  expect(ranges.at(-1)).toEqual([
+    'Last 30 days',
+    30 * 24 * 60 * 60 * 1000,
+    true,
+  ]);
+});
 
 describe('dateParser', () => {
   let mockDate: Date;

@@ -25,6 +25,7 @@ export default mongoose.model<IDashboard>(
         required: true,
       },
       tiles: { type: mongoose.Schema.Types.Mixed, required: true },
+      searchView: { type: mongoose.Schema.Types.Mixed, required: false },
       team: { type: mongoose.Schema.Types.ObjectId, ref: 'Team' },
       tags: {
         type: [String],
@@ -34,11 +35,13 @@ export default mongoose.model<IDashboard>(
       savedQuery: { type: String, required: false },
       savedQueryLanguage: { type: String, required: false },
       savedFilterValues: { type: mongoose.Schema.Types.Array, required: false },
+      savedRefreshInterval: { type: Number, required: false },
       savedDateRange: {
         type: mongoose.Schema.Types.Mixed,
         required: false,
       },
       containers: { type: mongoose.Schema.Types.Array, required: false },
+      folderId: { type: String, required: false },
       createdBy: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User',
@@ -53,6 +56,7 @@ export default mongoose.model<IDashboard>(
     },
     {
       timestamps: true,
+      minimize: false,
       toJSON: { getters: true },
     },
   )

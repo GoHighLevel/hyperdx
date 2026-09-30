@@ -42,14 +42,6 @@ jest.mock('../ServiceMap/ServiceMapSidePanel', () => ({
     return <div>Service graph</div>;
   },
 }));
-jest.mock('../Search/DirectTraceSidePanel', () => ({
-  __esModule: true,
-  default: (props: unknown) => {
-    mockTrace(props);
-    return <div>Trace waterfall</div>;
-  },
-}));
-
 const source: TLogSource = {
   id: 'logs',
   name: 'Logs',
@@ -66,10 +58,31 @@ describe('expanded log trace navigation', () => {
     mockStoredTab = 'columnValues';
     jest.clearAllMocks();
   });
+  it('opens fields when an older session remembered the removed Overview tab', () => {
+    mockStoredTab = 'overview';
+    render(
+      <MantineProvider>
+        <ExpandedLogRow
+          source={source}
+          rowId="row"
+          onOpenDetails={jest.fn()}
+          onOpenTrace={mockTrace}
+        />
+      </MantineProvider>,
+    );
+    expect(screen.getByText('Log fields')).toBeVisible();
+    expect(screen.queryByText('Overview')).not.toBeInTheDocument();
+    expect(screen.queryByText('Log overview')).not.toBeInTheDocument();
+  });
   it('loads the service map only after selecting its tab', () => {
     render(
       <MantineProvider>
-        <ExpandedLogRow source={source} rowId="row" onOpenDetails={jest.fn()} />
+        <ExpandedLogRow
+          source={source}
+          rowId="row"
+          onOpenDetails={jest.fn()}
+          onOpenTrace={mockTrace}
+        />
       </MantineProvider>,
     );
     expect(mockMap).not.toHaveBeenCalled();
@@ -94,7 +107,12 @@ describe('expanded log trace navigation', () => {
     mockStoredTab = 'serviceMap';
     render(
       <MantineProvider>
-        <ExpandedLogRow source={source} rowId="row" onOpenDetails={jest.fn()} />
+        <ExpandedLogRow
+          source={source}
+          rowId="row"
+          onOpenDetails={jest.fn()}
+          onOpenTrace={mockTrace}
+        />
       </MantineProvider>,
     );
     expect(screen.getByText('Log fields')).toBeVisible();

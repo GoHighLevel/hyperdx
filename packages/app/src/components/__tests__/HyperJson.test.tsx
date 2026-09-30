@@ -1,6 +1,85 @@
 import React from 'react';
+import { fireEvent, screen } from '@testing-library/react';
 
 import HyperJson from '@/components/HyperJson';
+import { jsonTreeEntries } from '@/components/jsonTreeEntries';
+
+describe('collapsed payload groups', () => {
+  it('groups dotted keys without changing filter and column action paths', () => {
+    const actions = jest.fn(() => []);
+    renderWithMantine(
+      <HyperJson
+        data={{ json_payload: { 'payload.authorization.role': 'admin' } }}
+        groupDottedKeys
+        getLineActions={actions}
+      />,
+    );
+    expect(screen.queryByText('admin')).not.toBeInTheDocument();
+    for (const key of ['json_payload', 'payload', 'authorization']) {
+      const line = screen
+        .getByText(key)
+        .closest('[data-testid="json-viewer-line"]')!;
+      expect(line).toHaveAttribute('aria-expanded', 'false');
+      fireEvent.click(line);
+    }
+    const role = screen
+      .getByText('role')
+      .closest('[data-testid="json-viewer-line"]')!;
+    fireEvent.mouseEnter(role);
+    expect(actions).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        keyPath: ['json_payload', 'payload.authorization.role'],
+        value: 'admin',
+      }),
+    );
+  });
+
+  it('keeps encoded JSON compact and preserves parsed dotted-key paths', () => {
+    const actions = jest.fn(() => []);
+    renderWithMantine(
+      <HyperJson
+        data={{ log: '{"payload.result":"ok"}' }}
+        groupDottedKeys
+        getLineActions={actions}
+      />,
+    );
+    expect(screen.queryByText('ok')).not.toBeInTheDocument();
+    expect(
+      screen.queryByText('{"payload.result":"ok"}'),
+    ).not.toBeInTheDocument();
+    fireEvent.click(screen.getByText('log'));
+    fireEvent.click(screen.getByText('payload'));
+    fireEvent.mouseEnter(
+      screen.getByText('result').closest('[data-testid="json-viewer-line"]')!,
+    );
+    expect(actions).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        keyPath: ['log', 'payload.result'],
+        parsedJsonRootPath: ['log'],
+        isInParsedJson: true,
+      }),
+    );
+  });
+
+  it('preserves ambiguous keys, original value types, arrays and prototype-like keys', () => {
+    const data = JSON.parse(
+      '{"payload":"plain","payload.role":"admin","__proto__.safe":"value","flag":"true"}',
+    );
+    const entries = jsonTreeEntries(data, true);
+    expect(entries.find(e => e.key === 'payload')?.value).toBe('plain');
+    expect(entries.find(e => e.key === 'payload.role')?.value).toBe('admin');
+    expect(entries.find(e => e.key === 'flag')?.value).toBe('true');
+    expect(entries.find(e => e.key === '__proto__')?.value).toEqual({
+      safe: 'value',
+    });
+    expect(Object.hasOwn(Object.prototype, 'safe')).toBe(false);
+    expect(jsonTreeEntries(['z', 'a'], true).map(e => e.value)).toEqual([
+      'z',
+      'a',
+    ]);
+    expect(Object.keys(data)).toContain('payload.role');
+  });
+});
 
 describe('HyperJson wrap markers', () => {
   it('expands JSON strings when requested without losing their query context', () => {

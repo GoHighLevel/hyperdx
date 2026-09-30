@@ -1,0 +1,643 @@
+{
+  "version": "0.1.0",
+  "savedRefreshInterval": 30,
+  "savedDateRange": {
+    "type": "relative",
+    "value": 900
+  },
+  "savedFilterValues": [
+    {
+      "type": "variable",
+      "name": "cluster",
+      "values": [
+        "servers-usc1-prd-cluster"
+      ]
+    },
+    {
+      "type": "variable",
+      "name": "namespace",
+      "values": [
+        "default"
+      ]
+    },
+    {
+      "type": "variable",
+      "name": "deployment",
+      "values": [
+        "store-api"
+      ]
+    }
+  ],
+  "name": "02 · Capacity and startup — Production",
+  "description": "Production scheduling, initialization/startup, HPA and saturation investigation. HPA cards merged into replica and target trends. Includes GKE event evidence links; no dedicated image-pull duration metric exists. Rolling last 15m with 30s refresh.",
+  "tags": [
+    "production",
+    "incident-response",
+    "capacity"
+  ],
+  "filters": [
+    {
+      "id": "filter-cluster",
+      "name": "Cluster",
+      "variableName": "cluster",
+      "type": "PROMETHEUS_LABEL",
+      "source": "Production Metrics",
+      "label": "cluster",
+      "match": "kube_deployment_created",
+      "isBroadcastEnabled": false,
+      "isVariableEnabled": true,
+      "minSelections": 1,
+      "isGlobalRequirement": true
+    },
+    {
+      "id": "filter-namespace",
+      "name": "Namespace",
+      "variableName": "namespace",
+      "type": "PROMETHEUS_LABEL",
+      "source": "Production Metrics",
+      "label": "namespace",
+      "match": "kube_deployment_created{cluster=~\"${cluster:regex}\"}",
+      "isBroadcastEnabled": false,
+      "isVariableEnabled": true,
+      "minSelections": 1,
+      "isGlobalRequirement": true
+    },
+    {
+      "id": "filter-deployment",
+      "name": "Deployment",
+      "variableName": "deployment",
+      "type": "PROMETHEUS_LABEL",
+      "source": "Production Metrics",
+      "label": "deployment",
+      "match": "kube_deployment_created{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\"}",
+      "isBroadcastEnabled": false,
+      "isVariableEnabled": true,
+      "minSelections": 1,
+      "isGlobalRequirement": true
+    },
+    {
+      "id": "filter-pod",
+      "name": "Pod",
+      "variableName": "pod",
+      "type": "PROMETHEUS_LABEL",
+      "source": "Production Metrics",
+      "label": "pod",
+      "match": "kube_pod_info{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",created_by_kind=\"ReplicaSet\",created_by_name=~\"${deployment:regex}-[a-z0-9]+\"}",
+      "isBroadcastEnabled": false,
+      "isVariableEnabled": true
+    },
+    {
+      "id": "filter-event-reason",
+      "name": "Event reason",
+      "variableName": "event_reason",
+      "type": "STATIC_LIST",
+      "options": [
+        "FailedScheduling",
+        "TriggeredScaleUp",
+        "Scheduled",
+        "Pulling",
+        "Pulled",
+        "Created",
+        "Started",
+        "Unhealthy",
+        "Killing",
+        "BackOff",
+        "Failed"
+      ],
+      "isBroadcastEnabled": false,
+      "isVariableEnabled": true
+    }
+  ],
+  "containers": [
+    {
+      "id": "start",
+      "title": "Start here",
+      "collapsed": false
+    },
+    {
+      "id": "capacity-delivery",
+      "title": "Capacity delivery",
+      "collapsed": false
+    },
+    {
+      "id": "autoscaling",
+      "title": "HPA decisions and targets",
+      "collapsed": true
+    },
+    {
+      "id": "resources",
+      "title": "Saturation and pod health",
+      "collapsed": true
+    },
+    {
+      "id": "evidence",
+      "title": "Incident evidence and interpretation",
+      "collapsed": true
+    },
+    {
+      "id": "events",
+      "title": "Kubernetes lifecycle events · collected from 14 September",
+      "collapsed": true
+    }
+  ],
+  "tiles": [
+    {
+      "id": "suite-navigation",
+      "containerId": "start",
+      "x": 0,
+      "y": 0,
+      "w": 24,
+      "h": 6,
+      "config": {
+        "name": "Debugging workflow",
+        "displayType": "markdown",
+        "source": "",
+        "select": [],
+        "where": "",
+        "whereLanguage": "sql",
+        "markdown": "[01 · P0 overview](https://hyperdx.platform.prd.msgsndr.net/dashboards/6aa7af64466e0dad178178c4) · [02 · Capacity and startup](https://hyperdx.platform.prd.msgsndr.net/dashboards/e8ec27ebca8ec9510cc54010) · [03 · Request investigation](https://hyperdx.platform.prd.msgsndr.net/dashboards/8da8d7cbb9ebeb140a048e6f)\n\n**Find the blocked stage:** Compare Desired, Created and Scheduled with Pods in Running phase, Application containers running, and Ready/Available. Pods can remain in Running phase while application containers restart; neither running count proves readiness. Capacity stages ignore Pod; resource panels honor Pod. Expand Incident evidence for searchable Kubernetes lifecycle events and the separately labelled September 12 Cloud Logging excerpt. Pending age is not image-pull duration.\n\nNavigation opens the saved view of the destination; it does not automatically carry unsaved filters or time. **Contacts incident · 12 September, 8:25–10:25 PM IST:** [Overview](https://hyperdx.platform.prd.msgsndr.net/dashboards/6aa7af64466e0dad178178c4?granularity=30+second&filters=%255B%257B%2522type%2522%253A%2522variable%2522%252C%2522name%2522%253A%2522cluster%2522%252C%2522values%2522%253A%255B%2522servers-usc1-prd-cluster%2522%255D%257D%252C%257B%2522type%2522%253A%2522variable%2522%252C%2522name%2522%253A%2522namespace%2522%252C%2522values%2522%253A%255B%2522default%2522%255D%257D%252C%257B%2522type%2522%253A%2522variable%2522%252C%2522name%2522%253A%2522deployment%2522%252C%2522values%2522%253A%255B%2522contacts-get-internal-api%2522%255D%257D%255D&from=1789224900000&to=1789232100000) · [Capacity](https://hyperdx.platform.prd.msgsndr.net/dashboards/e8ec27ebca8ec9510cc54010?granularity=30+second&filters=%255B%257B%2522type%2522%253A%2522variable%2522%252C%2522name%2522%253A%2522cluster%2522%252C%2522values%2522%253A%255B%2522servers-usc1-prd-cluster%2522%255D%257D%252C%257B%2522type%2522%253A%2522variable%2522%252C%2522name%2522%253A%2522namespace%2522%252C%2522values%2522%253A%255B%2522default%2522%255D%257D%252C%257B%2522type%2522%253A%2522variable%2522%252C%2522name%2522%253A%2522deployment%2522%252C%2522values%2522%253A%255B%2522contacts-get-internal-api%2522%255D%257D%255D&from=1789224900000&to=1789232100000) · [Requests](https://hyperdx.platform.prd.msgsndr.net/dashboards/8da8d7cbb9ebeb140a048e6f?granularity=30+second&filters=%255B%257B%2522type%2522%253A%2522variable%2522%252C%2522name%2522%253A%2522cluster%2522%252C%2522values%2522%253A%255B%2522servers-usc1-prd-cluster%2522%255D%257D%252C%257B%2522type%2522%253A%2522variable%2522%252C%2522name%2522%253A%2522namespace%2522%252C%2522values%2522%253A%255B%2522default%2522%255D%257D%252C%257B%2522type%2522%253A%2522variable%2522%252C%2522name%2522%253A%2522deployment%2522%252C%2522values%2522%253A%255B%2522contacts-get-internal-api%2522%255D%257D%255D&from=1789224900000&to=1789232100000). These replay links keep the same service and time window."
+      }
+    },
+    {
+      "id": "capacity-stages",
+      "containerId": "capacity-delivery",
+      "x": 0,
+      "y": 0,
+      "w": 24,
+      "h": 9,
+      "config": {
+        "name": "Capacity stages · pod lifecycle / application state / readiness",
+        "configType": "promql",
+        "displayType": "line",
+        "source": "Production Metrics",
+        "connection": "Production Metrics Querier",
+        "promqlExpression": "label_replace((sum(max by (cluster,namespace,deployment) (kube_deployment_spec_replicas{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",deployment=~\"${deployment:regex}\"}))), \"series\", \"Desired\", \"\", \"\") or label_replace((sum(max by (cluster,namespace,deployment) (kube_deployment_status_replicas{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",deployment=~\"${deployment:regex}\"}))), \"series\", \"Created\", \"\", \"\") or label_replace((sum((max by (cluster,namespace,pod) (kube_pod_status_scheduled{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",condition=\"true\"}) and on (cluster,namespace,pod) ((max by (cluster,namespace,pod) (kube_pod_info{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",created_by_kind=\"ReplicaSet\",created_by_name=~\"${deployment:regex}-[a-z0-9]+\"}) unless on (cluster,namespace,pod) (max by (cluster,namespace,pod) (kube_pod_deletion_timestamp{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\"}) > 0)) unless on (cluster,namespace,pod) (max by (cluster,namespace,pod) (kube_pod_status_phase{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",phase=~\"Failed|Succeeded\"}) == 1))))), \"series\", \"Scheduled\", \"\", \"\") or label_replace((sum((max by (cluster,namespace,pod) (kube_pod_status_phase{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",phase=\"Running\"}) and on (cluster,namespace,pod) ((max by (cluster,namespace,pod) (kube_pod_info{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",created_by_kind=\"ReplicaSet\",created_by_name=~\"${deployment:regex}-[a-z0-9]+\"}) unless on (cluster,namespace,pod) (max by (cluster,namespace,pod) (kube_pod_deletion_timestamp{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\"}) > 0)) unless on (cluster,namespace,pod) (max by (cluster,namespace,pod) (kube_pod_status_phase{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",phase=~\"Failed|Succeeded\"}) == 1))))), \"series\", \"Pods in Running phase\", \"\", \"\") or label_replace((sum((max by (cluster,namespace,pod) (kube_pod_container_status_running{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",container=~\"${deployment:regex}\"}) and on (cluster,namespace,pod) ((max by (cluster,namespace,pod) (kube_pod_info{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",created_by_kind=\"ReplicaSet\",created_by_name=~\"${deployment:regex}-[a-z0-9]+\"}) unless on (cluster,namespace,pod) (max by (cluster,namespace,pod) (kube_pod_deletion_timestamp{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\"}) > 0)) unless on (cluster,namespace,pod) (max by (cluster,namespace,pod) (kube_pod_status_phase{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",phase=~\"Failed|Succeeded\"}) == 1))))), \"series\", \"Application containers running\", \"\", \"\") or label_replace((sum(max by (cluster,namespace,deployment) (kube_deployment_status_replicas_ready{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",deployment=~\"${deployment:regex}\"}))), \"series\", \"Ready\", \"\", \"\") or label_replace((sum(max by (cluster,namespace,deployment) (kube_deployment_status_replicas_available{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",deployment=~\"${deployment:regex}\"}))), \"series\", \"Available\", \"\", \"\")",
+        "fillNulls": false,
+        "numberFormat": {
+          "output": "number",
+          "mantissa": 0,
+          "thousandSeparated": true,
+          "unit": ""
+        },
+        "granularity": "1 minute",
+        "seriesLimit": 20,
+        "legendTemplate": "{{series}}"
+      }
+    },
+    {
+      "id": "capacity-pending",
+      "containerId": "capacity-delivery",
+      "x": 0,
+      "y": 9,
+      "w": 12,
+      "h": 8,
+      "config": {
+        "name": "Pending versus not scheduled",
+        "configType": "promql",
+        "displayType": "line",
+        "source": "Production Metrics",
+        "connection": "Production Metrics Querier",
+        "promqlExpression": "label_replace((sum((max by (cluster,namespace,pod) (kube_pod_status_phase{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",phase=\"Pending\"}) and on (cluster,namespace,pod) ((max by (cluster,namespace,pod) (kube_pod_info{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",created_by_kind=\"ReplicaSet\",created_by_name=~\"${deployment:regex}-[a-z0-9]+\"}) unless on (cluster,namespace,pod) (max by (cluster,namespace,pod) (kube_pod_deletion_timestamp{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\"}) > 0)) unless on (cluster,namespace,pod) (max by (cluster,namespace,pod) (kube_pod_status_phase{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",phase=~\"Failed|Succeeded\"}) == 1))))), \"series\", \"Pending pods\", \"\", \"\") or label_replace((sum((max by (cluster,namespace,pod) (kube_pod_status_scheduled{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",condition=\"false\"}) and on (cluster,namespace,pod) ((max by (cluster,namespace,pod) (kube_pod_info{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",created_by_kind=\"ReplicaSet\",created_by_name=~\"${deployment:regex}-[a-z0-9]+\"}) unless on (cluster,namespace,pod) (max by (cluster,namespace,pod) (kube_pod_deletion_timestamp{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\"}) > 0)) unless on (cluster,namespace,pod) (max by (cluster,namespace,pod) (kube_pod_status_phase{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",phase=~\"Failed|Succeeded\"}) == 1))))), \"series\", \"Not scheduled\", \"\", \"\")",
+        "fillNulls": false,
+        "numberFormat": {
+          "output": "number",
+          "mantissa": 1,
+          "thousandSeparated": true,
+          "unit": ""
+        },
+        "granularity": "1 minute",
+        "seriesLimit": 20,
+        "legendTemplate": "{{series}}"
+      }
+    },
+    {
+      "id": "capacity-waiting",
+      "containerId": "capacity-delivery",
+      "x": 12,
+      "y": 9,
+      "w": 12,
+      "h": 8,
+      "config": {
+        "name": "Application container waiting reasons",
+        "configType": "promql",
+        "displayType": "line",
+        "source": "Production Metrics",
+        "connection": "Production Metrics Querier",
+        "promqlExpression": "sum by (reason) ((max by (cluster,namespace,pod,reason) (kube_pod_container_status_waiting_reason{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",container=~\"${deployment:regex}\"}) and on (cluster,namespace,pod) ((max by (cluster,namespace,pod) (kube_pod_info{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",created_by_kind=\"ReplicaSet\",created_by_name=~\"${deployment:regex}-[a-z0-9]+\"}) unless on (cluster,namespace,pod) (max by (cluster,namespace,pod) (kube_pod_deletion_timestamp{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\"}) > 0)) unless on (cluster,namespace,pod) (max by (cluster,namespace,pod) (kube_pod_status_phase{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",phase=~\"Failed|Succeeded\"}) == 1))))",
+        "fillNulls": false,
+        "numberFormat": {
+          "output": "number",
+          "mantissa": 1,
+          "thousandSeparated": true,
+          "unit": ""
+        },
+        "granularity": "1 minute",
+        "seriesLimit": 20,
+        "legendTemplate": "{{reason}}"
+      }
+    },
+    {
+      "id": "capacity-pending-age",
+      "containerId": "capacity-delivery",
+      "x": 0,
+      "y": 17,
+      "w": 12,
+      "h": 8,
+      "config": {
+        "name": "Oldest pending pod · age since creation",
+        "configType": "promql",
+        "displayType": "line",
+        "source": "Production Metrics",
+        "connection": "Production Metrics Querier",
+        "promqlExpression": "max(clamp_min(time() - (max by (cluster,namespace,pod) (kube_pod_created{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\"}) and on (cluster,namespace,pod) ((max by (cluster,namespace,pod) (kube_pod_info{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",created_by_kind=\"ReplicaSet\",created_by_name=~\"${deployment:regex}-[a-z0-9]+\"}) unless on (cluster,namespace,pod) (max by (cluster,namespace,pod) (kube_pod_deletion_timestamp{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\"}) > 0)) unless on (cluster,namespace,pod) (max by (cluster,namespace,pod) (kube_pod_status_phase{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",phase=~\"Failed|Succeeded\"}) == 1))), 0) * on (cluster,namespace,pod) (max by (cluster,namespace,pod) (kube_pod_status_phase{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",phase=\"Pending\"}) and on (cluster,namespace,pod) ((max by (cluster,namespace,pod) (kube_pod_info{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",created_by_kind=\"ReplicaSet\",created_by_name=~\"${deployment:regex}-[a-z0-9]+\"}) unless on (cluster,namespace,pod) (max by (cluster,namespace,pod) (kube_pod_deletion_timestamp{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\"}) > 0)) unless on (cluster,namespace,pod) (max by (cluster,namespace,pod) (kube_pod_status_phase{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",phase=~\"Failed|Succeeded\"}) == 1))))",
+        "fillNulls": false,
+        "numberFormat": {
+          "output": "number",
+          "mantissa": 1,
+          "thousandSeparated": true,
+          "unit": "s"
+        },
+        "granularity": "1 minute",
+        "seriesLimit": 20,
+        "legendTemplate": ""
+      }
+    },
+    {
+      "id": "capacity-nodes",
+      "containerId": "capacity-delivery",
+      "x": 12,
+      "y": 17,
+      "w": 12,
+      "h": 8,
+      "config": {
+        "name": "Workload nodes · total / newly registered",
+        "configType": "promql",
+        "displayType": "line",
+        "source": "Production Metrics",
+        "connection": "Production Metrics Querier",
+        "promqlExpression": "label_replace((sum(max by (cluster,node) (max by (cluster,namespace,pod,node) (kube_pod_info{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",node!=\"\"}) and on (cluster,namespace,pod) ((max by (cluster,namespace,pod) (kube_pod_info{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",created_by_kind=\"ReplicaSet\",created_by_name=~\"${deployment:regex}-[a-z0-9]+\"}) unless on (cluster,namespace,pod) (max by (cluster,namespace,pod) (kube_pod_deletion_timestamp{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\"}) > 0)) unless on (cluster,namespace,pod) (max by (cluster,namespace,pod) (kube_pod_status_phase{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",phase=~\"Failed|Succeeded\"}) == 1))))), \"series\", \"Nodes hosting selected workload\", \"\", \"\") or label_replace((sum((clamp_min(time() - max by (cluster,node) (kube_node_created{cluster=~\"${cluster:regex}\"}), 0) < bool 900) and on (cluster,node) max by (cluster,node) (max by (cluster,namespace,pod,node) (kube_pod_info{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",node!=\"\"}) and on (cluster,namespace,pod) ((max by (cluster,namespace,pod) (kube_pod_info{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",created_by_kind=\"ReplicaSet\",created_by_name=~\"${deployment:regex}-[a-z0-9]+\"}) unless on (cluster,namespace,pod) (max by (cluster,namespace,pod) (kube_pod_deletion_timestamp{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\"}) > 0)) unless on (cluster,namespace,pod) (max by (cluster,namespace,pod) (kube_pod_status_phase{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",phase=~\"Failed|Succeeded\"}) == 1))))), \"series\", \"Hosting nodes registered in last 15m\", \"\", \"\")",
+        "fillNulls": false,
+        "numberFormat": {
+          "output": "number",
+          "mantissa": 1,
+          "thousandSeparated": true,
+          "unit": ""
+        },
+        "granularity": "1 minute",
+        "seriesLimit": 20,
+        "legendTemplate": "{{series}}"
+      }
+    },
+    {
+      "id": "hpa-replica-trend",
+      "containerId": "autoscaling",
+      "x": 0,
+      "y": 0,
+      "w": 12,
+      "h": 8,
+      "config": {
+        "name": "HPA replicas · min / max / desired / current",
+        "configType": "promql",
+        "displayType": "line",
+        "source": "Production Metrics",
+        "connection": "Production Metrics Querier",
+        "promqlExpression": "label_replace(((max by (cluster,namespace,horizontalpodautoscaler) (kube_horizontalpodautoscaler_spec_min_replicas{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\"}) and on (cluster,namespace,horizontalpodautoscaler) max by (cluster,namespace,horizontalpodautoscaler) (kube_horizontalpodautoscaler_info{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scaletargetref_kind=\"Deployment\",scaletargetref_name=~\"${deployment:regex}\"}))), \"series\", \"Min\", \"\", \"\") or label_replace(((max by (cluster,namespace,horizontalpodautoscaler) (kube_horizontalpodautoscaler_spec_max_replicas{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\"}) and on (cluster,namespace,horizontalpodautoscaler) max by (cluster,namespace,horizontalpodautoscaler) (kube_horizontalpodautoscaler_info{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scaletargetref_kind=\"Deployment\",scaletargetref_name=~\"${deployment:regex}\"}))), \"series\", \"Max\", \"\", \"\") or label_replace(((max by (cluster,namespace,horizontalpodautoscaler) (kube_horizontalpodautoscaler_status_desired_replicas{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\"}) and on (cluster,namespace,horizontalpodautoscaler) max by (cluster,namespace,horizontalpodautoscaler) (kube_horizontalpodautoscaler_info{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scaletargetref_kind=\"Deployment\",scaletargetref_name=~\"${deployment:regex}\"}))), \"series\", \"Desired\", \"\", \"\") or label_replace(((max by (cluster,namespace,horizontalpodautoscaler) (kube_horizontalpodautoscaler_status_current_replicas{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\"}) and on (cluster,namespace,horizontalpodautoscaler) max by (cluster,namespace,horizontalpodautoscaler) (kube_horizontalpodautoscaler_info{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scaletargetref_kind=\"Deployment\",scaletargetref_name=~\"${deployment:regex}\"}))), \"series\", \"Current\", \"\", \"\")",
+        "fillNulls": false,
+        "numberFormat": {
+          "output": "number",
+          "mantissa": 1,
+          "thousandSeparated": true
+        },
+        "granularity": "1 minute",
+        "seriesLimit": 40,
+        "legendTemplate": "{{horizontalpodautoscaler}} · {{series}}"
+      }
+    },
+    {
+      "id": "hpa-metric-trend",
+      "containerId": "autoscaling",
+      "x": 12,
+      "y": 0,
+      "w": 12,
+      "h": 8,
+      "config": {
+        "name": "HPA metrics · current vs target",
+        "configType": "promql",
+        "displayType": "line",
+        "source": "Production Metrics",
+        "connection": "Production Metrics Querier",
+        "promqlExpression": "label_replace((((max by (cluster,namespace,horizontalpodautoscaler,metric_name,metric_target_type) (kube_horizontalpodautoscaler_status_target_metric{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\"}) and on (cluster,namespace,horizontalpodautoscaler) max by (cluster,namespace,horizontalpodautoscaler) (kube_horizontalpodautoscaler_info{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scaletargetref_kind=\"Deployment\",scaletargetref_name=~\"${deployment:regex}\"})) and on (cluster,namespace,horizontalpodautoscaler,metric_name,metric_target_type) (max by (cluster,namespace,horizontalpodautoscaler,metric_name,metric_target_type) (kube_horizontalpodautoscaler_spec_target_metric{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\"}) and on (cluster,namespace,horizontalpodautoscaler) max by (cluster,namespace,horizontalpodautoscaler) (kube_horizontalpodautoscaler_info{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scaletargetref_kind=\"Deployment\",scaletargetref_name=~\"${deployment:regex}\"})))), \"series\", \"Current\", \"\", \"\") or label_replace(((max by (cluster,namespace,horizontalpodautoscaler,metric_name,metric_target_type) (kube_horizontalpodautoscaler_spec_target_metric{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\"}) and on (cluster,namespace,horizontalpodautoscaler) max by (cluster,namespace,horizontalpodautoscaler) (kube_horizontalpodautoscaler_info{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scaletargetref_kind=\"Deployment\",scaletargetref_name=~\"${deployment:regex}\"}))), \"series\", \"Target\", \"\", \"\")",
+        "fillNulls": false,
+        "numberFormat": {
+          "output": "number",
+          "mantissa": 1,
+          "thousandSeparated": true
+        },
+        "granularity": "1 minute",
+        "seriesLimit": 40,
+        "legendTemplate": "{{metric_name}} / {{metric_target_type}} · {{series}}"
+      }
+    },
+    {
+      "id": "cpu-percent",
+      "containerId": "resources",
+      "x": 0,
+      "y": 0,
+      "w": 12,
+      "h": 5,
+      "config": {
+        "name": "CPU / limits",
+        "configType": "promql",
+        "displayType": "line",
+        "source": "Production Metrics",
+        "connection": "Production Metrics Querier",
+        "promqlExpression": "100 * (sum(max by (cluster, namespace, pod, container) (rate(container_cpu_usage_seconds_total{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",pod=~\"${deployment:regex}-[a-z0-9]+-[a-z0-9]+\",pod=~\"${pod:regex}\",container!=\"\",container!=\"POD\"}[5m])))) / (sum(max by (cluster, namespace, pod, container) (kube_pod_container_resource_limits{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",pod=~\"${deployment:regex}-[a-z0-9]+-[a-z0-9]+\",pod=~\"${pod:regex}\",resource=\"cpu\",unit=\"core\"})) > 0)",
+        "numberFormat": {
+          "output": "number",
+          "mantissa": 1,
+          "thousandSeparated": true,
+          "unit": "%"
+        },
+        "fillNulls": false,
+        "color": "chart-gray",
+        "colorRules": [
+          {
+            "operator": "gte",
+            "value": 0,
+            "color": "chart-success"
+          },
+          {
+            "operator": "gte",
+            "value": 70,
+            "color": "chart-warning"
+          },
+          {
+            "operator": "gte",
+            "value": 90,
+            "color": "chart-error"
+          }
+        ],
+        "granularity": "1 minute",
+        "legendTemplate": ""
+      }
+    },
+    {
+      "id": "memory-percent",
+      "containerId": "resources",
+      "x": 12,
+      "y": 0,
+      "w": 12,
+      "h": 5,
+      "config": {
+        "name": "Memory / limits",
+        "configType": "promql",
+        "displayType": "line",
+        "source": "Production Metrics",
+        "connection": "Production Metrics Querier",
+        "promqlExpression": "100 * (sum(max by (cluster, namespace, pod, container) (container_memory_working_set_bytes{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",pod=~\"${deployment:regex}-[a-z0-9]+-[a-z0-9]+\",pod=~\"${pod:regex}\",container!=\"\",container!=\"POD\"}))) / (sum(max by (cluster, namespace, pod, container) (kube_pod_container_resource_limits{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",pod=~\"${deployment:regex}-[a-z0-9]+-[a-z0-9]+\",pod=~\"${pod:regex}\",resource=\"memory\",unit=\"byte\"})) > 0)",
+        "numberFormat": {
+          "output": "number",
+          "mantissa": 1,
+          "thousandSeparated": true,
+          "unit": "%"
+        },
+        "fillNulls": false,
+        "color": "chart-gray",
+        "colorRules": [
+          {
+            "operator": "gte",
+            "value": 0,
+            "color": "chart-success"
+          },
+          {
+            "operator": "gte",
+            "value": 70,
+            "color": "chart-warning"
+          },
+          {
+            "operator": "gte",
+            "value": 90,
+            "color": "chart-error"
+          }
+        ],
+        "granularity": "1 minute",
+        "legendTemplate": ""
+      }
+    },
+    {
+      "id": "cpu-timeline",
+      "containerId": "resources",
+      "x": 0,
+      "y": 5,
+      "w": 12,
+      "h": 8,
+      "config": {
+        "name": "CPU usage and limits",
+        "configType": "promql",
+        "displayType": "line",
+        "source": "Production Metrics",
+        "connection": "Production Metrics Querier",
+        "promqlExpression": "label_replace((sum(max by (cluster, namespace, pod, container) (rate(container_cpu_usage_seconds_total{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",pod=~\"${deployment:regex}-[a-z0-9]+-[a-z0-9]+\",pod=~\"${pod:regex}\",container!=\"\",container!=\"POD\"}[5m])))), \"series\", \"Used\", \"\", \"\") or label_replace((sum(max by (cluster, namespace, pod, container) (kube_pod_container_resource_limits{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",pod=~\"${deployment:regex}-[a-z0-9]+-[a-z0-9]+\",pod=~\"${pod:regex}\",resource=\"cpu\",unit=\"core\"}))), \"series\", \"Limit\", \"\", \"\")",
+        "numberFormat": {
+          "output": "number",
+          "mantissa": 1,
+          "thousandSeparated": true,
+          "unit": "cores"
+        },
+        "fillNulls": false,
+        "granularity": "1 minute",
+        "seriesLimit": 20,
+        "legendTemplate": "{{series}}"
+      }
+    },
+    {
+      "id": "memory-timeline",
+      "containerId": "resources",
+      "x": 12,
+      "y": 5,
+      "w": 12,
+      "h": 8,
+      "config": {
+        "name": "Memory usage and limits",
+        "configType": "promql",
+        "displayType": "line",
+        "source": "Production Metrics",
+        "connection": "Production Metrics Querier",
+        "promqlExpression": "label_replace(((sum(max by (cluster, namespace, pod, container) (container_memory_working_set_bytes{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",pod=~\"${deployment:regex}-[a-z0-9]+-[a-z0-9]+\",pod=~\"${pod:regex}\",container!=\"\",container!=\"POD\"}))) / 1024 / 1024), \"series\", \"Used\", \"\", \"\") or label_replace(((sum(max by (cluster, namespace, pod, container) (kube_pod_container_resource_limits{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",pod=~\"${deployment:regex}-[a-z0-9]+-[a-z0-9]+\",pod=~\"${pod:regex}\",resource=\"memory\",unit=\"byte\"}))) / 1024 / 1024), \"series\", \"Limit\", \"\", \"\")",
+        "numberFormat": {
+          "output": "number",
+          "mantissa": 1,
+          "thousandSeparated": true,
+          "unit": "MiB"
+        },
+        "fillNulls": false,
+        "granularity": "1 minute",
+        "seriesLimit": 20,
+        "legendTemplate": "{{series}}"
+      }
+    },
+    {
+      "id": "throttling",
+      "containerId": "resources",
+      "x": 0,
+      "y": 13,
+      "w": 12,
+      "h": 8,
+      "config": {
+        "name": "CPU periods throttled by pod",
+        "configType": "promql",
+        "displayType": "line",
+        "source": "Production Metrics",
+        "connection": "Production Metrics Querier",
+        "promqlExpression": "100 * sum by (pod) (max by (cluster,namespace,pod,container) (rate(container_cpu_cfs_throttled_periods_total{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",pod=~\"${deployment:regex}-[a-z0-9]+-[a-z0-9]+\",pod=~\"${pod:regex}\",container!=\"\",container!=\"POD\"}[5m]))) / (sum by (pod) (max by (cluster,namespace,pod,container) (rate(container_cpu_cfs_periods_total{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",pod=~\"${deployment:regex}-[a-z0-9]+-[a-z0-9]+\",pod=~\"${pod:regex}\",container!=\"\",container!=\"POD\"}[5m]))) > 0)",
+        "numberFormat": {
+          "output": "number",
+          "mantissa": 1,
+          "thousandSeparated": true,
+          "unit": "%"
+        },
+        "fillNulls": false,
+        "granularity": "1 minute",
+        "seriesLimit": 20,
+        "legendTemplate": "{{pod}}"
+      }
+    },
+    {
+      "id": "readiness",
+      "containerId": "resources",
+      "x": 12,
+      "y": 13,
+      "w": 12,
+      "h": 8,
+      "config": {
+        "name": "Pod ready · 1 = ready",
+        "configType": "promql",
+        "displayType": "line",
+        "source": "Production Metrics",
+        "connection": "Production Metrics Querier",
+        "promqlExpression": "max by (pod) (kube_pod_status_ready{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",pod=~\"${deployment:regex}-[a-z0-9]+-[a-z0-9]+\",pod=~\"${pod:regex}\",condition=\"true\"})",
+        "numberFormat": {
+          "output": "number",
+          "mantissa": 1,
+          "thousandSeparated": true,
+          "unit": ""
+        },
+        "fillNulls": false,
+        "granularity": "1 minute",
+        "seriesLimit": 20,
+        "legendTemplate": "{{pod}}"
+      }
+    },
+    {
+      "id": "pod-restarts",
+      "containerId": "resources",
+      "x": 0,
+      "y": 21,
+      "w": 12,
+      "h": 8,
+      "config": {
+        "name": "Restarts by pod · rolling 15m",
+        "configType": "promql",
+        "displayType": "line",
+        "source": "Production Metrics",
+        "connection": "Production Metrics Querier",
+        "promqlExpression": "sum by (pod) (max by (cluster,namespace,pod,container) (increase(kube_pod_container_status_restarts_total{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",pod=~\"${deployment:regex}-[a-z0-9]+-[a-z0-9]+\",pod=~\"${pod:regex}\"}[15m])))",
+        "numberFormat": {
+          "output": "number",
+          "mantissa": 1,
+          "thousandSeparated": true,
+          "unit": ""
+        },
+        "fillNulls": false,
+        "granularity": "1 minute",
+        "seriesLimit": 20,
+        "legendTemplate": "{{pod}}"
+      }
+    },
+    {
+      "id": "network",
+      "containerId": "resources",
+      "x": 12,
+      "y": 21,
+      "w": 12,
+      "h": 8,
+      "config": {
+        "name": "Pod network traffic",
+        "configType": "promql",
+        "displayType": "line",
+        "source": "Production Metrics",
+        "connection": "Production Metrics Querier",
+        "promqlExpression": "label_replace((sum(max by (cluster,namespace,pod,interface) (rate(container_network_receive_bytes_total{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",pod=~\"${deployment:regex}-[a-z0-9]+-[a-z0-9]+\",pod=~\"${pod:regex}\",interface!=\"lo\"}[5m]))) / 1024), \"series\", \"Received\", \"\", \"\") or label_replace((sum(max by (cluster,namespace,pod,interface) (rate(container_network_transmit_bytes_total{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",pod=~\"${deployment:regex}-[a-z0-9]+-[a-z0-9]+\",pod=~\"${pod:regex}\",interface!=\"lo\"}[5m]))) / 1024), \"series\", \"Sent\", \"\", \"\")",
+        "numberFormat": {
+          "output": "number",
+          "mantissa": 1,
+          "thousandSeparated": true,
+          "unit": "KiB/s"
+        },
+        "fillNulls": false,
+        "granularity": "1 minute",
+        "seriesLimit": 20,
+        "legendTemplate": "{{series}}"
+      }
+    },
+    {
+      "id": "capacity-guide",
+      "containerId": "evidence",
+      "x": 0,
+      "y": 0,
+      "w": 24,
+      "h": 8,
+      "config": {
+        "name": "Capacity diagnosis and incident evidence",
+        "displayType": "markdown",
+        "source": "",
+        "select": [],
+        "where": "",
+        "whereLanguage": "sql",
+        "markdown": "**Read the capacity path:** Desired → Created → Scheduled → Pods in Running phase → Application containers running → Ready/Available. A Running pod may contain a crashed or restarting application. Confirm serving health against gateway successes and errors.\n\n**Timing and counting:** These metrics deduplicate scrape series and exclude terminating/terminal pods where applicable. Rollout surge can exceed Desired. A 30-second chart step is not the scrape interval. RPM uses trailing 5-minute windows; replica counts are sampled states. Pending age is time since pod creation, not scheduler delay or image-download duration.\n\n**Kubernetes lifecycle events section (collapsed by default):** Cluster / Namespace / Deployment / Pod / Event reason filter the table. Each row is an observed event update, not a unique occurrence; Kubernetes may aggregate repeated events. Expand a row to inspect event UID, resource version, affected container and full message. Metric panels ignore Event reason.\n\n**Historical coverage:** Collection was introduced on September 14, after this incident; it does not backfill September 12. The September 14 rollout check did not confirm delivery from the servers production reader. Verify current collector health before relying on event coverage. An empty table is not evidence that no lifecycle failures occurred. Use the original Cloud Logging record below for this incident."
+      }
+    },
+    {
+      "id": "historical-image-pull-evidence",
+      "containerId": "evidence",
+      "x": 0,
+      "y": 8,
+      "w": 24,
+      "h": 9,
+      "config": {
+        "name": "Historical evidence · 12 Sep 2026 · Cloud Logging (fixed excerpt)",
+        "displayType": "markdown",
+        "source": "",
+        "select": [],
+        "where": "",
+        "whereLanguage": "sql",
+        "markdown": "**This is a retained source excerpt, not a live metric or a query of the selected time range.**\n\n**12 Sep, 8:36:43 PM IST** · `servers-usc1-prd-cluster` / `default` · pod `contacts-get-internal-api-85db944fb-6vj9z` · application container `contacts-get-internal-api` · kubelet `Pulled` event.\n\n> Successfully pulled image \"gcr.io/highlevel-backend/marketplace-contacts@sha256:4ef34f179eb58877107b11dcc0f7b1e589f869b33b1e4c385176805bb4c4ff1c\" in 269ms (4m45.39s including waiting). Image size: 642291619 bytes.\n\n**Pull execution: 269 ms. Total including waiting: 4m45.39s.** This confirms a startup delay for this pod; it does not prove a slow registry download, explain the queue, or establish the sole cause of the prolonged outage.\n\n[Open the exact Cloud Logging entry](https://console.cloud.google.com/logs/query;query=logName%3D%22projects%2Fhighlevel-backend%2Flogs%2Fevents%22%0AinsertId%3D%22xw3jsxfjmblx6%22%0Atimestamp%3E%3D%222026-09-12T15%3A06%3A40Z%22%0Atimestamp%3C%3D%222026-09-12T15%3A06%3A46Z%22;startTime=2026-09-12T15:06:40Z;endTime=2026-09-12T15:06:46Z?project=highlevel-backend) · insert ID: `xw3jsxfjmblx6`.\n\nThe broader incident also had liveness-triggered restarts: by 8:40 PM all 63 pods were Running, but only 15 were Ready. Use the capacity and request charts together."
+      }
+    },
+    {
+      "id": "kubernetes-lifecycle-events",
+      "containerId": "events",
+      "x": 0,
+      "y": 0,
+      "w": 24,
+      "h": 13,
+      "config": {
+        "name": "Kubernetes lifecycle events · newest 200 event updates · selected range",
+        "source": "Production All Clusters",
+        "displayType": "search",
+        "select": "timestamp, pod_name, json_payload['reason'] AS reason, json_payload['type'] AS event_type, container_name, log, json_payload['metadata.uid'] AS event_uid, json_payload['metadata.resourceVersion'] AS resource_version, json_payload['count'] AS occurrence_count",
+        "where": "json_payload['log_source'] = 'kubernetes_event' AND $__filter(cluster_name, $cluster) AND $__filter(namespace_name, $namespace) AND $__filter(deployment_name, $deployment) AND $__filter(pod_name, $pod) AND $__filter(json_payload['reason'], $event_reason)",
+        "whereLanguage": "sql",
+        "limit": {
+          "limit": 200
+        },
+        "orderBy": [
+          {
+            "valueExpression": "timestamp",
+            "ordering": "DESC"
+          }
+        ]
+      }
+    }
+  ]
+}

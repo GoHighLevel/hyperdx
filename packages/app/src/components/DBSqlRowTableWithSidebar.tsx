@@ -1,10 +1,13 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useQueryState } from 'nuqs';
 import {
   ClickHouseQueryError,
   ColumnMetaType,
 } from '@hyperdx/common-utils/dist/clickhouse';
-import { BuilderChartConfigWithDateRange } from '@hyperdx/common-utils/dist/types';
+import {
+  BuilderChartConfigWithDateRange,
+  SourceKind,
+} from '@hyperdx/common-utils/dist/types';
 import { SortingState } from '@tanstack/react-table';
 
 import { RowWhereResult, WithClause } from '@/hooks/useRowWhere';
@@ -12,6 +15,9 @@ import { useSource } from '@/source';
 import { parseAsStringEncoded } from '@/utils/queryParsers';
 
 import { ChartErrorStateVariant } from './charts/ChartErrorState';
+import DirectTraceSidePanel, {
+  TraceSidePanelSelection,
+} from './Search/DirectTraceSidePanel';
 import DBRowSidePanel, {
   RowSidePanelContext,
   RowSidePanelContextProps,
@@ -74,9 +80,27 @@ export default function DBSqlRowTableWithSideBar({
   keepOpenSelector = DEFAULT_KEEP_OPEN_SELECTOR,
 }: Props) {
   const { data: sourceData } = useSource({ id: sourceId });
+  const { data: traceSource } = useSource({
+    id:
+      sourceData?.kind === SourceKind.Log
+        ? sourceData.traceSourceId
+        : undefined,
+    kinds: [SourceKind.Trace],
+    traceForLogSourceId:
+      sourceData?.kind === SourceKind.Log ? sourceId : undefined,
+  });
   const [rowId, setRowId] = useQueryState('rowWhere', parseAsStringEncoded);
   const [rowSource, setRowSource] = useQueryState('rowSource');
   const [aliasWith, setAliasWith] = useState<WithClause[]>([]);
+  const [activeTrace, setActiveTrace] =
+    useState<TraceSidePanelSelection | null>(null);
+  useEffect(() => setActiveTrace(null), [sourceId]);
+  const onOpenRowTrace = useCallback(
+    (selection: TraceSidePanelSelection) => {
+      setActiveTrace({ ...selection, traceSourceId: traceSource?.id });
+    },
+    [traceSource?.id],
+  );
 
   const onOpenSidebar = useCallback(
     (rowWhere: RowWhereResult) => {
@@ -102,13 +126,14 @@ export default function DBSqlRowTableWithSideBar({
           source={sourceData}
           rowId={r.id}
           aliasWith={r.aliasWith}
+          onOpenTrace={onOpenRowTrace}
           onOpenDetails={() =>
             onOpenSidebar({ where: r.id, aliasWith: r.aliasWith ?? [] })
           }
         />
       );
     },
-    [sourceData, onOpenSidebar],
+    [sourceData, onOpenRowTrace, onOpenSidebar],
   );
 
   return (
@@ -130,11 +155,16 @@ export default function DBSqlRowTableWithSideBar({
         highlightedLineId={rowId ?? undefined}
         enabled={enabled}
         isLive={isLive ?? true}
+        inspectionActive={
+          activeTrace != null ||
+          (rowId != null && (rowSource === sourceId || !rowSource))
+        }
         queryKeyPrefix={queryKeyPrefix}
         onSortingChange={onSortingChange}
         denoiseResults={denoiseResults}
         initialSortBy={initialSortBy}
         renderRowDetails={renderRowDetails}
+        onOpenTrace={onOpenRowTrace}
         onScroll={onScroll}
         onError={onError}
         onExpandedRowsChange={onExpandedRowsChange}
@@ -145,6 +175,20 @@ export default function DBSqlRowTableWithSideBar({
         errorVariant={errorVariant}
         onResolvedColumnsChange={onResolvedColumnsChange}
       />
+      {activeTrace && (
+        <DirectTraceSidePanel
+          key={`${activeTrace.traceId}:${activeTrace.focusDate.getTime()}`}
+          {...activeTrace}
+          opened
+          onClose={() => setActiveTrace(null)}
+          onSourceChange={traceSourceId =>
+            setActiveTrace(previous =>
+              previous ? { ...previous, traceSourceId } : null,
+            )
+          }
+          closeOnClickOutside={false}
+        />
+      )}
     </RowSidePanelContext>
   );
 }

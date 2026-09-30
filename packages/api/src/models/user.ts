@@ -12,6 +12,8 @@ export interface IUser {
   email: string;
   name: string;
   team: ObjectId;
+  googleSubject?: string;
+  passwordAuthDisabled?: boolean;
 }
 
 export type UserDocument = mongoose.HydratedDocument<IUser>;
@@ -24,6 +26,8 @@ const UserSchema = new Schema(
       required: true,
     },
     team: { type: mongoose.Schema.Types.ObjectId, ref: 'Team' },
+    googleSubject: { type: String },
+    passwordAuthDisabled: { type: Boolean, default: false },
     accessKey: {
       type: String,
       default: function genUUID() {
@@ -37,7 +41,7 @@ const UserSchema = new Schema(
 );
 
 UserSchema.virtual('hasPasswordAuth').get(function (this: IUser) {
-  return true;
+  return !this.passwordAuthDisabled;
 });
 
 UserSchema.plugin(passportLocalMongoose, {
@@ -48,5 +52,6 @@ UserSchema.plugin(passportLocalMongoose, {
 
 UserSchema.index({ email: 1 }, { unique: true });
 UserSchema.index({ accessKey: 1 }, { unique: true });
+UserSchema.index({ googleSubject: 1 }, { unique: true, sparse: true });
 
 export default mongoose.model<IUser>('User', UserSchema);

@@ -51,11 +51,12 @@ function KnownColumnsListHint({
   ) : (
     <>
       To show every field for this row, {brand} loads the full row with a{' '}
-      <SelectStar /> query. This failed because a column declared by the parent
-      (distributed) table is missing from at least one target table. To fix
-      this, set a <b>Known Columns List</b> on this source, specifying a list of
-      columns that every target table has. When set, {brand} will select those
-      columns instead of <SelectStar />.
+      <SelectStar /> query. One possible cause is a column declared by the
+      parent (distributed) table being missing from a target table. Check the
+      error below before changing source settings. If a target column is
+      missing, set a <b>Known Columns List</b> on this source, specifying a list
+      of columns that every target table has. When set, {brand} will select
+      those columns instead of <SelectStar />.
     </>
   );
 

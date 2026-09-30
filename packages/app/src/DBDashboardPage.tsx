@@ -155,7 +155,6 @@ import {
 import {
   Dashboard,
   type Tile,
-  useCreateDashboard,
   useDashboards,
   useDeleteDashboard,
 } from '@/dashboard';
@@ -178,6 +177,8 @@ import ChartContainer, {
   DASHBOARD_TILE_PADDING_INLINE,
 } from './components/charts/ChartContainer';
 import DashboardFiltersModal from './components/DashboardFiltersModal';
+import DashboardCreateDialog from './components/Dashboards/DashboardCreateDialog';
+import MoveDashboardButton from './components/Dashboards/MoveDashboardButton';
 import { DBBarChart } from './components/DBBarChart';
 import DBHeatmapChart, {
   toHeatmapChartConfig,
@@ -186,6 +187,7 @@ import { DBPieChart } from './components/DBPieChart';
 import DBSqlRowTableWithSideBar from './components/DBSqlRowTableWithSidebar';
 import OnboardingModal from './components/OnboardingModal';
 import PatternTable from './components/PatternTable';
+import SearchDashboardPage from './components/Search/SearchDashboardPage';
 import SearchWhereInput, {
   getStoredLanguage,
 } from './components/SearchInput/SearchWhereInput';
@@ -194,6 +196,7 @@ import useDashboardFilters from './hooks/useDashboardFilters';
 import { useDashboardRefresh } from './hooks/useDashboardRefresh';
 import useTileSelection from './hooks/useTileSelection';
 import { useBrandDisplayName } from './theme/ThemeProvider';
+import { downloadObjectAsJson } from './utils/downloadObjectAsJson';
 import { parseAsJsonEncoded, parseAsStringEncoded } from './utils/queryParsers';
 import {
   buildDashboardReplaySearchUrl,
@@ -204,6 +207,7 @@ import {
 import { useConnections } from './connection';
 import { useDashboard } from './dashboard';
 import DashboardFilters from './DashboardFilters';
+import { useCanEditDashboard } from './dashboardFolders';
 import { EditablePageName } from './EditablePageName';
 import {
   GranularityPicker,
@@ -1733,19 +1737,6 @@ const updateLayout = (newLayout: RGL.Layout[]) => {
   };
 };
 
-// Download an object to users computer as JSON using specified name
-function downloadObjectAsJson(object: object, fileName = 'output') {
-  const dataStr =
-    'data:text/json;charset=utf-8,' +
-    encodeURIComponent(JSON.stringify(object));
-  const downloadAnchorNode = document.createElement('a');
-  downloadAnchorNode.setAttribute('href', dataStr);
-  downloadAnchorNode.setAttribute('download', fileName + '.json');
-  document.body.appendChild(downloadAnchorNode); // required for firefox
-  downloadAnchorNode.click();
-  downloadAnchorNode.remove();
-}
-
 function DashboardContainerRow({
   container,
   containerTiles,
@@ -1871,7 +1862,12 @@ function DBDashboardPage({
   dashboardProps: ReturnType<typeof useDashboard>;
   defaultTimeInput?: string;
 }) {
-  const { canManageShared } = usePermissions();
+  const canManageShared = useCanEditDashboard(
+    dashboardProps.dashboard,
+    dashboardProps.isLocalDashboard,
+  );
+  const [creatingDashboard, setCreatingDashboard] = useState(false);
+  const { canManageShared: isAdmin } = usePermissions();
   const defaultTimeRange = useDefaultTimeRange(defaultTimeInput);
 
   const {
@@ -2019,7 +2015,10 @@ function DBDashboardPage({
     });
   };
 
-  const [isLive, setIsLive] = useState(false);
+  const [isLive, setIsLive] = useQueryState(
+    'isLive',
+    parseAsBoolean.withDefault(false),
+  );
 
   const { control, setValue, getValues, handleSubmit } = useForm<{
     granularity: SQLInterval | 'auto';
@@ -2055,10 +2054,13 @@ function DBDashboardPage({
     initialDisplayValue: defaultTimeInput,
     initialTimeRange: defaultTimeRange,
     setDisplayedTimeInputValue,
+    showRelativeInterval: isLive,
+    updateInput: !isLive,
   });
 
   const {
     granularityOverride,
+    refreshInterval,
     isRefreshEnabled,
     manualRefreshCooloff,
     refresh,
@@ -2066,6 +2068,7 @@ function DBDashboardPage({
     searchedTimeRange,
     onTimeRangeSelect,
     isLive: isLive || isKioskMode,
+    refreshIntervalSeconds: dashboard?.savedRefreshInterval,
   });
 
   const onSubmit = useCallback(() => {
@@ -2093,6 +2096,14 @@ function DBDashboardPage({
 
     const hasWhereInUrl = 'where' in router.query;
     const hasFiltersInUrl = 'filters' in router.query;
+
+    if (!('isLive' in router.query)) {
+      void setIsLive(
+        !!dashboard.savedRefreshInterval &&
+          dashboard.savedDateRange?.type === 'relative' &&
+          !('from' in router.query || 'to' in router.query),
+      );
+    }
 
     // Query defaults: URL query overrides saved defaults. If switching to a
     // dashboard without defaults, clear query. On first load/reload, keep current state.
@@ -2130,6 +2141,7 @@ function DBDashboardPage({
     dashboard?.savedQueryLanguage,
     dashboard?.savedFilterValues,
     dashboard?.savedDateRange,
+    dashboard?.savedRefreshInterval,
     isLocalDashboard,
     isFetchingDashboard,
     router.isReady,
@@ -2139,6 +2151,7 @@ function DBDashboardPage({
     setWhereLanguage,
     setFilterValueEntries,
     onTimeRangeSelect,
+    setIsLive,
   ]);
 
   // Sync changes to the URL params into the form
@@ -2184,6 +2197,7 @@ function DBDashboardPage({
             type: 'relative',
             value: currentRelativeDateRange,
           };
+          draft.savedRefreshInterval = isLive ? refreshInterval : null;
         }
       }),
       () => {
@@ -2205,6 +2219,8 @@ function DBDashboardPage({
     onSubmit,
     isUTC,
     displayedTimeInputValue,
+    isLive,
+    refreshInterval,
   ]);
   const handleRemoveSavedQuery = useCallback(() => {
     if (!dashboard || isLocalDashboard) return;
@@ -2215,6 +2231,7 @@ function DBDashboardPage({
         draft.savedQueryLanguage = null;
         draft.savedFilterValues = [];
         draft.savedDateRange = null;
+        draft.savedRefreshInterval = null;
       }),
       () => {
         notifications.show({
@@ -2839,21 +2856,7 @@ function DBDashboardPage({
     [dashboard, setDashboard],
   );
 
-  const createDashboard = useCreateDashboard();
-  const onCreateDashboard = useCallback(() => {
-    createDashboard.mutate(
-      {
-        name: 'My Dashboard',
-        tiles: [],
-        tags: [],
-      },
-      {
-        onSuccess: data => {
-          router.push(`/dashboards/${data.id}`);
-        },
-      },
-    );
-  }, [createDashboard, router]);
+  const onCreateDashboard = () => setCreatingDashboard(true);
 
   const [isSaving, setIsSaving] = useState(false);
 
@@ -2909,6 +2912,7 @@ function DBDashboardPage({
 
   const dashboardName = (
     <EditablePageName
+      canEdit={canManageShared}
       key={`${dashboardHash}`}
       name={dashboard?.name ?? ''}
       onSave={editedName => {
@@ -2925,12 +2929,14 @@ function DBDashboardPage({
   const showDashboardActions = !isLocalDashboard && canManageShared;
   const dashboardActions = showDashboardActions ? (
     <Group gap="xs" wrap="nowrap">
+      {dashboard && <MoveDashboardButton dashboard={dashboard} />}
       {dashboard?.id && (
         <FavoriteButton resourceType="dashboard" resourceId={dashboard.id} />
       )}
       {dashboard?.id && (
         <Tags
           allowCreate
+          canEdit={canManageShared}
           values={dashboard?.tags || []}
           onChange={handleUpdateTags}
         >
@@ -2948,7 +2954,8 @@ function DBDashboardPage({
       )}
       {/* Shared predicate, not an inline `!provisioned` check, so this and the
           bulk manifest cannot disagree about which dashboards are eligible. */}
-      {dashboard?.id &&
+      {isAdmin &&
+        dashboard?.id &&
         isImportableDashboard({
           provisioned: dashboard.provisioned,
           // Computed here rather than read off the manifest: this surface has
@@ -3154,7 +3161,16 @@ function DBDashboardPage({
         inputValue={displayedTimeInputValue}
         monitoring={isMonitoringDashboard}
         setInputValue={setDisplayedTimeInputValue}
+        showLive
+        isLiveMode={isLive}
+        defaultRelativeTimeMode={isLive}
+        onRelativeSearch={rangeMs => {
+          const [start, end] = parseRelativeTimeQuery(rangeMs);
+          onTimeRangeSelect(start, end, `Past ${rangeMs / 1000}s`);
+          void setIsLive(true);
+        }}
         onSearch={range => {
+          void setIsLive(false);
           onSearch(range);
         }}
       />
@@ -3163,19 +3179,20 @@ function DBDashboardPage({
         withArrow
         label={
           isRefreshEnabled
-            ? `Auto-refreshing with ${granularityOverride} interval`
+            ? `Rolling time window; refreshing every ${refreshInterval} seconds`
             : 'Enable auto-refresh'
         }
         fz="xs"
         color="gray"
       >
         <Button
-          onClick={() => setIsLive(prev => !prev)}
+          onClick={() => void setIsLive(prev => !prev)}
           size="sm"
           variant={isLive ? 'primary' : 'secondary'}
           title={isLive ? 'Disable auto-refresh' : 'Enable auto-refresh'}
+          aria-pressed={isLive}
         >
-          Live
+          {isLive ? `Live · ${refreshInterval}s` : 'Live'}
         </Button>
       </Tooltip>
       <Tooltip withArrow label="Refresh dashboard" fz="xs" color="gray">
@@ -3285,6 +3302,13 @@ function DBDashboardPage({
             </Button>
           </Flex>
         </Paper>
+      )}
+      {creatingDashboard && (
+        <DashboardCreateDialog
+          initialFolderId={null}
+          initialDashboard={dashboard}
+          onClose={() => setCreatingDashboard(false)}
+        />
       )}
       {!isKioskMode &&
         shouldShowIgnoredFiltersBanner &&
@@ -3512,6 +3536,10 @@ function DBDashboardPage({
     </>
   );
 
+  if (dashboard?.searchView) {
+    return <SearchDashboardPage key={dashboard.id} dashboard={dashboard} />;
+  }
+
   return (
     <PageLayout
       data-testid="dashboard-page"
@@ -3556,11 +3584,10 @@ function DBDashboardPageGuarded({
   // Valid URL from/to still win: useNewTimeQuery overwrites the input from them.
   const defaultTimeInput = useMemo(() => {
     if (!savedDateRange) return undefined;
-    const [start, end] =
-      savedDateRange.type === 'relative'
-        ? parseRelativeTimeQuery(savedDateRange.value * 1000)
-        : savedDateRange.value.map(v => new Date(v));
-    // TODO: show relative ranges as "Past Xh" via getRelativeInterval
+    if (savedDateRange.type === 'relative') {
+      return `Past ${savedDateRange.value}s`;
+    }
+    const [start, end] = savedDateRange.value.map(v => new Date(v));
     return dateRangeToString([start, end], isUTC);
   }, [savedDateRange, isUTC]);
 

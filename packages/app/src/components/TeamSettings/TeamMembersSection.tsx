@@ -21,7 +21,9 @@ import api from '@/api';
 import { useBrandDisplayName } from '@/theme/ThemeProvider';
 import { usePermissions } from '@/usePermissions';
 
+import BulkMemberRoles from './BulkMemberRoles';
 import MemberRoleSelect from './MemberRoleSelect';
+import TeamJoinLinkSection from './TeamJoinLinkSection';
 
 export default function TeamMembersSection() {
   const brandName = useBrandDisplayName();
@@ -226,6 +228,7 @@ export default function TeamMembersSection() {
         logs. Keep at least one admin.
       </Text>
       <Divider my="md" />
+      {hasAdminAccess && <TeamJoinLinkSection />}
       <Card>
         <Card.Section withBorder py="sm" px="lg">
           <Group align="center" justify="space-between">
@@ -241,6 +244,9 @@ export default function TeamMembersSection() {
           </Group>
         </Card.Section>
         <Card.Section>
+          {hasAdminAccess && members?.data && (
+            <BulkMemberRoles members={members.data} />
+          )}
           <Table horizontalSpacing="lg" verticalSpacing="xs">
             <Table.Tbody>
               {!isLoadingMembers &&
@@ -265,6 +271,7 @@ export default function TeamMembersSection() {
                             <IconLock size={14} /> Password Auth
                           </div>
                         )}
+                        {!member.hasPasswordAuth && <div>Google Workspace</div>}
                       </Group>
                     </Table.Td>
                     <Table.Td>

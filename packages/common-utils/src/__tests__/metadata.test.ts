@@ -1738,7 +1738,7 @@ describe('Metadata', () => {
       expect(mockClickhouseClient.query).toHaveBeenCalledWith(
         expect.objectContaining({
           clickhouse_settings: expect.objectContaining({
-            max_rows_to_read: '3000000',
+            max_rows_to_group_by: '2',
             read_overflow_mode: 'throw',
           }),
         }),
@@ -1762,6 +1762,58 @@ describe('Metadata', () => {
         metadata,
         expect.arrayContaining([
           { setting: 'read_overflow_mode', value: 'throw' },
+        ]),
+      );
+    });
+
+    it('does not apply the metadata sampling cap to exact counts', async () => {
+      jest.spyOn(metadata, 'getClickHouseSettings').mockReturnValue({
+        max_rows_to_read: '3000000',
+        max_memory_usage: '1000000000',
+        max_execution_time: 15,
+      });
+      jest.mocked(mockClickhouseClient.query).mockResolvedValue({
+        json: async () => ({ data: [] }),
+      } as any);
+      const limitedSource = {
+        ...source,
+        querySettings: [
+          { setting: 'max_rows_to_read', value: '20000000' },
+          { setting: 'read_overflow_mode', value: 'break' },
+        ],
+      };
+
+      await metadata.getValueCounts({
+        chartConfig,
+        key: 'severity',
+        values: ['error'],
+        source: limitedSource,
+      });
+
+      const settings = jest
+        .mocked(mockClickhouseClient.query)
+        .mock.calls.at(-1)?.[0].clickhouse_settings;
+      expect(settings).not.toHaveProperty('max_rows_to_read');
+      expect(settings).toMatchObject({
+        max_memory_usage: '1000000000',
+        max_execution_time: 15,
+        read_overflow_mode: 'throw',
+      });
+      expect(renderChartConfigModule.renderChartConfig).toHaveBeenCalledWith(
+        expect.anything(),
+        metadata,
+        expect.arrayContaining([
+          { setting: 'max_rows_to_read', value: '20000000' },
+          { setting: 'read_overflow_mode', value: 'throw' },
+        ]),
+      );
+      expect(
+        renderChartConfigModule.renderChartConfig,
+      ).not.toHaveBeenCalledWith(
+        expect.anything(),
+        metadata,
+        expect.arrayContaining([
+          { setting: 'read_overflow_mode', value: 'break' },
         ]),
       );
     });

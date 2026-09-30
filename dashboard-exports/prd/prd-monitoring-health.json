@@ -1,0 +1,510 @@
+{
+  "version": "0.1.0",
+  "name": "Metrics platform health — Production",
+  "description": "**vmagent → vminsert → vmstorage → vmselect.** Rolling last hour; refresh every 30 seconds. Rates use 5m. Missing telemetry stays unavailable. Cluster labels identify the component/collector cluster; choose platform for the central federating vmselect.\n\nAccepted sample writes are not unique series or storage bytes, and can include HA duplicate writes. Scrape target counts are assignments: an endpoint scraped by multiple agents may count multiple times. Canonical vmagent self-scrapes exclude duplicate generic scrape jobs.\n\nGrowing remote-write queues indicate delivery lag. Read-only storage requires attention. Query slot utilization is the busiest vmselect instance, not CPU utilization. Free disk is shown per instance; the summary is the minimum, not total provisioned storage. Slow queries use each server’s configured threshold. Disappeared or unregistered targets are not included in down-target counts. No alert rules are installed.",
+  "tags": [
+    "production",
+    "observability-health",
+    "monitoring"
+  ],
+  "savedDateRange": {
+    "type": "relative",
+    "value": 3600
+  },
+  "savedRefreshInterval": 30,
+  "savedFilterValues": [],
+  "filters": [
+    {
+      "id": "cluster",
+      "name": "Cluster",
+      "variableName": "cluster",
+      "type": "PROMETHEUS_LABEL",
+      "source": "Production Metrics",
+      "label": "cluster",
+      "match": "vm_rows_inserted_total{app=\"vminsert\"}",
+      "isBroadcastEnabled": false,
+      "isVariableEnabled": true
+    }
+  ],
+  "containers": [
+    {
+      "id": "overview",
+      "title": "Health now",
+      "collapsed": false
+    },
+    {
+      "id": "trends",
+      "title": "Throughput and pressure",
+      "collapsed": false
+    },
+    {
+      "id": "details",
+      "title": "Troubleshooting",
+      "collapsed": true
+    }
+  ],
+  "tiles": [
+    {
+      "id": "reading-guide",
+      "containerId": "details",
+      "x": 0,
+      "y": 0,
+      "w": 24,
+      "h": 7,
+      "config": {
+        "name": "How to read this dashboard",
+        "displayType": "markdown",
+        "source": "",
+        "select": [],
+        "where": "",
+        "whereLanguage": "sql",
+        "markdown": "**vmagent → vminsert → vmstorage → vmselect.** Rolling last hour; refresh every 30 seconds. Rates use 5m. Missing telemetry stays unavailable. Cluster labels identify the component/collector cluster; choose platform for the central federating vmselect.\n\nAccepted sample writes are not unique series or storage bytes, and can include HA duplicate writes. Scrape target counts are assignments: an endpoint scraped by multiple agents may count multiple times. Canonical vmagent self-scrapes exclude duplicate generic scrape jobs.\n\nGrowing remote-write queues indicate delivery lag. Read-only storage requires attention. Query slot utilization is the busiest vmselect instance, not CPU utilization. Free disk is shown per instance; the summary is the minimum, not total provisioned storage. Slow queries use each server’s configured threshold. Disappeared or unregistered targets are not included in down-target counts. No alert rules are installed."
+      }
+    },
+    {
+      "id": "samples",
+      "containerId": "overview",
+      "x": 0,
+      "y": 0,
+      "w": 4,
+      "h": 6,
+      "config": {
+        "name": "Samples entering vminsert",
+        "configType": "promql",
+        "displayType": "number",
+        "source": "Production Metrics",
+        "connection": "Production Metrics Querier",
+        "promqlExpression": "last_over_time((sum (max by (cluster,instance,exported_type) (rate(vm_rows_inserted_total{cluster=~\"${cluster:regex}\",app=~\"vminsert\"}[5m]))))[30s:30s] @ end())",
+        "numberFormat": {
+          "output": "number",
+          "mantissa": 2,
+          "thousandSeparated": true,
+          "unit": "samples/s"
+        },
+        "fillNulls": false,
+        "color": "chart-cyan"
+      }
+    },
+    {
+      "id": "targets-down",
+      "containerId": "overview",
+      "x": 4,
+      "y": 0,
+      "w": 4,
+      "h": 6,
+      "config": {
+        "name": "Scrape assignments down",
+        "configType": "promql",
+        "displayType": "number",
+        "source": "Production Metrics",
+        "connection": "Production Metrics Querier",
+        "promqlExpression": "last_over_time((sum (max by (cluster,job,instance,name,type,status) (vm_promscrape_targets{cluster=~\"${cluster:regex}\",job=~\"vmagent.*\",status=\"down\"})))[30s:30s] @ end())",
+        "numberFormat": {
+          "output": "number",
+          "mantissa": 0,
+          "thousandSeparated": true,
+          "unit": ""
+        },
+        "fillNulls": false,
+        "color": "chart-gray",
+        "colorRules": [
+          {
+            "operator": "eq",
+            "value": 0,
+            "color": "chart-success"
+          },
+          {
+            "operator": "gt",
+            "value": 0,
+            "color": "chart-error"
+          }
+        ]
+      }
+    },
+    {
+      "id": "pending",
+      "containerId": "overview",
+      "x": 8,
+      "y": 0,
+      "w": 4,
+      "h": 6,
+      "config": {
+        "name": "Remote-write pending data",
+        "configType": "promql",
+        "displayType": "number",
+        "source": "Production Metrics",
+        "connection": "Production Metrics Querier",
+        "promqlExpression": "last_over_time((sum (max by (cluster,job,instance,name,path) (vm_persistentqueue_bytes_pending{cluster=~\"${cluster:regex}\",job=~\"vmagent.*\"})) / 1073741824)[30s:30s] @ end())",
+        "numberFormat": {
+          "output": "number",
+          "mantissa": 2,
+          "thousandSeparated": true,
+          "unit": "GiB"
+        },
+        "fillNulls": false,
+        "color": "chart-cyan"
+      }
+    },
+    {
+      "id": "query-slots",
+      "containerId": "overview",
+      "x": 12,
+      "y": 0,
+      "w": 4,
+      "h": 6,
+      "config": {
+        "name": "Busiest vmselect slots",
+        "configType": "promql",
+        "displayType": "number",
+        "source": "Production Metrics",
+        "connection": "Production Metrics Querier",
+        "promqlExpression": "last_over_time((max (100 * max by (cluster,instance) (vm_concurrent_select_current{cluster=~\"${cluster:regex}\",app=~\"vmselect\"}) / (max by (cluster,instance) (vm_concurrent_select_capacity{cluster=~\"${cluster:regex}\",app=~\"vmselect\"}) > 0)))[30s:30s] @ end())",
+        "numberFormat": {
+          "output": "number",
+          "mantissa": 2,
+          "thousandSeparated": true,
+          "unit": "%"
+        },
+        "fillNulls": false,
+        "color": "chart-gray",
+        "colorRules": [
+          {
+            "operator": "gte",
+            "value": 0,
+            "color": "chart-success"
+          },
+          {
+            "operator": "gte",
+            "value": 70,
+            "color": "chart-warning"
+          },
+          {
+            "operator": "gte",
+            "value": 90,
+            "color": "chart-error"
+          }
+        ]
+      }
+    },
+    {
+      "id": "readonly",
+      "containerId": "overview",
+      "x": 16,
+      "y": 0,
+      "w": 4,
+      "h": 6,
+      "config": {
+        "name": "Read-only storage nodes",
+        "configType": "promql",
+        "displayType": "number",
+        "source": "Production Metrics",
+        "connection": "Production Metrics Querier",
+        "promqlExpression": "last_over_time((sum (max by (cluster,instance) (vm_storage_is_read_only{cluster=~\"${cluster:regex}\",app=~\"vmstorage\"})))[30s:30s] @ end())",
+        "numberFormat": {
+          "output": "number",
+          "mantissa": 0,
+          "thousandSeparated": true,
+          "unit": ""
+        },
+        "fillNulls": false,
+        "color": "chart-gray",
+        "colorRules": [
+          {
+            "operator": "eq",
+            "value": 0,
+            "color": "chart-success"
+          },
+          {
+            "operator": "gt",
+            "value": 0,
+            "color": "chart-error"
+          }
+        ]
+      }
+    },
+    {
+      "id": "free-disk",
+      "containerId": "overview",
+      "x": 20,
+      "y": 0,
+      "w": 4,
+      "h": 6,
+      "config": {
+        "name": "Lowest free storage disk",
+        "configType": "promql",
+        "displayType": "number",
+        "source": "Production Metrics",
+        "connection": "Production Metrics Querier",
+        "promqlExpression": "last_over_time((min (max by (cluster,instance) (vm_free_disk_space_bytes{cluster=~\"${cluster:regex}\",app=~\"vmstorage\"})) / 1073741824)[30s:30s] @ end())",
+        "numberFormat": {
+          "output": "number",
+          "mantissa": 2,
+          "thousandSeparated": true,
+          "unit": "GiB"
+        },
+        "fillNulls": false,
+        "color": "chart-cyan"
+      }
+    },
+    {
+      "id": "samples-trend",
+      "containerId": "trends",
+      "x": 0,
+      "y": 0,
+      "w": 12,
+      "h": 8,
+      "config": {
+        "name": "Samples accepted by vminsert",
+        "configType": "promql",
+        "displayType": "line",
+        "source": "Production Metrics",
+        "connection": "Production Metrics Querier",
+        "promqlExpression": "sum by(cluster) (max by (cluster,instance,exported_type) (rate(vm_rows_inserted_total{cluster=~\"${cluster:regex}\",app=~\"vminsert\"}[5m])))",
+        "numberFormat": {
+          "output": "number",
+          "mantissa": 2,
+          "thousandSeparated": true,
+          "unit": "samples/s"
+        },
+        "fillNulls": false,
+        "granularity": "1 minute",
+        "seriesLimit": 30,
+        "legendTemplate": "{{cluster}}"
+      }
+    },
+    {
+      "id": "pending-trend",
+      "containerId": "trends",
+      "x": 12,
+      "y": 0,
+      "w": 12,
+      "h": 8,
+      "config": {
+        "name": "Remote-write pending data",
+        "configType": "promql",
+        "displayType": "line",
+        "source": "Production Metrics",
+        "connection": "Production Metrics Querier",
+        "promqlExpression": "sum by(cluster) (max by (cluster,job,instance,name,path) (vm_persistentqueue_bytes_pending{cluster=~\"${cluster:regex}\",job=~\"vmagent.*\"})) / 1073741824",
+        "numberFormat": {
+          "output": "number",
+          "mantissa": 2,
+          "thousandSeparated": true,
+          "unit": "GiB"
+        },
+        "fillNulls": false,
+        "granularity": "1 minute",
+        "seriesLimit": 30,
+        "legendTemplate": "{{cluster}}"
+      }
+    },
+    {
+      "id": "down-trend",
+      "containerId": "trends",
+      "x": 0,
+      "y": 8,
+      "w": 12,
+      "h": 8,
+      "config": {
+        "name": "Down scrape assignments",
+        "configType": "promql",
+        "displayType": "line",
+        "source": "Production Metrics",
+        "connection": "Production Metrics Querier",
+        "promqlExpression": "sum by(cluster) (max by (cluster,job,instance,name,type,status) (vm_promscrape_targets{cluster=~\"${cluster:regex}\",job=~\"vmagent.*\",status=\"down\"}))",
+        "numberFormat": {
+          "output": "number",
+          "mantissa": 2,
+          "thousandSeparated": true,
+          "unit": "assignments"
+        },
+        "fillNulls": false,
+        "granularity": "1 minute",
+        "seriesLimit": 30,
+        "legendTemplate": "{{cluster}}"
+      }
+    },
+    {
+      "id": "scrape-failures",
+      "containerId": "trends",
+      "x": 12,
+      "y": 8,
+      "w": 12,
+      "h": 8,
+      "config": {
+        "name": "Failed scrape attempts",
+        "configType": "promql",
+        "displayType": "line",
+        "source": "Production Metrics",
+        "connection": "Production Metrics Querier",
+        "promqlExpression": "sum by(cluster) (max by (cluster,job,instance,name) (rate(vm_promscrape_scrapes_failed_total{cluster=~\"${cluster:regex}\",job=~\"vmagent.*\"}[5m])))",
+        "numberFormat": {
+          "output": "number",
+          "mantissa": 2,
+          "thousandSeparated": true,
+          "unit": "failures/s"
+        },
+        "fillNulls": false,
+        "granularity": "1 minute",
+        "seriesLimit": 30,
+        "legendTemplate": "{{cluster}}"
+      }
+    },
+    {
+      "id": "slots-trend",
+      "containerId": "trends",
+      "x": 0,
+      "y": 16,
+      "w": 12,
+      "h": 8,
+      "config": {
+        "name": "Busiest vmselect by cluster",
+        "configType": "promql",
+        "displayType": "line",
+        "source": "Production Metrics",
+        "connection": "Production Metrics Querier",
+        "promqlExpression": "max by(cluster) (100 * max by (cluster,instance) (vm_concurrent_select_current{cluster=~\"${cluster:regex}\",app=~\"vmselect\"}) / (max by (cluster,instance) (vm_concurrent_select_capacity{cluster=~\"${cluster:regex}\",app=~\"vmselect\"}) > 0))",
+        "numberFormat": {
+          "output": "number",
+          "mantissa": 2,
+          "thousandSeparated": true,
+          "unit": "%"
+        },
+        "fillNulls": false,
+        "granularity": "1 minute",
+        "seriesLimit": 30,
+        "legendTemplate": "{{cluster}}"
+      }
+    },
+    {
+      "id": "disk-trend",
+      "containerId": "trends",
+      "x": 12,
+      "y": 16,
+      "w": 12,
+      "h": 8,
+      "config": {
+        "name": "Free disk per vmstorage instance",
+        "configType": "promql",
+        "displayType": "line",
+        "source": "Production Metrics",
+        "connection": "Production Metrics Querier",
+        "promqlExpression": "max by (cluster,instance) (vm_free_disk_space_bytes{cluster=~\"${cluster:regex}\",app=~\"vmstorage\"}) / 1073741824",
+        "numberFormat": {
+          "output": "number",
+          "mantissa": 2,
+          "thousandSeparated": true,
+          "unit": "GiB"
+        },
+        "fillNulls": false,
+        "granularity": "1 minute",
+        "seriesLimit": 30,
+        "legendTemplate": "{{cluster}} / {{instance}}"
+      }
+    },
+    {
+      "id": "http-errors",
+      "containerId": "details",
+      "x": 0,
+      "y": 7,
+      "w": 12,
+      "h": 8,
+      "config": {
+        "name": "VM component HTTP errors",
+        "configType": "promql",
+        "displayType": "line",
+        "source": "Production Metrics",
+        "connection": "Production Metrics Querier",
+        "promqlExpression": "sum by(cluster,app) (max by (cluster,instance,app,path,error) (rate(vm_http_request_errors_total{cluster=~\"${cluster:regex}\",app=~\"vminsert|vmstorage|vmselect\"}[5m])))",
+        "numberFormat": {
+          "output": "number",
+          "mantissa": 2,
+          "thousandSeparated": true,
+          "unit": "errors/s"
+        },
+        "fillNulls": false,
+        "granularity": "1 minute",
+        "seriesLimit": 30,
+        "legendTemplate": "{{cluster}} / {{app}}"
+      }
+    },
+    {
+      "id": "slow-queries",
+      "containerId": "details",
+      "x": 12,
+      "y": 7,
+      "w": 12,
+      "h": 8,
+      "config": {
+        "name": "Slow vmselect queries",
+        "configType": "promql",
+        "displayType": "line",
+        "source": "Production Metrics",
+        "connection": "Production Metrics Querier",
+        "promqlExpression": "sum by(cluster) (max by (cluster,instance) (rate(vm_slow_queries_total{cluster=~\"${cluster:regex}\",app=~\"vmselect\"}[5m])))",
+        "numberFormat": {
+          "output": "number",
+          "mantissa": 2,
+          "thousandSeparated": true,
+          "unit": "queries/s"
+        },
+        "fillNulls": false,
+        "granularity": "1 minute",
+        "seriesLimit": 30,
+        "legendTemplate": "{{cluster}}"
+      }
+    },
+    {
+      "id": "readonly-trend",
+      "containerId": "details",
+      "x": 0,
+      "y": 15,
+      "w": 12,
+      "h": 8,
+      "config": {
+        "name": "Read-only vmstorage instances",
+        "configType": "promql",
+        "displayType": "line",
+        "source": "Production Metrics",
+        "connection": "Production Metrics Querier",
+        "promqlExpression": "max by (cluster,instance) (vm_storage_is_read_only{cluster=~\"${cluster:regex}\",app=~\"vmstorage\"})",
+        "numberFormat": {
+          "output": "number",
+          "mantissa": 2,
+          "thousandSeparated": true,
+          "unit": "0 / 1"
+        },
+        "fillNulls": false,
+        "granularity": "1 minute",
+        "seriesLimit": 30,
+        "legendTemplate": "{{cluster}} / {{instance}}"
+      }
+    },
+    {
+      "id": "scraped-samples",
+      "containerId": "details",
+      "x": 12,
+      "y": 15,
+      "w": 12,
+      "h": 8,
+      "config": {
+        "name": "Samples scraped by vmagent",
+        "configType": "promql",
+        "displayType": "line",
+        "source": "Production Metrics",
+        "connection": "Production Metrics Querier",
+        "promqlExpression": "sum by(cluster) (max by (cluster,job,instance,name) (rate(vm_promscrape_scraped_samples_sum{cluster=~\"${cluster:regex}\",job=~\"vmagent.*\"}[5m])))",
+        "numberFormat": {
+          "output": "number",
+          "mantissa": 2,
+          "thousandSeparated": true,
+          "unit": "samples/s"
+        },
+        "fillNulls": false,
+        "granularity": "1 minute",
+        "seriesLimit": 30,
+        "legendTemplate": "{{cluster}}"
+      }
+    }
+  ]
+}

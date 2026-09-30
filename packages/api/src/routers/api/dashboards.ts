@@ -18,6 +18,7 @@ import _ from 'lodash';
 import { z } from 'zod';
 import { validateRequest } from 'zod-express-middleware';
 
+import { IS_LOCAL_APP_MODE } from '@/config';
 import {
   createDashboard,
   deleteDashboard,
@@ -25,6 +26,7 @@ import {
   getDashboards,
   updateDashboard,
 } from '@/controllers/dashboard';
+import { dashboardFolderWriteError } from '@/controllers/dashboardFolders';
 import {
   createPresetDashboardFilter,
   deletePresetDashboardFilter,
@@ -33,12 +35,16 @@ import {
 } from '@/controllers/presetDashboardFilters';
 import { getSources } from '@/controllers/sources';
 import { getNonNullUserWithTeam } from '@/middleware/auth';
+import { getUserRole, requireAdminForWrites } from '@/middleware/permissions';
 import type { ObjectId } from '@/models';
+import DashboardFolder from '@/models/dashboardFolder';
 import { getPromqlLabelFilterSourceError } from '@/routers/external-api/v2/utils/dashboards';
 import { objectIdSchema } from '@/utils/zod';
 
 // create routes that will get and update dashboards
 const router = express.Router();
+// Preset filters are global configuration, not folder-owned dashboards.
+router.use('/preset', requireAdminForWrites);
 
 /**
  * Additional filter validation (variable name and option uniqueness, at least one mode enabled).
@@ -126,9 +132,23 @@ router.get('/', async (req, res, next) => {
   try {
     const { teamId } = getNonNullUserWithTeam(req);
 
-    const dashboards = await getDashboards(teamId);
-
-    return res.json(dashboards);
+    const [dashboards, folders, role] = await Promise.all([
+      getDashboards(teamId),
+      DashboardFolder.find({ team: teamId }),
+      getUserRole(req.user),
+    ]);
+    const editableFolders = new Set(
+      folders.filter(f => f.access === 'team').map(f => f.id),
+    );
+    return res.json(
+      dashboards.map(d => ({
+        ...d,
+        canEdit:
+          IS_LOCAL_APP_MODE ||
+          role === 'admin' ||
+          (!d.provisioned && !!d.folderId && editableFolders.has(d.folderId)),
+      })),
+    );
   } catch (e) {
     next(e);
   }
@@ -150,7 +170,9 @@ router.post(
       // replacing `req.body`, and DashboardSchema is non-strict, so a
       // client-supplied value would otherwise persist and hand the caller's
       // dashboard to the provisioner.
-      const dashboard = _.omit(req.body, 'provisioned');
+      const dashboard = DashboardWithoutIdSchema.parse(
+        _.omit(req.body, 'provisioned'),
+      );
 
       const sourceError = await validatePromqlLabelFilterSources(
         teamId,
@@ -158,6 +180,21 @@ router.post(
       );
       if (sourceError != null) {
         return res.status(400).json({ message: sourceError });
+      }
+
+      const isAdmin =
+        IS_LOCAL_APP_MODE || (await getUserRole(req.user)) === 'admin';
+      const folderError = await dashboardFolderWriteError(
+        teamId,
+        dashboard.folderId,
+        isAdmin,
+      );
+      if (folderError) return res.status(403).json({ message: folderError });
+      if (!isAdmin && dashboard.tiles.some(tile => tile.config.alert)) {
+        return res.status(403).json({
+          message:
+            'Only admins can configure alerts. Remove alert settings before importing.',
+        });
       }
 
       const newDashboard = await createDashboard(teamId, dashboard, userId);
@@ -189,9 +226,51 @@ router.patch(
         return res.sendStatus(404);
       }
 
+      const isAdmin =
+        IS_LOCAL_APP_MODE || (await getUserRole(req.user)) === 'admin';
+      if (!isAdmin && dashboard.provisioned) return res.sendStatus(403);
+      const currentFolderError = await dashboardFolderWriteError(
+        teamId,
+        dashboard.folderId,
+        isAdmin,
+      );
+      if (currentFolderError) {
+        return res.status(403).json({ message: currentFolderError });
+      }
+
       // Only omit undefined values, keep null (which signals field removal)
       // `provisioned` is server-owned — see the POST handler above.
-      const updates = _.omitBy(_.omit(req.body, 'provisioned'), _.isUndefined);
+      const updates: Partial<z.infer<typeof DashboardWithoutIdSchema>> =
+        _.omitBy(
+          _.omit(req.body, 'provisioned', 'id'),
+          _.isUndefined,
+        ) as Partial<z.infer<typeof DashboardWithoutIdSchema>>;
+      if (updates.folderId !== undefined) {
+        const folderError = await dashboardFolderWriteError(
+          teamId,
+          updates.folderId,
+          isAdmin,
+        );
+        if (folderError) {
+          return res.status(403).json({ message: folderError });
+        }
+      }
+      if (
+        !isAdmin &&
+        updates.tiles?.some(
+          tile =>
+            tile.config.alert &&
+            !_.isEqual(
+              tile.config.alert,
+              dashboard.tiles.find(previous => previous.id === tile.id)?.config
+                .alert,
+            ),
+        )
+      ) {
+        return res
+          .status(403)
+          .json({ message: 'Only admins can configure alerts.' });
+      }
 
       const sourceError = await validatePromqlLabelFilterSources(
         teamId,
@@ -207,6 +286,7 @@ router.patch(
         teamId,
         updates,
         userId,
+        isAdmin ? undefined : (dashboard.folderId ?? undefined),
       );
 
       res.json(updatedDashboard);
@@ -226,7 +306,23 @@ router.delete(
       const { teamId } = getNonNullUserWithTeam(req);
       const { id: dashboardId } = req.params;
 
-      await deleteDashboard(dashboardId, teamId);
+      const dashboard = await getDashboard(dashboardId, teamId);
+      if (!dashboard) return res.sendStatus(404);
+      const isAdmin =
+        IS_LOCAL_APP_MODE || (await getUserRole(req.user)) === 'admin';
+      if (!isAdmin && dashboard.provisioned) return res.sendStatus(403);
+      const folderError = await dashboardFolderWriteError(
+        teamId,
+        dashboard.folderId,
+        isAdmin,
+      );
+      if (folderError) return res.status(403).json({ message: folderError });
+
+      await deleteDashboard(
+        dashboardId,
+        teamId,
+        isAdmin ? undefined : (dashboard.folderId ?? undefined),
+      );
 
       res.sendStatus(204);
     } catch (e) {
@@ -284,7 +380,6 @@ router.put(
           .status(400)
           .json({ error: 'Preset dashboard in body and params do not match' });
       }
-
       const updatedPresetDashboardFilter = await updatePresetDashboardFilter(
         teamId,
         filter,

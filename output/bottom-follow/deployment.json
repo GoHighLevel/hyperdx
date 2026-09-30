@@ -1,0 +1,38 @@
+{
+  "image": "hiakki/hyperdx:2.38.0-custom.38",
+  "digest": "sha256:bd356e40da6af0114187a8c4bc6cc97a195950a682d70e86324d7a3b59099a2a",
+  "staging": {
+    "helmRevision": "b3425878ef061e46eb81c0cf7a8ba1f8491bffda",
+    "argoApplication": "hyperdx-servers-sre-stg",
+    "sync": "Synced",
+    "health": "Healthy",
+    "operation": "Succeeded",
+    "pod": "hyperdx-servers-sre-stg-clickstack-app-557c56bd96-64rws",
+    "ready": true,
+    "restarts": 0,
+    "apiHealth": 200,
+    "login": 200,
+    "frontendAsset": "chunks/279-dc49fcbb833fb5dc.js",
+    "frontendAssetStatus": 200,
+    "servedAssetMatchesBuild": true,
+    "publicLoginStatus": 200,
+    "publicFrontendAssetStatus": 200,
+    "publicFrontendContainsBottomFollow": true
+  },
+  "verification": {
+    "targetedTestsPassed": 164,
+    "typescript": "passed",
+    "scopedRuntimeLint": "passed with warnings",
+    "fullLint": "pre-existing no-restricted-imports error in useLastSuccessfulQueryTime.test.tsx",
+    "localBrowser": "bottom append, scroll pause, bottom resumption, expansion stability, direct trace pause, and both themes passed",
+    "authenticatedStagingFlow": "not exercised; deployed health and bundle verified, interactions verified locally"
+  },
+  "limits": {
+    "retainedLiveRows": 5000,
+    "lateArrivalLookbackSeconds": 5,
+    "catchUpIntervalSeconds": 60,
+    "inactiveBatchCacheSeconds": 30,
+    "note": "Older delayed arrivals require historical search. Initial live mode loads a recent snapshot, not the entire historical selection."
+  },
+  "productionDeployment": "not part of this request"
+}

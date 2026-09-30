@@ -40,7 +40,12 @@ import { getCounter, setBusinessContext } from '@/utils/instrumentation';
 import { sendJson } from '@/utils/serialization';
 import { objectIdSchema } from '@/utils/zod';
 
+import bulkRolesRouter from './bulkRoles';
+import teamJoinLinkRouter from './teamJoinLink';
+
 const router = express.Router();
+router.use(bulkRolesRouter);
+router.use(teamJoinLinkRouter);
 const roleChanges = getCounter('hyperdx.authorization.role_changes', {
   description: 'Successful team member role changes.',
 });

@@ -138,10 +138,23 @@
 
 .suggestionItem {
   padding: 0.5rem 0.75rem;
+  overflow-wrap: anywhere;
+  cursor: pointer;
 
   &.selected {
     background-color: var(--color-bg-muted);
   }
+}
+
+.suggestionsList {
+  max-height: 280px;
+  overflow-y: auto;
+}
+
+.keyboardHint {
+  padding: 0.5rem 0.75rem 0;
+  color: var(--color-text-muted);
+  font-size: 0.75rem;
 }
 
 .suggestionLabel {

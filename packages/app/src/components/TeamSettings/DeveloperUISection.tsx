@@ -17,8 +17,10 @@ import {
 import api from '@/api';
 import { usePermissions } from '@/usePermissions';
 
+import DefaultSummaryFieldsEditor from './DefaultSummaryFieldsEditor';
+
 const SECTIONS: {
-  key: keyof DeveloperUI;
+  key: 'analysisMode' | 'histogram' | 'sharedFilters' | 'filters' | 'denoise';
   label: string;
   description: string;
 }[] = [
@@ -87,6 +89,15 @@ export default function DeveloperUISection() {
           </Card>
         ))}
       </SimpleGrid>
+      <Card withBorder padding="md">
+        <DefaultSummaryFieldsEditor
+          paths={settings.defaultSummaryFields}
+          onChange={fields =>
+            setDraft({ ...settings, defaultSummaryFields: fields })
+          }
+          disabled={update.isPending || !me}
+        />
+      </Card>
       {update.isError && (
         <Alert variant="danger">
           Could not save the developer layout. Your changes are still here; try

@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { hdxServer } from './api';
 import { IS_LOCAL_MODE } from './config';
 import { localPinnedFilters } from './localStore';
+import { useSearchView } from './SearchViewContext';
 
 type PinnedFiltersApiResponse = {
   team: { id: string; fields: string[]; filters: PinnedFiltersValue } | null;
@@ -29,11 +30,19 @@ async function fetchPinnedFilters(
 }
 
 export function usePinnedFiltersApi(sourceId: string | null) {
-  return useQuery({
+  const view = useSearchView();
+  const scoped = view?.sourceId === sourceId;
+  const query = useQuery({
     queryKey: pinnedFiltersQueryKey(sourceId),
     queryFn: () => fetchPinnedFilters(sourceId!),
-    enabled: !!sourceId,
+    enabled: !!sourceId && !scoped,
   });
+  return scoped && view?.sharedPins
+    ? {
+        ...query,
+        data: { team: { id: 'dashboard', ...view.sharedPins } },
+      }
+    : query;
 }
 
 type UpdatePinnedFiltersInput = {
@@ -43,10 +52,15 @@ type UpdatePinnedFiltersInput = {
 };
 
 export function useUpdatePinnedFilters() {
+  const view = useSearchView();
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: (data: UpdatePinnedFiltersInput) => {
+      if (view?.sourceId === data.source) {
+        view.setSharedPins({ fields: data.fields, filters: data.filters });
+        return Promise.resolve();
+      }
       if (IS_LOCAL_MODE) {
         const stored = localPinnedFilters.getAll();
         const existing = stored.find(s => s.source === data.source);

@@ -15,6 +15,8 @@ import passport from '@/utils/passport';
 import { isMongoConnected, mongoReadyStateName } from '@/utils/readiness';
 import { passwordSchema } from '@/utils/validators';
 
+import googleAuthRouter from './googleAuth';
+
 const registrationSchema = z
   .object({
     email: z.string().email(),
@@ -27,6 +29,7 @@ const registrationSchema = z
   });
 
 const router = express.Router();
+router.use('/auth/google', googleAuthRouter);
 
 // Liveness: 200 whenever the process can serve HTTP. Deliberately checks no
 // external dependencies — restarting the pod does not fix a Mongo outage.

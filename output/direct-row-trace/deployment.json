@@ -1,0 +1,26 @@
+{
+  "image": "hiakki/hyperdx:2.38.0-custom.37",
+  "digest": "sha256:42d1ed58bc4166841739d04725832061387f358fc88c0134b204ebc5461627e6",
+  "sourceManifest": "/tmp/hyperdx-custom37-source-manifest.json",
+  "staging": {
+    "revision": "eadd7448d1e172761beaa1160c9a1afd08736ea7",
+    "argoSync": "Synced",
+    "argoHealth": "Healthy",
+    "operation": "Succeeded",
+    "pod": "hyperdx-servers-sre-stg-clickstack-app-74974488df-qnwql",
+    "ready": true,
+    "restarts": 0,
+    "apiHealth": 200,
+    "login": 200,
+    "traceAsset": "chunks/279-b798c18dbda114f2.js",
+    "traceAssetStatus": 200,
+    "servedAssetMatchesBuild": true
+  },
+  "production": {
+    "pr": "https://github.com/GoHighLevel/platform-infra-helm-charts/pull/973",
+    "head": "0a1c3c5da5d31115f79fa2660aea592b298a6072",
+    "status": "Waiting for required approving review; GitHub rejected merge",
+    "deployed": false
+  },
+  "limitations": "Authenticated deployed log-to-trace navigation was not exercised; the fresh browser session is unauthenticated. Local browser interactions and 55 relevant frontend tests passed before deployment."
+}

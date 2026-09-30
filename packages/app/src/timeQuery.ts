@@ -402,7 +402,10 @@ export type UseTimeQueryReturnType = {
   to: number | null;
 };
 
-const getRelativeInterval = (start: Date, end: Date): string | undefined => {
+export const getRelativeInterval = (
+  start: Date,
+  end: Date,
+): string | undefined => {
   const duration = intervalToDuration({ start, end });
   const durationStr = formatDuration(duration);
   return `Past ${durationStr}`;

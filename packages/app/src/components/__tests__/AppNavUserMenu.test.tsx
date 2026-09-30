@@ -16,6 +16,26 @@ const renderAppNavUserMenu = (userName?: string) => {
 };
 
 describe('AppNavUserMenu', () => {
+  it('keeps preferences and logout while hiding team settings in developer view', async () => {
+    renderWithMantine(
+      <AppNavUserMenu showTeamSettings={false} logoutUrl="/api/logout" />,
+    );
+    await userEvent.click(screen.getByTestId('user-menu-trigger'));
+    expect(screen.getByTestId('user-menu-trigger')).toHaveAttribute(
+      'aria-expanded',
+      'true',
+    );
+    expect(
+      await screen.findByTestId('user-preferences-menu-item'),
+    ).toBeInTheDocument();
+    expect(screen.getByTestId('logout-menu-item')).toHaveAttribute(
+      'href',
+      '/api/logout',
+    );
+    expect(
+      screen.queryByTestId('team-settings-menu-item'),
+    ).not.toBeInTheDocument();
+  });
   it('lets an admin enter the developer preview', async () => {
     const onToggle = jest.fn();
     renderWithMantine(<AppNavUserMenu onToggleDeveloperView={onToggle} />);

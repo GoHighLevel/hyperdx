@@ -1,15 +1,18 @@
 import Link from 'next/link';
+import Router from 'next/router';
 import { formatDistanceToNow } from 'date-fns';
 import {
   ActionIcon,
   Badge,
+  Button,
   Card,
+  Checkbox,
   Group,
   Menu,
   Text,
   Tooltip,
 } from '@mantine/core';
-import { IconDots, IconTrash } from '@tabler/icons-react';
+import { IconDots, IconFolder, IconTrash } from '@tabler/icons-react';
 
 import { FavoriteButton } from '@/components/FavoriteButton';
 import { Favorite } from '@/favorites';
@@ -27,6 +30,10 @@ export function ListingCard({
   resourceType,
   updatedAt,
   updatedBy,
+  canDelete,
+  onMove,
+  selection,
+  folderName,
 }: {
   name: string;
   href: string;
@@ -38,20 +45,51 @@ export function ListingCard({
   resourceType?: Favorite['resourceType'];
   updatedAt?: string;
   updatedBy?: string;
+  canDelete?: boolean;
+  onMove?: () => void;
+  selection?: { checked: boolean; onChange: (checked: boolean) => void };
+  folderName?: string;
 }) {
   const { canManageShared } = usePermissions();
   return (
     <Card
-      component={Link}
-      href={href}
       withBorder
       padding="lg"
       radius="sm"
       style={{ cursor: 'pointer', textDecoration: 'none' }}
+      onClick={e => {
+        if (
+          (e.target as HTMLElement).closest(
+            'a,button,input,label,[role="menuitem"]',
+          )
+        )
+          return;
+        if (e.metaKey || e.ctrlKey) window.open(href, '_blank', 'noopener');
+        else void Router.push(href);
+      }}
+      onAuxClick={e => {
+        if (
+          e.button === 1 &&
+          e.target instanceof Element &&
+          !e.target.closest('a,button,input,label')
+        ) {
+          window.open(href, '_blank', 'noopener');
+        }
+      }}
     >
       <Group justify="space-between" wrap="nowrap">
         <Group gap="xs" wrap="nowrap" style={{ flex: 1, minWidth: 0 }}>
+          {selection && (
+            <Checkbox
+              aria-label={`Select ${name}`}
+              checked={selection.checked}
+              onChange={e => selection.onChange(e.currentTarget.checked)}
+              onClick={e => e.stopPropagation()}
+            />
+          )}
           <Text
+            component={Link}
+            href={href}
             fw={500}
             lineClamp={1}
             style={{ flex: 1, minWidth: 0 }}
@@ -68,7 +106,7 @@ export function ListingCard({
             />
           )}
         </Group>
-        {canManageShared && onDelete && (
+        {(canDelete ?? canManageShared) && onDelete && (
           <Menu position="bottom-end" withinPortal>
             <Menu.Target>
               <ActionIcon
@@ -94,6 +132,34 @@ export function ListingCard({
           </Menu>
         )}
       </Group>
+
+      {(onMove || folderName) && (
+        <Group justify="space-between" mt="xs" gap="xs">
+          <Text
+            size="xs"
+            c="dimmed"
+            truncate
+            title={folderName}
+            style={{ flex: 1 }}
+          >
+            {folderName}
+          </Text>
+          {onMove && (
+            <Button
+              variant="subtle"
+              size="compact-xs"
+              leftSection={<IconFolder size={13} />}
+              aria-label={`Move ${name}`}
+              onClick={e => {
+                e.stopPropagation();
+                onMove();
+              }}
+            >
+              Move
+            </Button>
+          )}
+        </Group>
+      )}
 
       {updatedAt && (
         <Tooltip
