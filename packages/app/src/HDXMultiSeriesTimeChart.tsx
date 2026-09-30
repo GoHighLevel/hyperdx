@@ -101,6 +101,51 @@ type TooltipPayload = {
   opacity?: number;
 };
 
+export type SeriesStatistics = {
+  min: number;
+  max: number;
+  last: number;
+};
+
+/**
+ * Summarize every visible time-series using finite samples only. ClickHouse
+ * may return numeric values as strings, so accept those while rejecting blank
+ * strings and non-numeric values. Rows are already ordered by time; updating
+ * `last` as we scan therefore preserves the latest finite sample.
+ */
+export function calculateSeriesStatistics(
+  graphResults: Record<string, unknown>[],
+  series: Pick<LineData, 'dataKey'>[],
+): Map<string, SeriesStatistics> {
+  const statistics = new Map<string, SeriesStatistics>();
+
+  for (const row of graphResults) {
+    for (const { dataKey } of series) {
+      const rawValue = row[dataKey];
+      if (
+        rawValue == null ||
+        (typeof rawValue === 'string' && rawValue.trim() === '')
+      ) {
+        continue;
+      }
+
+      const value = typeof rawValue === 'number' ? rawValue : Number(rawValue);
+      if (!Number.isFinite(value)) {
+        continue;
+      }
+
+      const current = statistics.get(dataKey);
+      statistics.set(dataKey, {
+        min: current == null ? value : Math.min(current.min, value),
+        max: current == null ? value : Math.max(current.max, value),
+        last: value,
+      });
+    }
+  }
+
+  return statistics;
+}
+
 export const TooltipItem = memo(
   ({
     p,
@@ -295,12 +340,16 @@ const HDXLineChartTooltip = withErrorBoundary(
 
 function ExpandableLegendItem({
   entry,
+  statistics,
+  numberFormat,
   expanded,
   isSelected,
   isDisabled,
   onToggle,
 }: {
   entry: any;
+  statistics?: SeriesStatistics;
+  numberFormat?: NumberFormat;
   expanded?: boolean;
   isSelected?: boolean;
   isDisabled?: boolean;
@@ -349,6 +398,13 @@ function ExpandableLegendItem({
       {isExpanded || isSelected
         ? entry.value
         : truncateMiddle(`${entry.value}`, 35)}
+      {statistics != null && (
+        <span className={styles.legendStatistics}>
+          Min {formatNumber(statistics.min, numberFormat)} · Max{' '}
+          {formatNumber(statistics.max, numberFormat)} · Last{' '}
+          {formatNumber(statistics.last, numberFormat)}
+        </span>
+      )}
     </span>
   );
 }
@@ -361,11 +417,22 @@ const LegendRenderer = memo<{
   }[];
   lineDataMap: { [key: string]: LineData };
   allLineData?: LineData[];
+  graphResults: Record<string, unknown>[];
+  fallbackNumberFormat?: NumberFormat;
+  numberFormatByKey: Map<string, NumberFormat>;
   selectedSeries?: Set<string>;
   onToggleSeries?: (seriesName: string, isShiftKey?: boolean) => void;
 }>(props => {
-  const { payload, lineDataMap, allLineData, selectedSeries, onToggleSeries } =
-    props;
+  const {
+    payload,
+    lineDataMap,
+    allLineData,
+    graphResults,
+    fallbackNumberFormat,
+    numberFormatByKey,
+    selectedSeries,
+    onToggleSeries,
+  } = props;
 
   const hasSelection = hasSeriesSelection(selectedSeries);
 
@@ -408,6 +475,15 @@ const LegendRenderer = memo<{
 
   const shownItems = sortedLegendItems.slice(0, MAX_LEGEND_ITEMS);
   const restItems = sortedLegendItems.slice(MAX_LEGEND_ITEMS);
+  const statisticsByKey = useMemo(
+    () => calculateSeriesStatistics(graphResults, allLineData ?? []),
+    [allLineData, graphResults],
+  );
+
+  const getNumberFormat = (dataKey: string) => {
+    const valueColumnName = lineDataMap[dataKey]?.valueColumnName ?? dataKey;
+    return numberFormatByKey.get(valueColumnName) ?? fallbackNumberFormat;
+  };
 
   return (
     <div className={styles.legend}>
@@ -418,6 +494,8 @@ const LegendRenderer = memo<{
           <ExpandableLegendItem
             key={`item-${index}`}
             entry={entry}
+            statistics={statisticsByKey.get(entry.dataKey)}
+            numberFormat={getNumberFormat(entry.dataKey)}
             isSelected={isSelected}
             isDisabled={isDisabled}
             onToggle={isShiftKey => onToggleSeries?.(entry.value, isShiftKey)}
@@ -440,6 +518,8 @@ const LegendRenderer = memo<{
                   <ExpandableLegendItem
                     key={`item-${index}`}
                     entry={entry}
+                    statistics={statisticsByKey.get(entry.dataKey)}
+                    numberFormat={getNumberFormat(entry.dataKey)}
                     isSelected={isSelected}
                     isDisabled={isDisabled}
                     onToggle={isShiftKey =>
@@ -1699,6 +1779,9 @@ export const MemoChart = memo(function MemoChart({
                 <LegendRenderer
                   lineDataMap={lineDataMap}
                   allLineData={lineData}
+                  graphResults={graphResults}
+                  fallbackNumberFormat={fallbackNumberFormat}
+                  numberFormatByKey={tooltipNumberFormatsByKey}
                   selectedSeries={selectedSeriesNames || new Set()}
                   onToggleSeries={onToggleSeries}
                 />
