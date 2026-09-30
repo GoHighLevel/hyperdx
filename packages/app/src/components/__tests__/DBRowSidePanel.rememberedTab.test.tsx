@@ -185,8 +185,7 @@ import useSidePanelStack, {
   LAST_TAB_STORAGE_KEY,
 } from '@/hooks/useSidePanelStack';
 
-// A log source with attribute expressions so an Overview tab exists, making
-// `defaultTab` Overview — the tab the user keeps getting dumped back onto.
+// Log sources open fields directly even when attribute expressions are configured.
 // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
 const LOG_SOURCE = {
   id: 'log-src',
@@ -240,12 +239,12 @@ describe('DBRowSidePanelInner — remembered tab across a surrounding-context dr
 
   it('opens on the default tab when nothing has been remembered yet', () => {
     renderPanel('row-1');
-    expect(activeTab()).toBe(Tab.Overview);
+    expect(activeTab()).toBe(Tab.Parsed);
   });
 
   it('keeps the reader on Column Values after drilling through Surrounding Context', () => {
     renderPanel('row-1');
-    expect(activeTab()).toBe(Tab.Overview);
+    expect(activeTab()).toBe(Tab.Parsed);
 
     // The reader picks their preferred view...
     clickTab(Tab.Parsed);
@@ -272,12 +271,12 @@ describe('DBRowSidePanelInner — remembered tab across a surrounding-context dr
     );
   });
 
-  it('still honours a targeted tab when one is explicitly requested', () => {
+  it('falls back to fields when an old link explicitly targets Overview', () => {
     renderPanel('row-1');
     clickTab(Tab.Parsed);
 
-    // A cross-source jump (e.g. "View Trace") targets its own tab and must win.
+    // A removed tab must not strand a user on an empty or hidden panel.
     act(() => mockTabBarProps.current.onClick?.(Tab.Overview));
-    expect(activeTab()).toBe(Tab.Overview);
+    expect(activeTab()).toBe(Tab.Parsed);
   });
 });

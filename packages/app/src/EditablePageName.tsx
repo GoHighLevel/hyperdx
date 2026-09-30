@@ -8,11 +8,14 @@ import { usePermissions } from './usePermissions';
 export function EditablePageName({
   name,
   onSave,
+  canEdit,
 }: {
   name: string;
   onSave: (name: string) => void;
+  canEdit?: boolean;
 }) {
-  const { canManageShared } = usePermissions();
+  const { canManageShared: isAdmin } = usePermissions();
+  const canManageShared = canEdit ?? isAdmin;
   const [editing, setEditing] = useState(false);
   const [editedName, setEditedName] = useState(name);
 

@@ -23,6 +23,7 @@ import {
   useAutoCompleteOptions,
 } from '@/hooks/useAutoCompleteOptions';
 import { useMetadataWithSettings } from '@/hooks/useMetadata';
+import { formatColumnEquals } from '@/utils';
 
 import AutocompleteInput from './AutocompleteInput';
 
@@ -36,7 +37,7 @@ export class LuceneLanguageFormatter implements ILanguageFormatter {
     return `${f.path.join('.')} (${f.jsType})`;
   }
   formatKeyValPair(key: string, value: string): string {
-    return `${key}:"${value}"`;
+    return formatColumnEquals(key, value, false);
   }
 }
 
@@ -154,6 +155,8 @@ export default function SearchInputV2({
       variableOptions={variableOptions}
       isLoadingValues={isLoadingValues}
       tokenInfo={tokenInfo}
+      showSuggestionsOnEmpty
+      suggestionsHeader="Fields"
       size={size}
       zIndex={zIndex}
       language={language}

@@ -13,6 +13,7 @@ import { requireAdmin, requireAdminForWrites } from './middleware/permissions';
 import routers from './routers/api';
 import clickhouseProxyRouter from './routers/api/clickhouseProxy';
 import connectionsRouter from './routers/api/connections';
+import dashboardFoldersRouter from './routers/api/dashboardFolders';
 import favoritesRouter from './routers/api/favorites';
 import iacRouter from './routers/api/iac';
 import personalPinnedFiltersRouter from './routers/api/personalPinnedFilters';
@@ -106,12 +107,8 @@ app.use(
   requireAdminForWrites,
   routers.alertsRouter,
 );
-app.use(
-  '/dashboards',
-  isUserAuthenticated,
-  requireAdminForWrites,
-  routers.dashboardRouter,
-);
+app.use('/dashboards', isUserAuthenticated, routers.dashboardRouter);
+app.use('/dashboard-folders', isUserAuthenticated, dashboardFoldersRouter);
 app.use('/me', isUserAuthenticated, routers.meRouter);
 app.use(
   '/team',

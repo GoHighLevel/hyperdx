@@ -141,7 +141,7 @@ type ViewerOptions = {
 const VIEWER_OPTIONS_KEY = 'hdx_json_viewer_options';
 
 const DEFAULT_VIEWER_OPTIONS: ViewerOptions = {
-  normallyExpanded: true,
+  normallyExpanded: false,
   whiteSpace: 'pre-wrap',
   tabulate: true,
   filterBlanks: false,
@@ -360,7 +360,7 @@ export function DBRowJsonViewer({
   const formatTime = useFormatTime();
   const { canManageShared } = usePermissions();
   const {
-    userPreferences: { logFontSize = 14 },
+    userPreferences: { logFontSize = 10 },
   } = useUserPreferences();
   const {
     onPropertyAddClick,
@@ -728,6 +728,8 @@ export function DBRowJsonViewer({
             getLineActions={getLineActions}
             formatLeafValue={formatLeafValue}
             {...jsonOptions}
+            normallyExpanded={!!debouncedFilter || jsonOptions.normallyExpanded}
+            groupDottedKeys
             expandJsonStrings
           />
         ) : (

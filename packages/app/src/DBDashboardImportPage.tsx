@@ -68,6 +68,7 @@ import {
   IconX,
 } from '@tabler/icons-react';
 
+import DashboardFolderSelect from './components/Dashboards/DashboardFolderSelect';
 import SelectControlled from './components/SelectControlled';
 import { SourceMultiSelectControlled } from './components/SourceMultiSelect';
 import { useBrandDisplayName } from './theme/ThemeProvider';
@@ -82,6 +83,7 @@ import {
 import { getDashboardTemplate } from './dashboardTemplates';
 import { withAppNav } from './layout';
 import { useSources } from './source';
+import { usePermissions } from './usePermissions';
 
 /**
  * A colored headline message with an optional collapsible "details" section,
@@ -438,6 +440,7 @@ export function buildMappingFormSchema(
     .object({
       dashboardName: z.string().min(1, 'Enter a dashboard name'),
       tags: z.array(z.string()),
+      searchSourceMapping: MappingValueSchema.optional(),
       /** A list of tile source mappings, ordered by input tile index */
       tileSourceMappings: z.array(MappingValueSchema),
       /** A list of tile connection mappings, ordered by input tile index. Only applicable for RawSQL tiles */
@@ -458,6 +461,21 @@ export function buildMappingFormSchema(
       onClickDashboardMappings: z.array(MappingValueSchema).optional(),
     })
     .superRefine((data, ctx) => {
+      if (input.searchView) {
+        const source = sources?.find(s => s.id === data.searchSourceMapping);
+        if (
+          !data.searchSourceMapping ||
+          (sources &&
+            (!source ||
+              ![SourceKind.Log, SourceKind.Trace].includes(source.kind)))
+        ) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ['searchSourceMapping'],
+            message: 'Select a log or trace source for this search view',
+          });
+        }
+      }
       input.tiles.forEach((tile, idx) => {
         const config = tile.config;
         // Only require what the table actually offers a row for: a tile gets a
@@ -525,6 +543,8 @@ export function Mapping({ input }: { input: DashboardTemplate }) {
   const { data: dashboards } = useDashboards();
   const { data: existingTags } = api.useTags();
   const [dashboardId] = useQueryState('dashboardId', parseAsString);
+  const [folderId, setFolderId] = useQueryState('folder', parseAsString);
+  const { canManageShared } = usePermissions();
 
   const formSchema = useMemo(
     () => buildMappingFormSchema(input, sources),
@@ -538,6 +558,7 @@ export function Mapping({ input }: { input: DashboardTemplate }) {
       defaultValues: {
         dashboardName: input.name,
         tags: input.tags ?? [],
+        searchSourceMapping: '',
         tileSourceMappings: input.tiles.map(() => ''),
         connectionMappings: input.tiles.map(() => ''),
         filterSourceMappings: input.filters?.map(() => '') ?? [],
@@ -555,6 +576,15 @@ export function Mapping({ input }: { input: DashboardTemplate }) {
     if (!input || !sources || !connections || !dashboards) return;
     if (autoMappedInputRef.current === input) return;
     autoMappedInputRef.current = input;
+
+    setValue(
+      'searchSourceMapping',
+      sources.find(
+        source =>
+          source.name.toLowerCase() ===
+          input.searchView?.search.source.toLowerCase(),
+      )?.id ?? '',
+    );
 
     const tileSourceMappings = input.tiles.map(tile => {
       const config = tile.config as SavedChartConfig;
@@ -881,6 +911,7 @@ export function Mapping({ input }: { input: DashboardTemplate }) {
   const updateDashboard = useUpdateDashboard();
 
   const onSubmit = async (data: MappingFormState) => {
+    if (!dashboardId && !canManageShared && !folderId) return;
     try {
       const findSource = (id: string | undefined) =>
         id ? sources?.find(s => s.id === id) : undefined;
@@ -961,6 +992,15 @@ export function Mapping({ input }: { input: DashboardTemplate }) {
       // Format for server
       const output = convertToDashboardDocument({
         ...input,
+        searchView: input.searchView
+          ? {
+              ...input.searchView,
+              search: {
+                ...input.searchView.search,
+                source: data.searchSourceMapping!,
+              },
+            }
+          : undefined,
         tiles: zippedTiles,
         filters: zippedFilters,
         name: data.dashboardName,
@@ -975,7 +1015,10 @@ export function Mapping({ input }: { input: DashboardTemplate }) {
           id: _dashboardId,
         });
       } else {
-        const result = await createDashboard.mutateAsync(output);
+        const result = await createDashboard.mutateAsync({
+          ...output,
+          folderId,
+        });
         _dashboardId = result.id;
       }
 
@@ -999,6 +1042,12 @@ export function Mapping({ input }: { input: DashboardTemplate }) {
         <Text fw={500} size="sm">
           Step 2: Map Data
         </Text>
+        {!dashboardId && (
+          <DashboardFolderSelect
+            value={folderId}
+            onChange={value => void setFolderId(value)}
+          />
+        )}
         <Controller
           name="dashboardName"
           control={control}
@@ -1032,6 +1081,30 @@ export function Mapping({ input }: { input: DashboardTemplate }) {
             </Table.Tr>
           </Table.Thead>
           <Table.Tbody>
+            {input.searchView && (
+              <Table.Tr>
+                <Table.Td>Complete search view</Table.Td>
+                <Table.Td>Data source</Table.Td>
+                <Table.Td>{input.searchView.search.source}</Table.Td>
+                <Table.Td>
+                  <SelectControlled
+                    control={control}
+                    name="searchSourceMapping"
+                    data={sources
+                      ?.filter(
+                        source =>
+                          source.kind === SourceKind.Log ||
+                          source.kind === SourceKind.Trace,
+                      )
+                      .map(source => ({
+                        value: source.id,
+                        label: source.name,
+                      }))}
+                    placeholder="Select a log or trace source"
+                  />
+                </Table.Td>
+              </Table.Tr>
+            )}
             {/** Map tile sources, connections, and tile OnClick sources and dashboards */}
             {input.tiles.map((tile, i) => {
               const config = tile.config;
@@ -1180,7 +1253,12 @@ export function Mapping({ input }: { input: DashboardTemplate }) {
         {createDashboard.isError && (
           <Text c="red">{createDashboard.error.toString()}</Text>
         )}
-        <Button type="submit" loading={createDashboard.isPending} mb="md">
+        <Button
+          type="submit"
+          loading={createDashboard.isPending}
+          mb="md"
+          disabled={!dashboardId && !canManageShared && !folderId}
+        >
           Finish Import
         </Button>
       </Stack>

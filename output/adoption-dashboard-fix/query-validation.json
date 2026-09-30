@@ -1,0 +1,82 @@
+[
+  {
+    "id": "active-users",
+    "status": 200,
+    "rows": 1,
+    "elapsed": 1.352434202,
+    "number": [
+      {
+        "Users": 10
+      }
+    ]
+  },
+  {
+    "id": "query-requests",
+    "status": 200,
+    "rows": 1,
+    "elapsed": 1.352039019,
+    "number": [
+      {
+        "Requests": 4959
+      }
+    ]
+  },
+  {
+    "id": "unique-searches",
+    "status": 200,
+    "rows": 1,
+    "elapsed": 1.166166075,
+    "number": [
+      {
+        "Searches": 32
+      }
+    ]
+  },
+  {
+    "id": "failed-queries",
+    "status": 200,
+    "rows": 1,
+    "elapsed": 0.789618964,
+    "number": [
+      {
+        "Failures": 881
+      }
+    ]
+  },
+  {
+    "id": "users-trend",
+    "status": 200,
+    "rows": 64,
+    "elapsed": 0.167877033
+  },
+  {
+    "id": "queries-trend",
+    "status": 200,
+    "rows": 64,
+    "elapsed": 0.091678178
+  },
+  {
+    "id": "users-table",
+    "status": 200,
+    "rows": 10,
+    "elapsed": 0.163120498
+  },
+  {
+    "id": "popular-searches",
+    "status": 200,
+    "rows": 20,
+    "elapsed": 0.070499667
+  },
+  {
+    "id": "recent-searches",
+    "status": 200,
+    "rows": 36,
+    "elapsed": 0.051662549
+  },
+  {
+    "id": "data-coverage",
+    "status": 200,
+    "rows": 1,
+    "elapsed": 0.064682719
+  }
+]

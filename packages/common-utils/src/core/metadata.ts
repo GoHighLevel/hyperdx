@@ -2296,11 +2296,9 @@ export class Metadata {
       connectionId: chartConfig.connection,
       abort_signal: signal,
       clickhouse_settings: {
-        ...this.getClickHouseSettings(),
-        max_rows_to_read: String(
-          this.getClickHouseSettings().max_rows_to_read ??
-            DEFAULT_METADATA_MAX_ROWS_TO_READ,
-        ),
+        // Exact counts scan the selected search range, unlike sampled facet
+        // discovery. Keep source/server limits, not the metadata sampling cap.
+        ...omit(this.getClickHouseSettings(), ['max_rows_to_read']),
         max_rows_to_group_by: String(distinctValues.length),
         read_overflow_mode: 'throw',
         group_by_overflow_mode: 'throw',

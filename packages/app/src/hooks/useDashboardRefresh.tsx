@@ -7,14 +7,18 @@ import {
 } from '@hyperdx/common-utils/dist/core/utils';
 import { useDocumentVisibility } from '@mantine/hooks';
 
+import { getRelativeInterval } from '@/timeQuery';
+
 export const useDashboardRefresh = ({
   searchedTimeRange,
   onTimeRangeSelect,
   isLive,
+  refreshIntervalSeconds,
 }: {
-  onTimeRangeSelect: (start: Date, end: Date) => void;
+  onTimeRangeSelect: (start: Date, end: Date, displayValue?: string) => void;
   searchedTimeRange: [Date, Date];
   isLive: boolean;
+  refreshIntervalSeconds?: number | null;
 }) => {
   const [manualRefreshCooloff, setManualRefreshCooloff] = React.useState(false);
 
@@ -31,15 +35,30 @@ export const useDashboardRefresh = ({
     // eslint-disable-next-line no-restricted-syntax
     const newEnd = new Date();
     const newStart = new Date(newEnd.getTime() - timeDiffRoundedToSecond);
-    onTimeRangeSelect(newStart, newEnd);
+    onTimeRangeSelect(
+      newStart,
+      newEnd,
+      isLive
+        ? getRelativeInterval(newStart, newEnd) ||
+            `Past ${timeDiffRoundedToSecond / 1000}s`
+        : undefined,
+    );
     setManualRefreshCooloff(true);
     setTimeout(() => {
       setManualRefreshCooloff(false);
     }, 1000);
-  }, [onTimeRangeSelect, searchedTimeRange]);
+  }, [onTimeRangeSelect, searchedTimeRange, isLive]);
 
   const granularityOverride =
     convertDateRangeToGranularityString(searchedTimeRange);
+  const refreshInterval =
+    refreshIntervalSeconds ?? convertGranularityToSeconds(granularityOverride);
+
+  const wasRefreshEnabledRef = React.useRef(false);
+  React.useEffect(() => {
+    if (isRefreshEnabled && !wasRefreshEnabledRef.current) refresh();
+    wasRefreshEnabledRef.current = isRefreshEnabled;
+  }, [isRefreshEnabled, refresh]);
 
   // Auto-refresh interval
   const intervalRef = React.useRef<number | null>(null);
@@ -48,12 +67,9 @@ export const useDashboardRefresh = ({
       if (intervalRef.current) {
         window.clearInterval(intervalRef.current);
       }
-      intervalRef.current = window.setInterval(
-        () => {
-          refresh();
-        },
-        convertGranularityToSeconds(granularityOverride) * 1000,
-      );
+      intervalRef.current = window.setInterval(() => {
+        refresh();
+      }, refreshInterval * 1000);
     } else {
       if (intervalRef.current) {
         window.clearInterval(intervalRef.current);
@@ -64,10 +80,11 @@ export const useDashboardRefresh = ({
         window.clearInterval(intervalRef.current);
       }
     };
-  }, [isRefreshEnabled, granularityOverride, refresh]);
+  }, [isRefreshEnabled, refreshInterval, refresh]);
 
   return {
     granularityOverride,
+    refreshInterval,
     isRefreshEnabled,
     manualRefreshCooloff,
     refresh,

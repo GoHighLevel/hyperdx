@@ -57,6 +57,7 @@ function loginHook(request: Request, options: any, response: Response) {
     '/',
     '/forgot',
     '/join-team',
+    '/join-company',
     '/login',
     '/register',
     '/reset-password',
@@ -320,6 +321,24 @@ const api = {
       },
     });
   },
+  useSetTeamMemberRoles() {
+    const queryClient = useQueryClient();
+    return useMutation<
+      { role: UserRole; updated: number },
+      HTTPError,
+      { userIds: string[]; role: UserRole }
+    >({
+      mutationFn: body =>
+        hdxServer('team/members/role', { method: 'PATCH', json: body }).json(),
+      onSuccess: async () => {
+        await Promise.all(
+          ['team/members', 'me', 'team'].map(key =>
+            queryClient.invalidateQueries({ queryKey: [key] }),
+          ),
+        );
+      },
+    });
+  },
   useDeleteTeamMember() {
     return useMutation<
       { message: string },
@@ -402,6 +421,48 @@ const api = {
     return useQuery<TeamMembersApiResponse>({
       queryKey: [`team/members`],
       queryFn: () => hdxServer(`team/members`).json<TeamMembersApiResponse>(),
+    });
+  },
+  useGoogleWorkspaceConfig() {
+    return useQuery({
+      queryKey: ['auth/google/config'],
+      queryFn: () =>
+        hdxServer('auth/google/config').json<{
+          configured: boolean;
+          domain: string;
+        }>(),
+      retry: false,
+    });
+  },
+  useTeamJoinLink() {
+    return useQuery({
+      queryKey: ['team/join-link'],
+      queryFn: () =>
+        hdxServer('team/join-link').json<{
+          configured: boolean;
+          domain: string;
+          active: boolean;
+        }>(),
+    });
+  },
+  useCreateTeamJoinLink() {
+    const client = useQueryClient();
+    return useMutation({
+      mutationFn: () =>
+        hdxServer('team/join-link', { method: 'POST' }).json<{ url: string }>(),
+      onSuccess: () =>
+        client.invalidateQueries({ queryKey: ['team/join-link'] }),
+    });
+  },
+  useRevokeTeamJoinLink() {
+    const client = useQueryClient();
+    return useMutation({
+      mutationFn: () =>
+        hdxServer('team/join-link', { method: 'DELETE' }).json<{
+          active: boolean;
+        }>(),
+      onSuccess: () =>
+        client.invalidateQueries({ queryKey: ['team/join-link'] }),
     });
   },
   useUpdateDeveloperUI() {

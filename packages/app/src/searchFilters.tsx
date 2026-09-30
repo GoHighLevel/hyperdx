@@ -465,6 +465,7 @@ export function usePinnedFilters(sourceId: string | null) {
   // Personal value pins are saved independently of shared pins.
   const toggleFilterPin = useCallback(
     (property: string, value: string | boolean) => {
+      personal.restoreField(property);
       personal.setFilters(prev => toggleValueInFilters(prev, property, value));
       // When pinning a value, also pin the field if not already pinned
       personal.setFields(prev =>
@@ -477,6 +478,7 @@ export function usePinnedFilters(sourceId: string | null) {
   // Personal field pins follow the account across browsers.
   const toggleFieldPin = useCallback(
     (field: string) => {
+      personal.restoreField(field);
       personal.setFields(prev => {
         const idx = prev.indexOf(field);
         return idx >= 0 ? prev.filter((_, i) => i !== idx) : [...prev, field];
@@ -590,6 +592,8 @@ export function usePinnedFilters(sourceId: string | null) {
 
   return {
     rememberFields: personal.rememberFields,
+    removePersonalField: personal.removeField,
+    isPersonalFieldRemoved: personal.isFieldRemoved,
     personalPinsLoaded: personal.isLoaded,
     toggleFilterPin,
     toggleFieldPin,

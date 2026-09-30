@@ -1,0 +1,477 @@
+{
+  "version": "0.1.0",
+  "name": "Tracing pipeline health — Staging",
+  "description": "**Trace pipeline health.** Rolling last hour; refresh every 30 seconds. Rates use 5m; failure counts use rolling 15m. Staging collector job `otel-collector` exports to `otlphttp`. Repeated scrapes are deduplicated by collector service_instance_id.\n\nAccepted = receiver accepted spans. Refused = receiver rejected spans. Sent = exporter reported success, not a guarantee of backend retention or queryability. Failed sends count span attempts and may recover through retries; they are not proven lost spans. Never subtract accepted from sent to claim loss: sampling, batching, multiple receivers/exporters and in-flight work affect counts.\n\nTrace queues are selected by data_type when available; legacy unlabelled queues are also included. Queue units are exporter-configured items/batches, not assumed spans. Cluster labels identify collectors, not each originating application. Receiver panels are independent of the exporter filter. Reporting counts describe observed collectors, not the desired population. Missing telemetry is not zero; backend storage, sampling and log-to-trace coverage are not fabricated. No alert rules are installed.",
+  "tags": [
+    "staging",
+    "observability-health",
+    "tracing"
+  ],
+  "savedDateRange": {
+    "type": "relative",
+    "value": 3600
+  },
+  "savedRefreshInterval": 30,
+  "savedFilterValues": [
+    {
+      "type": "variable",
+      "name": "exporter",
+      "values": [
+        "otlphttp"
+      ]
+    }
+  ],
+  "filters": [
+    {
+      "id": "cluster",
+      "name": "Cluster",
+      "variableName": "cluster",
+      "type": "PROMETHEUS_LABEL",
+      "source": "Staging Metrics",
+      "label": "cluster",
+      "match": "otelcol_receiver_accepted_spans{job=\"otel-collector\"}",
+      "isBroadcastEnabled": false,
+      "isVariableEnabled": true
+    },
+    {
+      "id": "exporter",
+      "name": "Trace exporter",
+      "variableName": "exporter",
+      "type": "PROMETHEUS_LABEL",
+      "source": "Staging Metrics",
+      "label": "exporter",
+      "match": "otelcol_exporter_sent_spans{cluster=~\"${cluster:regex}\",job=\"otel-collector\",exporter!=\"debug\"}",
+      "isBroadcastEnabled": false,
+      "isVariableEnabled": true
+    }
+  ],
+  "containers": [
+    {
+      "id": "overview",
+      "title": "Health now",
+      "collapsed": false
+    },
+    {
+      "id": "trends",
+      "title": "Throughput and pressure",
+      "collapsed": false
+    },
+    {
+      "id": "details",
+      "title": "Troubleshooting",
+      "collapsed": true
+    }
+  ],
+  "tiles": [
+    {
+      "id": "reading-guide",
+      "containerId": "details",
+      "x": 0,
+      "y": 0,
+      "w": 24,
+      "h": 7,
+      "config": {
+        "name": "How to read this dashboard",
+        "displayType": "markdown",
+        "source": "",
+        "select": [],
+        "where": "",
+        "whereLanguage": "sql",
+        "markdown": "**Trace pipeline health.** Rolling last hour; refresh every 30 seconds. Rates use 5m; failure counts use rolling 15m. Staging collector job `otel-collector` exports to `otlphttp`. Repeated scrapes are deduplicated by collector service_instance_id.\n\nAccepted = receiver accepted spans. Refused = receiver rejected spans. Sent = exporter reported success, not a guarantee of backend retention or queryability. Failed sends count span attempts and may recover through retries; they are not proven lost spans. Never subtract accepted from sent to claim loss: sampling, batching, multiple receivers/exporters and in-flight work affect counts.\n\nTrace queues are selected by data_type when available; legacy unlabelled queues are also included. Queue units are exporter-configured items/batches, not assumed spans. Cluster labels identify collectors, not each originating application. Receiver panels are independent of the exporter filter. Reporting counts describe observed collectors, not the desired population. Missing telemetry is not zero; backend storage, sampling and log-to-trace coverage are not fabricated. No alert rules are installed."
+      }
+    },
+    {
+      "id": "accepted",
+      "containerId": "overview",
+      "x": 0,
+      "y": 0,
+      "w": 4,
+      "h": 6,
+      "config": {
+        "name": "Receiver-accepted spans",
+        "configType": "promql",
+        "displayType": "number",
+        "source": "Staging Metrics",
+        "connection": "Staging Metrics Querier",
+        "promqlExpression": "last_over_time((sum (max by (cluster,service_instance_id,receiver,transport) (rate(otelcol_receiver_accepted_spans{cluster=~\"${cluster:regex}\",job=\"otel-collector\"}[5m]))))[30s:30s] @ end())",
+        "numberFormat": {
+          "output": "number",
+          "mantissa": 2,
+          "thousandSeparated": true,
+          "unit": "spans/s"
+        },
+        "fillNulls": false,
+        "color": "chart-cyan"
+      }
+    },
+    {
+      "id": "sent",
+      "containerId": "overview",
+      "x": 4,
+      "y": 0,
+      "w": 4,
+      "h": 6,
+      "config": {
+        "name": "Exporter-sent spans",
+        "configType": "promql",
+        "displayType": "number",
+        "source": "Staging Metrics",
+        "connection": "Staging Metrics Querier",
+        "promqlExpression": "last_over_time((sum (max by (cluster,service_instance_id,exporter) (rate(otelcol_exporter_sent_spans{cluster=~\"${cluster:regex}\",job=\"otel-collector\",exporter=~\"${exporter:regex}\",exporter!=\"debug\"}[5m]))))[30s:30s] @ end())",
+        "numberFormat": {
+          "output": "number",
+          "mantissa": 2,
+          "thousandSeparated": true,
+          "unit": "spans/s"
+        },
+        "fillNulls": false,
+        "color": "chart-cyan"
+      }
+    },
+    {
+      "id": "refused",
+      "containerId": "overview",
+      "x": 8,
+      "y": 0,
+      "w": 4,
+      "h": 6,
+      "config": {
+        "name": "Refused spans · last 15m",
+        "configType": "promql",
+        "displayType": "number",
+        "source": "Staging Metrics",
+        "connection": "Staging Metrics Querier",
+        "promqlExpression": "last_over_time((sum (max by (cluster,service_instance_id,receiver,transport) (increase(otelcol_receiver_refused_spans{cluster=~\"${cluster:regex}\",job=\"otel-collector\"}[15m]))))[30s:30s] @ end())",
+        "numberFormat": {
+          "output": "number",
+          "mantissa": 0,
+          "thousandSeparated": true,
+          "unit": ""
+        },
+        "fillNulls": false,
+        "color": "chart-gray",
+        "colorRules": [
+          {
+            "operator": "eq",
+            "value": 0,
+            "color": "chart-success"
+          },
+          {
+            "operator": "gt",
+            "value": 0,
+            "color": "chart-error"
+          }
+        ]
+      }
+    },
+    {
+      "id": "failed",
+      "containerId": "overview",
+      "x": 12,
+      "y": 0,
+      "w": 4,
+      "h": 6,
+      "config": {
+        "name": "Failed span sends · last 15m",
+        "configType": "promql",
+        "displayType": "number",
+        "source": "Staging Metrics",
+        "connection": "Staging Metrics Querier",
+        "promqlExpression": "last_over_time((sum (max by (cluster,service_instance_id,exporter) (increase(otelcol_exporter_send_failed_spans{cluster=~\"${cluster:regex}\",job=\"otel-collector\",exporter=~\"${exporter:regex}\",exporter!=\"debug\"}[15m]))))[30s:30s] @ end())",
+        "numberFormat": {
+          "output": "number",
+          "mantissa": 0,
+          "thousandSeparated": true,
+          "unit": ""
+        },
+        "fillNulls": false,
+        "color": "chart-gray",
+        "colorRules": [
+          {
+            "operator": "eq",
+            "value": 0,
+            "color": "chart-success"
+          },
+          {
+            "operator": "gt",
+            "value": 0,
+            "color": "chart-error"
+          }
+        ]
+      }
+    },
+    {
+      "id": "queue-use",
+      "containerId": "overview",
+      "x": 16,
+      "y": 0,
+      "w": 4,
+      "h": 6,
+      "config": {
+        "name": "Highest trace queue usage",
+        "configType": "promql",
+        "displayType": "number",
+        "source": "Staging Metrics",
+        "connection": "Staging Metrics Querier",
+        "promqlExpression": "last_over_time((max (100 * max by (cluster,service_instance_id,exporter) (otelcol_exporter_queue_size{cluster=~\"${cluster:regex}\",job=\"otel-collector\",exporter=~\"${exporter:regex}\",exporter!=\"debug\",data_type=~\"traces|\"}) / (max by (cluster,service_instance_id,exporter) (otelcol_exporter_queue_capacity{cluster=~\"${cluster:regex}\",job=\"otel-collector\",exporter=~\"${exporter:regex}\",exporter!=\"debug\",data_type=~\"traces|\"}) > 0)))[30s:30s] @ end())",
+        "numberFormat": {
+          "output": "number",
+          "mantissa": 2,
+          "thousandSeparated": true,
+          "unit": "%"
+        },
+        "fillNulls": false,
+        "color": "chart-gray",
+        "colorRules": [
+          {
+            "operator": "gte",
+            "value": 0,
+            "color": "chart-success"
+          },
+          {
+            "operator": "gte",
+            "value": 70,
+            "color": "chart-warning"
+          },
+          {
+            "operator": "gte",
+            "value": 90,
+            "color": "chart-error"
+          }
+        ]
+      }
+    },
+    {
+      "id": "collectors",
+      "containerId": "overview",
+      "x": 20,
+      "y": 0,
+      "w": 4,
+      "h": 6,
+      "config": {
+        "name": "Reporting trace collectors",
+        "configType": "promql",
+        "displayType": "number",
+        "source": "Staging Metrics",
+        "connection": "Staging Metrics Querier",
+        "promqlExpression": "last_over_time((count (count by(cluster,service_instance_id) (max by (cluster,service_instance_id,receiver,transport) (otelcol_receiver_accepted_spans{cluster=~\"${cluster:regex}\",job=\"otel-collector\"}))))[30s:30s] @ end())",
+        "numberFormat": {
+          "output": "number",
+          "mantissa": 0,
+          "thousandSeparated": true,
+          "unit": ""
+        },
+        "fillNulls": false,
+        "color": "chart-cyan"
+      }
+    },
+    {
+      "id": "accepted-trend",
+      "containerId": "trends",
+      "x": 0,
+      "y": 0,
+      "w": 12,
+      "h": 8,
+      "config": {
+        "name": "Accepted spans by receiver",
+        "configType": "promql",
+        "displayType": "line",
+        "source": "Staging Metrics",
+        "connection": "Staging Metrics Querier",
+        "promqlExpression": "sum by(cluster,receiver,transport) (max by (cluster,service_instance_id,receiver,transport) (rate(otelcol_receiver_accepted_spans{cluster=~\"${cluster:regex}\",job=\"otel-collector\"}[5m])))",
+        "numberFormat": {
+          "output": "number",
+          "mantissa": 2,
+          "thousandSeparated": true,
+          "unit": "spans/s"
+        },
+        "fillNulls": false,
+        "granularity": "1 minute",
+        "seriesLimit": 30,
+        "legendTemplate": "{{cluster}} / {{receiver}} / {{transport}}"
+      }
+    },
+    {
+      "id": "sent-trend",
+      "containerId": "trends",
+      "x": 12,
+      "y": 0,
+      "w": 12,
+      "h": 8,
+      "config": {
+        "name": "Sent spans by exporter",
+        "configType": "promql",
+        "displayType": "line",
+        "source": "Staging Metrics",
+        "connection": "Staging Metrics Querier",
+        "promqlExpression": "sum by(cluster,exporter) (max by (cluster,service_instance_id,exporter) (rate(otelcol_exporter_sent_spans{cluster=~\"${cluster:regex}\",job=\"otel-collector\",exporter=~\"${exporter:regex}\",exporter!=\"debug\"}[5m])))",
+        "numberFormat": {
+          "output": "number",
+          "mantissa": 2,
+          "thousandSeparated": true,
+          "unit": "spans/s"
+        },
+        "fillNulls": false,
+        "granularity": "1 minute",
+        "seriesLimit": 30,
+        "legendTemplate": "{{cluster}} / {{exporter}}"
+      }
+    },
+    {
+      "id": "refused-trend",
+      "containerId": "trends",
+      "x": 0,
+      "y": 8,
+      "w": 12,
+      "h": 8,
+      "config": {
+        "name": "Receiver refusals",
+        "configType": "promql",
+        "displayType": "line",
+        "source": "Staging Metrics",
+        "connection": "Staging Metrics Querier",
+        "promqlExpression": "sum by(cluster,receiver) (max by (cluster,service_instance_id,receiver,transport) (rate(otelcol_receiver_refused_spans{cluster=~\"${cluster:regex}\",job=\"otel-collector\"}[5m])))",
+        "numberFormat": {
+          "output": "number",
+          "mantissa": 2,
+          "thousandSeparated": true,
+          "unit": "spans/s"
+        },
+        "fillNulls": false,
+        "granularity": "1 minute",
+        "seriesLimit": 30,
+        "legendTemplate": "{{cluster}} / {{receiver}}"
+      }
+    },
+    {
+      "id": "failed-trend",
+      "containerId": "trends",
+      "x": 12,
+      "y": 8,
+      "w": 12,
+      "h": 8,
+      "config": {
+        "name": "Failed exporter send attempts",
+        "configType": "promql",
+        "displayType": "line",
+        "source": "Staging Metrics",
+        "connection": "Staging Metrics Querier",
+        "promqlExpression": "sum by(cluster,exporter) (max by (cluster,service_instance_id,exporter) (rate(otelcol_exporter_send_failed_spans{cluster=~\"${cluster:regex}\",job=\"otel-collector\",exporter=~\"${exporter:regex}\",exporter!=\"debug\"}[5m])))",
+        "numberFormat": {
+          "output": "number",
+          "mantissa": 2,
+          "thousandSeparated": true,
+          "unit": "span attempts/s"
+        },
+        "fillNulls": false,
+        "granularity": "1 minute",
+        "seriesLimit": 30,
+        "legendTemplate": "{{cluster}} / {{exporter}}"
+      }
+    },
+    {
+      "id": "queue-trend",
+      "containerId": "trends",
+      "x": 0,
+      "y": 16,
+      "w": 12,
+      "h": 8,
+      "config": {
+        "name": "Maximum trace queue usage by exporter",
+        "configType": "promql",
+        "displayType": "line",
+        "source": "Staging Metrics",
+        "connection": "Staging Metrics Querier",
+        "promqlExpression": "max by(cluster,exporter) (100 * max by (cluster,service_instance_id,exporter) (otelcol_exporter_queue_size{cluster=~\"${cluster:regex}\",job=\"otel-collector\",exporter=~\"${exporter:regex}\",exporter!=\"debug\",data_type=~\"traces|\"}) / (max by (cluster,service_instance_id,exporter) (otelcol_exporter_queue_capacity{cluster=~\"${cluster:regex}\",job=\"otel-collector\",exporter=~\"${exporter:regex}\",exporter!=\"debug\",data_type=~\"traces|\"}) > 0))",
+        "numberFormat": {
+          "output": "number",
+          "mantissa": 2,
+          "thousandSeparated": true,
+          "unit": "%"
+        },
+        "fillNulls": false,
+        "granularity": "1 minute",
+        "seriesLimit": 30,
+        "legendTemplate": "{{cluster}} / {{exporter}}"
+      }
+    },
+    {
+      "id": "collectors-trend",
+      "containerId": "trends",
+      "x": 12,
+      "y": 16,
+      "w": 12,
+      "h": 8,
+      "config": {
+        "name": "Reporting trace collectors",
+        "configType": "promql",
+        "displayType": "line",
+        "source": "Staging Metrics",
+        "connection": "Staging Metrics Querier",
+        "promqlExpression": "count by(cluster) (count by(cluster,service_instance_id) (max by (cluster,service_instance_id,receiver,transport) (otelcol_receiver_accepted_spans{cluster=~\"${cluster:regex}\",job=\"otel-collector\"})))",
+        "numberFormat": {
+          "output": "number",
+          "mantissa": 2,
+          "thousandSeparated": true,
+          "unit": "collectors"
+        },
+        "fillNulls": false,
+        "granularity": "1 minute",
+        "seriesLimit": 30,
+        "legendTemplate": "{{cluster}}"
+      }
+    },
+    {
+      "id": "busy-queues",
+      "containerId": "details",
+      "x": 0,
+      "y": 7,
+      "w": 12,
+      "h": 8,
+      "config": {
+        "name": "Trace queue items · top 10 collectors",
+        "configType": "promql",
+        "displayType": "line",
+        "source": "Staging Metrics",
+        "connection": "Staging Metrics Querier",
+        "promqlExpression": "topk(10,max by (cluster,service_instance_id,exporter) (otelcol_exporter_queue_size{cluster=~\"${cluster:regex}\",job=\"otel-collector\",exporter=~\"${exporter:regex}\",exporter!=\"debug\",data_type=~\"traces|\"}))",
+        "numberFormat": {
+          "output": "number",
+          "mantissa": 2,
+          "thousandSeparated": true,
+          "unit": "items"
+        },
+        "fillNulls": false,
+        "granularity": "1 minute",
+        "seriesLimit": 30,
+        "legendTemplate": "{{cluster}} / {{service_instance_id}} / {{exporter}}"
+      }
+    },
+    {
+      "id": "queue-capacity",
+      "containerId": "details",
+      "x": 12,
+      "y": 7,
+      "w": 12,
+      "h": 8,
+      "config": {
+        "name": "Trace queue capacity by exporter",
+        "configType": "promql",
+        "displayType": "line",
+        "source": "Staging Metrics",
+        "connection": "Staging Metrics Querier",
+        "promqlExpression": "sum by(cluster,exporter) (max by (cluster,service_instance_id,exporter) (otelcol_exporter_queue_capacity{cluster=~\"${cluster:regex}\",job=\"otel-collector\",exporter=~\"${exporter:regex}\",exporter!=\"debug\",data_type=~\"traces|\"}))",
+        "numberFormat": {
+          "output": "number",
+          "mantissa": 2,
+          "thousandSeparated": true,
+          "unit": "items"
+        },
+        "fillNulls": false,
+        "granularity": "1 minute",
+        "seriesLimit": 30,
+        "legendTemplate": "{{cluster}} / {{exporter}}"
+      }
+    }
+  ]
+}

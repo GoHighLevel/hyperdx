@@ -1,6 +1,8 @@
 import objectHash from 'object-hash';
 import { z } from 'zod';
 
+import { DashboardFolderIdSchema } from './dashboardFolders';
+
 // Basic Enums
 export enum MetricsDataType {
   Gauge = 'gauge',
@@ -2123,15 +2125,75 @@ export function addDuplicateTileIdIssues(
 // schema (`buildDashboardBodySchema` in `v2/utils/dashboards.ts`), which is
 // the only public surface that accepts arbitrary tile + container payloads
 // in one call.
+const SearchViewPinsSchema = z.object({
+  fields: z.array(z.string().max(1024)).max(100),
+  filters: PinnedFiltersValueSchema,
+  dismissedFields: z.array(z.string().max(1024)).max(100).optional(),
+});
+
+export const SearchViewSchema = z
+  .object({
+    version: z.literal(1),
+    search: SavedSearchSchema.omit({
+      id: true,
+      name: true,
+      tags: true,
+      alerts: true,
+    }).extend({
+      source: z.string().min(1),
+      whereLanguage: z.enum(['sql', 'lucene']),
+    }),
+    time: z
+      .object({
+        from: z.number().finite(),
+        to: z.number().finite(),
+        isLive: z.boolean(),
+        liveInterval: z.number().int().positive(),
+        refreshFrequency: z.number().int().min(1000),
+      })
+      .refine(time => time.to > time.from, 'End time must be after start time'),
+    analysisMode: z.enum(['results', 'delta', 'pattern']),
+    patternColumn: z.string().nullable().optional(),
+    denoise: z.boolean(),
+    layout: z.lazy(() => DeveloperUISchema).optional(),
+    preferences: z.record(
+      z.union([
+        z.boolean(),
+        z.number().finite(),
+        z.string(),
+        z.record(z.number().finite()),
+      ]),
+    ),
+    userPreferences: z.object({
+      isUTC: z.boolean(),
+      timeFormat: z.enum(['12h', '24h']),
+      logFontSize: z.union([
+        z.literal(10),
+        z.literal(12),
+        z.literal(14),
+        z.literal(16),
+        z.literal(18),
+      ]),
+      font: z.enum(['IBM Plex Mono', 'Roboto Mono', 'Inter', 'Roboto']),
+    }),
+    sharedPins: SearchViewPinsSchema,
+    personalPins: SearchViewPinsSchema,
+  })
+  .strict();
+export type SearchView = z.infer<typeof SearchViewSchema>;
+
 export const DashboardSchema = z.object({
   id: z.string(),
+  folderId: DashboardFolderIdSchema.nullable().optional(),
   name: z.string().min(1),
   tiles: z.array(TileSchema),
+  searchView: SearchViewSchema.optional(),
   tags: z.array(z.string()),
   filters: z.array(DashboardFilterSchema).optional(),
   savedQuery: z.string().nullable().optional(),
   savedQueryLanguage: SearchConditionLanguageSchema.nullable().optional(),
   savedFilterValues: z.array(DashboardFilterValueSchema).optional(),
+  savedRefreshInterval: z.number().int().min(5).max(3600).nullable().optional(),
   savedDateRange: z
     .discriminatedUnion('type', [
       z.object({
@@ -2167,6 +2229,7 @@ export type DashboardWithoutId = z.infer<typeof DashboardWithoutIdSchema>;
 
 export const DashboardTemplateSchema = DashboardWithoutIdSchema.omit({
   tags: true,
+  folderId: true,
 }).extend({
   version: z.string().min(1),
   description: z.string().optional(),
@@ -2224,6 +2287,23 @@ export const DeveloperUISchema = z
     sharedFilters: z.boolean().default(true),
     filters: z.boolean().default(true),
     denoise: z.boolean().default(true),
+    collapseFiltersByDefault: z.boolean().default(true),
+    defaultSummaryFields: z
+      .array(z.string().trim().min(1).max(512))
+      .max(100)
+      .default([
+        'deployment_name',
+        'httpRequest.requestMethod',
+        'httpRequest.status',
+      ]),
+    defaultPersonalFilterFields: z
+      .array(z.string().trim().min(1).max(512))
+      .max(100)
+      .default([]),
+    hiddenPersonalFilterFields: z
+      .array(z.string().trim().min(1).max(512))
+      .max(100)
+      .default([]),
   })
   .strict();
 export type DeveloperUI = z.infer<typeof DeveloperUISchema>;

@@ -209,10 +209,15 @@ export async function createDashboard(
   return newDashboard;
 }
 
-export async function deleteDashboard(dashboardId: string, teamId: ObjectId) {
+export async function deleteDashboard(
+  dashboardId: string,
+  teamId: ObjectId,
+  writableFolderId?: string,
+) {
   const dashboard = await Dashboard.findOneAndDelete({
     _id: dashboardId,
     team: teamId,
+    ...(writableFolderId ? { folderId: writableFolderId } : {}),
   });
   if (dashboard) {
     await deleteDashboardAlerts(dashboardId, teamId);
@@ -224,6 +229,7 @@ export async function updateDashboard(
   teamId: ObjectId,
   updates: Partial<z.infer<typeof DashboardWithoutIdSchema>>,
   userId?: ObjectId,
+  writableFolderId?: string,
 ) {
   const oldDashboard = await getDashboard(dashboardId, teamId);
 
@@ -235,6 +241,7 @@ export async function updateDashboard(
     {
       _id: dashboardId,
       team: teamId,
+      ...(writableFolderId ? { folderId: writableFolderId } : {}),
     },
     {
       ...updates,

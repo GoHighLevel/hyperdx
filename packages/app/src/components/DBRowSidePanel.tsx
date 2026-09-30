@@ -79,7 +79,11 @@ import {
 } from './DrawerUtils';
 import LogLevel from './LogLevel';
 import SidePanelBreadcrumbs, { BreadcrumbItem } from './SidePanelBreadcrumbs';
-import { SpanLinkData } from './SpanLinksSubpanel';
+import {
+  getValidSpanLinks,
+  SpanLinkData,
+  SpanLinksSubpanel,
+} from './SpanLinksSubpanel';
 import { ViewTraceCalloutButton } from './ViewTraceCalloutButton';
 
 import styles from '@/../styles/LogSidePanel.module.scss';
@@ -345,7 +349,8 @@ export const DBRowSidePanelInner = ({
     : parentContext.dbSqlRowTableConfig;
 
   const hasOverviewPanel = useMemo(() => {
-    if (isLogSource(source) || isTraceSource(source)) {
+    if (isLogSource(source)) return false;
+    if (isTraceSource(source)) {
       if (
         source.resourceAttributesExpression ||
         source.eventAttributesExpression
@@ -395,7 +400,11 @@ export const DBRowSidePanelInner = ({
       // Cross-source push (e.g. "View Trace") → jump to the destination
       // source's default tab.
       const destinationTab =
-        frame.sourceKind === SourceKind.Trace ? Tab.Trace : Tab.Overview;
+        frame.sourceKind === SourceKind.Trace
+          ? Tab.Trace
+          : frame.sourceKind === SourceKind.Log
+            ? Tab.Parsed
+            : Tab.Overview;
       pushSource(frame, destinationTab);
     },
     [pushSource],
@@ -1143,6 +1152,19 @@ export const DBRowSidePanelInner = ({
             aliasWith={activeAliasWith}
             dateRange={activeDateRange}
           />
+          {isLogSource(source) &&
+            getValidSpanLinks(rowData?.data?.[0]?.__hdx_span_links).length >
+              0 && (
+              <Box p="sm">
+                <Text size="sm" fw={500} mb="xs">
+                  Linked spans
+                </Text>
+                <SpanLinksSubpanel
+                  spanLinks={rowData?.data?.[0]?.__hdx_span_links}
+                  onOpenTrace={handleOpenLinkedTrace}
+                />
+              </Box>
+            )}
         </ErrorBoundary>
       )}
       {displayedTab === Tab.Context && (

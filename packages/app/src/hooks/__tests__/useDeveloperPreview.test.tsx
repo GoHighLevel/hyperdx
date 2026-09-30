@@ -1,6 +1,9 @@
 import React from 'react';
 import { Provider } from 'jotai';
-import { DeveloperUI } from '@hyperdx/common-utils/dist/types';
+import {
+  DEFAULT_DEVELOPER_UI,
+  DeveloperUI,
+} from '@hyperdx/common-utils/dist/types';
 import { act, renderHook, waitFor } from '@testing-library/react';
 
 import { useDeveloperPreview } from '@/useDeveloperPreview';
@@ -87,6 +90,7 @@ it('does not expose admin controls before the user loads', () => {
 
 it('applies team section settings to developers and admin preview without limiting the admin layout', () => {
   mockMe!.team.developerUI = {
+    ...DEFAULT_DEVELOPER_UI,
     analysisMode: false,
     histogram: false,
     sharedFilters: false,

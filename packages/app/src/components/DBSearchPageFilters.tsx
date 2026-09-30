@@ -13,6 +13,7 @@ import {
   Accordion,
   ActionIcon,
   Box,
+  Button,
   Center,
   Checkbox,
   Collapse,
@@ -82,6 +83,8 @@ import {
   groupFacetsByBaseName,
   toQuotedClickHouseKeyExpression,
 } from './DBSearchPageFilters/utils';
+import SummaryFieldButton from './LogSummaryDemo/SummaryFieldButton';
+import FilterLogCount from './FilterLogCount';
 
 import resizeStyles from '@styles/ResizablePanel.module.scss';
 import classes from '@styles/SearchPage.module.scss';
@@ -161,6 +164,9 @@ type FilterCheckboxProps = {
   showLogCounts?: boolean;
   logCount?: string;
   isCountLoading?: boolean;
+  isCountPartial?: boolean;
+  countError?: boolean;
+  countedTo?: number;
 };
 
 const TextButton = ({
@@ -236,6 +242,9 @@ const FilterCheckbox = ({
   showLogCounts,
   logCount,
   isCountLoading,
+  isCountPartial,
+  countError,
+  countedTo,
 }: FilterCheckboxProps) => {
   const [pinMenuOpened, setPinMenuOpened] = useState(false);
   const testIdPrefix = `filter-checkbox-${columnName}-${label}`;
@@ -297,34 +306,14 @@ const FilterCheckbox = ({
               {label || <span className="fst-italic">(empty)</span>}
             </Text>
             {showLogCounts && (
-              <Text
-                size="xs"
-                c="dimmed"
-                style={{ flexShrink: 0, fontVariantNumeric: 'tabular-nums' }}
-                data-testid={`filter-count-${columnName}-${label}`}
-                title={
-                  isCountLoading
-                    ? 'Counting matching logs…'
-                    : logCount == null
-                      ? 'Count unavailable. Try a shorter time range or run the query again.'
-                      : 'Matching logs in the current query and time range'
-                }
-                aria-label={
-                  isCountLoading
-                    ? 'Counting matching logs'
-                    : logCount == null
-                      ? 'Count unavailable'
-                      : `${BigInt(logCount).toLocaleString()} matching logs`
-                }
-              >
-                {isCountLoading ? (
-                  <Loader size={10} color="gray" />
-                ) : logCount == null ? (
-                  '—'
-                ) : (
-                  BigInt(logCount).toLocaleString()
-                )}
-              </Text>
+              <FilterLogCount
+                count={logCount}
+                loading={isCountLoading}
+                partial={isCountPartial}
+                error={countError}
+                countedTo={countedTo}
+                testId={`filter-count-${columnName}-${label}`}
+              />
             )}
             {percentage != null && (
               <FilterPercentage
@@ -446,6 +435,7 @@ type SelectedValues = {
 };
 
 export type FilterGroupProps = {
+  summarySourceId?: string;
   name: string;
   options: { value: string | boolean; label: string }[];
   optionsLoading?: boolean;
@@ -608,11 +598,15 @@ const FilterGroupBody = ({
     data: logCounts,
     isFetching: isFetchingCounts,
     error: countsError,
+    isPartial: isCountsPartial,
+    countedTo,
+    refetch: refetchCounts,
   } = useGetValueCounts({
     chartConfig,
     key: distributionKey || name,
     values: countValues,
     enabled: showLogCounts,
+    isLive,
   });
 
   const displayedItemLimit = shouldShowMore
@@ -621,23 +615,16 @@ const FilterGroupBody = ({
 
   // Options matching search, sorted appropriately
   const sortedMatchingOptions = useMemo(() => {
-    // When searching, sort alphabetically
-    if (search) {
-      return augmentedOptions
-        .filter(option => {
-          return (
-            option.value &&
-            option.label.toLowerCase().includes(search.toLowerCase())
-          );
-        })
-        .toSorted((a, b) =>
-          a.label.localeCompare(b.label, undefined, { numeric: true }),
-        );
-    }
+    const matchingOptions = search
+      ? augmentedOptions.filter(option =>
+          option.label.toLowerCase().includes(search.toLowerCase()),
+        )
+      : augmentedOptions;
 
-    // When not searching, sort by personal pinned, shared pinned, selected,
-    // matching log count, distribution, then alphabetically.
-    return augmentedOptions.toSorted((a, b) => {
+    return matchingOptions.toSorted((a, b) => {
+      if (search) {
+        return a.label.localeCompare(b.label, undefined, { numeric: true });
+      }
       const aPinned = isPinned(a.value);
       const aShared = isSharedPinned?.(a.value) ?? false;
       const aIncluded = selectedValues.included.has(a.value);
@@ -663,21 +650,14 @@ const FilterGroupBody = ({
       if (aExcluded && !bExcluded) return -1;
       if (!aExcluded && bExcluded) return 1;
 
-      // Match the GCP Logs Explorer field pane: show the most frequent values
-      // first. Counts are strings so values beyond Number.MAX_SAFE_INTEGER
-      // retain their correct ordering.
-      if (showLogCounts && !countsError) {
-        const parseCount = (value: string | boolean) => {
-          const count = logCounts?.get(String(value));
-          return count != null && /^\d+$/.test(count) ? BigInt(count) : null;
-        };
-        const aCount = parseCount(a.value);
-        const bCount = parseCount(b.value);
-        if (aCount !== bCount) {
-          if (aCount == null) return 1;
-          if (bCount == null) return -1;
-          return aCount > bCount ? -1 : 1;
-        }
+      if (showLogCounts && logCounts) {
+        const aCount = BigInt(logCounts.get(String(a.value)) ?? '-1');
+        const bCount = BigInt(logCounts.get(String(b.value)) ?? '-1');
+        return aCount === bCount
+          ? a.label.localeCompare(b.label, undefined, { numeric: true })
+          : aCount > bCount
+            ? -1
+            : 1;
       }
 
       // Then sort by estimated percentage of rows with this value, if available
@@ -698,7 +678,6 @@ const FilterGroupBody = ({
     selectedValues.included,
     selectedValues.excluded,
     showLogCounts,
-    countsError,
     logCounts,
     distributionData,
   ]);
@@ -740,6 +719,31 @@ const FilterGroupBody = ({
 
   return (
     <Stack gap={0}>
+      {showLogCounts &&
+        (isFetchingCounts || isCountsPartial || countsError) && (
+          <Group gap="xs" px="xs" pb={4}>
+            <Text size="xxs" c="var(--color-text-muted)" role="status">
+              {countsError
+                ? logCounts
+                  ? 'Counting stopped · results retained'
+                  : 'Counts unavailable'
+                : isCountsPartial
+                  ? 'Counts so far · counting older logs'
+                  : logCounts
+                    ? 'Updating counts'
+                    : 'Counting matching logs'}
+            </Text>
+            {countsError && (
+              <Button
+                variant="secondary"
+                size="compact-xs"
+                onClick={() => void refetchCounts()}
+              >
+                Retry counts
+              </Button>
+            )}
+          </Group>
+        )}
       {augmentedOptions.length > 5 && (
         <div className="px-2 pb-2">
           <TextInput
@@ -784,10 +788,11 @@ const FilterGroupBody = ({
           }
           isPercentageLoading={isFetchingDistribution}
           showLogCounts={showLogCounts}
-          logCount={
-            countsError ? undefined : logCounts?.get(String(option.value))
-          }
+          logCount={logCounts?.get(String(option.value))}
           isCountLoading={isFetchingCounts}
+          isCountPartial={isCountsPartial}
+          countError={!!countsError}
+          countedTo={countedTo}
           percentage={
             showDistributions && distributionData
               ? (distributionData.get(option.value.toString()) ?? 0)
@@ -870,6 +875,8 @@ const FilterGroupBody = ({
 };
 
 type FilterGroupActionsProps = {
+  summarySourceId?: string;
+  summaryFieldPath: string;
   name: string;
   hasRange: boolean;
   showDistributions: boolean;
@@ -885,6 +892,8 @@ type FilterGroupActionsProps = {
   onClearClick: VoidFunction;
 };
 function FilterGroupActions({
+  summarySourceId,
+  summaryFieldPath,
   name,
   hasRange,
   showDistributions,
@@ -935,7 +944,13 @@ function FilterGroupActions({
               </ActionIcon>
             </Tooltip>
           )}
-          {canManageShared && onColumnToggle && (
+          {summarySourceId && (
+            <SummaryFieldButton
+              sourceId={summarySourceId}
+              path={summaryFieldPath}
+            />
+          )}
+          {!summarySourceId && canManageShared && onColumnToggle && (
             <Tooltip
               label={isColumnDisplayed ? 'Remove Column' : 'Add Column'}
               position="top"
@@ -991,6 +1006,7 @@ function FilterGroupActions({
 const voidFunc = () => {};
 
 export const FilterGroup = ({
+  summarySourceId,
   name,
   options,
   optionsLoading,
@@ -1111,6 +1127,8 @@ export const FilterGroup = ({
               </Tooltip>
             </Accordion.Control>
             <FilterGroupActions
+              summarySourceId={summarySourceId}
+              summaryFieldPath={cleanedFacetName(distributionKey ?? name)}
               name={name}
               hasRange={hasRange}
               showDistributions={showDistributions}
@@ -1722,6 +1740,9 @@ const DBSearchPageFiltersComponent = ({
             return (
               <FilterGroup
                 key={`${keyPrefix}${facet.key}`}
+                summarySourceId={
+                  source?.kind === SourceKind.Log ? sourceId : undefined
+                }
                 data-testid={`${keyPrefix}filter-group-${facet.key}`}
                 name={cleanedFacetName(facet.key)}
                 distributionKey={facetSqlKey}
@@ -1810,6 +1831,8 @@ const DBSearchPageFiltersComponent = ({
       knownColumns,
       extraFacetKeys,
       visibleFieldSearch,
+      source?.kind,
+      sourceId,
     ],
   );
 

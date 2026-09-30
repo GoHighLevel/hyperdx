@@ -17,6 +17,8 @@ import {
   IconClipboard,
 } from '@tabler/icons-react';
 
+import { jsonTreeEntries } from './jsonTreeEntries';
+
 import styles from './HyperJson.module.scss';
 
 export type LineAction = {
@@ -44,6 +46,7 @@ export type FormatLeafValue = (arg0: {
 // to avoid prop drilling
 type HyperJsonAtom = {
   normallyExpanded: boolean;
+  groupDottedKeys?: boolean;
   expandJsonStrings?: boolean;
   getLineActions?: GetLineActions;
   formatLeafValue?: FormatLeafValue;
@@ -164,6 +167,9 @@ const Line = React.memo(
     disableMenu,
     isInParsedJson = false,
     parsedJsonRootPath,
+    keyPrefix = '',
+    grouped = false,
+    level,
   }: {
     keyName: string;
     keyPath: string[];
@@ -171,6 +177,9 @@ const Line = React.memo(
     disableMenu: boolean;
     isInParsedJson?: boolean;
     parsedJsonRootPath?: string[];
+    keyPrefix?: string;
+    grouped?: boolean;
+    level: number;
   }) => {
     const { normallyExpanded, expandJsonStrings } = useAtomValue(hyperJsonAtom);
 
@@ -230,10 +239,10 @@ const Line = React.memo(
 
     const { formatLeafValue } = useAtomValue(hyperJsonAtom);
 
-    const nestedLevel = parentKeyPath.length;
+    const nestedLevel = level;
     const keyPath = React.useMemo(
-      () => [...parentKeyPath, keyName],
-      [keyName, parentKeyPath],
+      () => (grouped ? parentKeyPath : [...parentKeyPath, keyPrefix + keyName]),
+      [grouped, keyName, keyPrefix, parentKeyPath],
     );
 
     const formattedLeafValue = React.useMemo(() => {
@@ -277,6 +286,7 @@ const Line = React.memo(
         <div
           ref={ref}
           data-testid="json-viewer-line"
+          aria-expanded={isExpandable ? isExpanded : undefined}
           onClick={handleToggle}
           className={cx(styles.line, {
             [styles.nestedLine]: nestedLevel > 0,
@@ -306,7 +316,7 @@ const Line = React.memo(
                 <div className={styles.object}>{'{}'} Parsed JSON</div>
               ) : (
                 <>
-                  <ValueRenderer value={value} ref={valueRef} />
+                  <ValueRenderer value={expandedData} ref={valueRef} />
                   <div className={styles.jsonBtn}>Expand JSON</div>
                 </>
               )
@@ -318,7 +328,7 @@ const Line = React.memo(
               <ValueRenderer value={value} ref={valueRef} />
             )}
           </div>
-          {hovered && !disableMenu && !isSelectingValue && (
+          {hovered && !disableMenu && !grouped && !isSelectingValue && (
             <LineMenu
               keyName={keyName}
               keyPath={keyPath}
@@ -332,6 +342,8 @@ const Line = React.memo(
           <TreeNode
             data={expandedData}
             keyPath={keyPath}
+            keyPrefix={grouped ? keyPrefix + keyName + '.' : ''}
+            level={level + 1}
             disableMenu={disableMenu}
             isInParsedJson={childIsInParsedJson}
             parsedJsonRootPath={childParsedJsonRootPath}
@@ -349,18 +361,21 @@ function TreeNode({
   disableMenu = false,
   isInParsedJson = false,
   parsedJsonRootPath,
+  keyPrefix = '',
+  level = 0,
 }: {
   data: object;
   keyPath?: string[];
   disableMenu?: boolean;
   isInParsedJson?: boolean;
   parsedJsonRootPath?: string[];
+  keyPrefix?: string;
+  level?: number;
 }) {
   const [isExpanded, setIsExpanded] = React.useState(false);
+  const { groupDottedKeys } = useAtomValue(hyperJsonAtom);
 
   const keyPath = React.useMemo(() => _keyPath ?? [], [_keyPath]);
-
-  const originalLength = React.useMemo(() => Object.keys(data).length, [data]);
 
   // ClickHouse hands back `Map(...)` keys in physical storage order, which reads
   // as random for wide maps like `ProfileEvents`. Sorting here (rather than
@@ -368,29 +383,26 @@ function TreeNode({
   // it puts the sort ahead of the MAX_TREE_NODE_ITEMS slice below so the
   // truncated view shows a predictable prefix instead of an arbitrary subset.
   const entries = React.useMemo(() => {
-    const raw = Object.entries(data);
-    // Arrays are index-keyed — reordering them would change the data.
-    if (isArray(data)) {
-      return raw;
-    }
-    return raw.sort(([a], [b]) =>
-      a.localeCompare(b, undefined, { numeric: true }),
-    );
-  }, [data]);
+    return jsonTreeEntries(data, !!groupDottedKeys);
+  }, [data, groupDottedKeys]);
+  const originalLength = entries.length;
 
   const visibleLines = React.useMemo(() => {
     return isExpanded ? entries : entries.slice(0, MAX_TREE_NODE_ITEMS);
   }, [entries, isExpanded]);
-  const nestedLevel = keyPath?.length || 0;
+  const nestedLevel = level;
 
   return (
     <>
-      {visibleLines.map(([key, value]) => (
+      {visibleLines.map(({ key, value, grouped }) => (
         <Line
           key={key}
           keyName={key}
           value={value}
           keyPath={keyPath}
+          keyPrefix={keyPrefix}
+          grouped={grouped}
+          level={level}
           disableMenu={disableMenu}
           isInParsedJson={isInParsedJson}
           parsedJsonRootPath={parsedJsonRootPath}
@@ -431,6 +443,7 @@ const HydrateAtoms = ({
 
 type HyperJsonProps = {
   data: object;
+  groupDottedKeys?: boolean;
   normallyExpanded?: boolean;
   expandJsonStrings?: boolean;
   tabulate?: boolean;
@@ -441,6 +454,7 @@ type HyperJsonProps = {
 
 const HyperJson = ({
   data,
+  groupDottedKeys = false,
   normallyExpanded = false,
   expandJsonStrings = false,
   tabulate = false,
@@ -455,6 +469,7 @@ const HyperJson = ({
       <HydrateAtoms
         initialValues={{
           normallyExpanded,
+          groupDottedKeys,
           expandJsonStrings,
           getLineActions,
           formatLeafValue,

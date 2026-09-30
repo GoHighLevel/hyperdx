@@ -381,7 +381,8 @@ describe('DBRowSidePanelInner, "View Trace" row lookup time filter', () => {
     // The tab panels re-run the same lookup; an unbounded copy in one of them
     // would both scan the table and split the query cache.
     it.each([
-      ['overview', () => mockRowOverviewPanel],
+      // Old Overview links now land on column values, retaining the window.
+      ['overview', () => mockRowDataPanel],
       ['parsed', () => mockRowDataPanel],
     ])('passes the same window to the %s tab', (tab, getSpy) => {
       seedFrame({

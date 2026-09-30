@@ -92,7 +92,9 @@ describe('processRowToWhereClause', () => {
     const row = { tags: ['tag1', 'tag2'] };
     const result = processRowToWhereClause(row, columnMap);
 
-    expect(result).toBe("tags=JSONExtract('tag1', 'tag2', 'Array(String)')");
+    expect(result).toBe(
+      'tags=JSONExtract(\'[\\"tag1\\",\\"tag2\\"]\', \'Array(String)\')',
+    );
   });
 
   it('should handle map columns', () => {
@@ -112,9 +114,46 @@ describe('processRowToWhereClause', () => {
     const result = processRowToWhereClause(row, columnMap);
 
     expect(result).toBe(
-      "attributes=JSONExtract(`key` = 'value', 'Map(String, String)')",
+      'attributes=JSONExtract(\'{\\"key\\":\\"value\\"}\', \'Map(String, String)\')',
     );
   });
+
+  it.each([
+    [
+      'Map(String, String)',
+      JSDataType.Map,
+      {
+        type: 'Normal',
+        message: "Back-off pulling image 'example/image'",
+        path: 'a\\b',
+      },
+    ],
+    ['Array(String)', JSDataType.Array, ['one', 'two']],
+    ['Tuple(String, Int32)', JSDataType.Tuple, ['one', 2]],
+    ['Dynamic', JSDataType.Dynamic, { nested: [1, true] }],
+  ])(
+    'serializes raw %s summary fields exactly once for row lookup',
+    (type, jsType, value) => {
+      const columns = new Map([
+        [
+          'payload',
+          {
+            name: 'payload',
+            type: String(type),
+            valueExpr: 'payload',
+            jsType: jsType as JSDataType,
+          },
+        ],
+      ]);
+      const raw = processRowToWhereClause({ payload: value }, columns);
+      const serialized = processRowToWhereClause(
+        { payload: JSON.stringify(value) },
+        columns,
+      );
+      expect(raw).toBe(serialized);
+      expect(raw).not.toContain('`type` =');
+    },
+  );
 
   it('should handle JSON columns with MD5', () => {
     const columnMap = new Map([

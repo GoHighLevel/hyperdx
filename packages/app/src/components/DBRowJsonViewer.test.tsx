@@ -74,13 +74,35 @@ describe('DBRowJsonViewer', () => {
   });
 
   // Helper to render component
-  const renderComponent = (data: any) => {
-    return renderWithMantine(
+  const renderComponent = (data: any, expand = true) => {
+    const result = renderWithMantine(
       <RowSidePanelContext value={defaultContext}>
         <DBRowJsonViewer data={data} />
       </RowSidePanelContext>,
     );
+    // Existing action tests inspect nested fields; expand them as a user would.
+    if (expand) {
+      let collapsed;
+      while (
+        (collapsed = result.container.querySelector(
+          '[data-testid="json-viewer-line"][aria-expanded="false"]',
+        ))
+      ) {
+        fireEvent.click(collapsed);
+      }
+    }
+    return result;
   };
+
+  it('starts column-value JSON collapsed without a saved expansion preference', () => {
+    renderComponent(logData, false);
+    expect(screen.queryByText('field1')).not.toBeInTheDocument();
+    expect(
+      screen
+        .getByText('LogAttributes')
+        .closest('[data-testid="json-viewer-line"]'),
+    ).toHaveAttribute('aria-expanded', 'false');
+  });
 
   // Line action buttons are now icon-only; locate them by their `title`
   // tooltip. Maps the friendly action name to a unique title substring.
@@ -148,6 +170,17 @@ describe('DBRowJsonViewer', () => {
     expect(mockToggleColumn).not.toHaveBeenCalled();
   });
 
+  it('keeps developer column edits hidden while allowing a JSON field to filter logs', () => {
+    jest.mocked(usePermissions).mockReturnValue({ canManageShared: false });
+    renderComponent(logData);
+    expect(
+      screen.queryByTitle(/column to results table/i),
+    ).not.toBeInTheDocument();
+    clickLineButton('field1', 'Add to Filters');
+    expect(mockOnPropertyAddClick).toHaveBeenCalled();
+    expect(mockToggleColumn).not.toHaveBeenCalled();
+  });
+
   it('formats span attributes correctly', () => {
     renderComponent(spanData);
     clickLineButton('field1', 'Search');
@@ -201,7 +234,7 @@ describe('DBRowJsonViewer', () => {
   it('adds a JSONExtractString filter for a value inside a parsed-JSON string column', () => {
     renderComponent({ Body: JSON.stringify({ 'app.user.currency': 'USD' }) });
 
-    expandAndClickButton('Body', 'app.user.currency', 'Add to Filters');
+    clickLineButton('currency', 'Add to Filters');
 
     expect(mockOnPropertyAddClick).toHaveBeenCalledWith(
       "JSONExtractString(Body, 'app.user.currency')",
@@ -212,7 +245,7 @@ describe('DBRowJsonViewer', () => {
   it('excludes a JSONExtractString filter for a value inside parsed JSON', () => {
     renderComponent({ Body: JSON.stringify({ 'app.user.currency': 'USD' }) });
 
-    expandAndClickButton('Body', 'app.user.currency', 'Exclude from Filters');
+    clickLineButton('currency', 'Exclude from Filters');
 
     expect(mockOnPropertyAddClick).toHaveBeenCalledWith(
       "JSONExtractString(Body, 'app.user.currency')",

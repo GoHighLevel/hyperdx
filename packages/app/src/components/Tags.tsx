@@ -23,11 +23,13 @@ export const Tags = React.memo(
     onChange,
     allowCreate,
     children,
+    canEdit,
   }: {
     values: string[];
     onChange: (value: string[]) => void;
     allowCreate?: boolean;
     children?: React.ReactNode;
+    canEdit?: boolean;
   }) => {
     const { canManageShared } = usePermissions();
     const {
@@ -86,7 +88,7 @@ export const Tags = React.memo(
 
     return (
       <Popover
-        disabled={allowCreate && !canManageShared}
+        disabled={allowCreate && !(canEdit ?? canManageShared)}
         withinPortal
         width={240}
         keepMounted={false}
