@@ -4,5 +4,5 @@
 ---
 
 Bound metrics query concurrency, propagate chart cancellation, reject incomplete
-VictoriaMetrics results, and allow operators to route saved Prometheus
-connections to a native backend with coordinated request deadlines.
+VictoriaMetrics partial results when exposed by the upstream, and make request
+deadlines configurable while preserving the saved Prometheus connection route.

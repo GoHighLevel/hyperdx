@@ -19,7 +19,6 @@ import logger from '@/utils/logger';
 import {
   acquirePrometheusQuery,
   prometheusProxySettings,
-  resolvePrometheusHost,
 } from '@/utils/prometheusProxySettings';
 import { objectIdSchema } from '@/utils/zod';
 
@@ -270,7 +269,7 @@ export async function proxyToPrometheus(
 ): Promise<number> {
   let url: URL;
   try {
-    url = joinPrometheusUpstreamUrl(resolvePrometheusHost(upstreamHost), path);
+    url = joinPrometheusUpstreamUrl(upstreamHost, path);
   } catch (err) {
     // Not echoing `upstreamHost` at all -- a redaction regex on an arbitrary
     // (possibly malformed, since this is the failure branch) string can

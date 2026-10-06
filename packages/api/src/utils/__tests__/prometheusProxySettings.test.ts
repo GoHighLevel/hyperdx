@@ -1,56 +1,28 @@
 import {
   acquirePrometheusQuery,
   parsePrometheusProxySettings,
-  prometheusProxySettings,
-  resolvePrometheusHost,
 } from '@/utils/prometheusProxySettings';
 
 describe('Prometheus proxy policy', () => {
   it.each([
-    { 'http://source/?extra_label=tenant:a': 'http://target/' },
-    { 'http://user:secret@source/': 'http://target/' },
-    {
-      'http://source/?extra_label=tenant:a':
-        'http://target/?extra_label=tenant:b',
-    },
-  ])(
-    'rejects an override that drops or changes source isolation/authentication',
-    upstreams => {
-      expect(() =>
-        parsePrometheusProxySettings({
-          PROMETHEUS_UPSTREAM_URL_MAP: JSON.stringify(upstreams),
-        }),
-      ).toThrow('Invalid Prometheus proxy configuration.');
-    },
-  );
-  it('validates limits without exposing URL credentials', () => {
-    expect(() =>
-      parsePrometheusProxySettings({
-        PROMETHEUS_PROXY_TIMEOUT_MS: 'NaN',
-        PROMETHEUS_UPSTREAM_URL_MAP: '{secret',
-      }),
-    ).toThrow('Invalid Prometheus proxy configuration.');
-    expect(() =>
-      parsePrometheusProxySettings({
-        PROMETHEUS_UPSTREAM_URL_MAP: '{"http://old":"file:///secret"}',
-      }),
-    ).toThrow('Invalid Prometheus proxy configuration.');
-    expect(parsePrometheusProxySettings({})).toMatchObject({
+    { PROMETHEUS_PROXY_TIMEOUT_MS: 'NaN' },
+    { PROMETHEUS_PROXY_TIMEOUT_MS: '19999' },
+    { PROMETHEUS_PROXY_TIMEOUT_MS: '600001' },
+    { PROMETHEUS_PROXY_MAX_CONCURRENT: '0' },
+    { PROMETHEUS_PROXY_MAX_CONCURRENT: '65' },
+  ])('rejects invalid operator limits: %j', env => {
+    expect(() => parsePrometheusProxySettings(env)).toThrow(
+      'Invalid Prometheus proxy configuration.',
+    );
+  });
+  it('preserves the default deadline and accepts an explicit longer budget', () => {
+    expect(parsePrometheusProxySettings({})).toEqual({
       timeoutMs: 90000,
       maxConcurrent: 8,
     });
-  });
-
-  it('only remaps the exact saved URL, including its tenant parameters', () => {
-    const source = 'http://thanos/?extra_label=team:a';
-    prometheusProxySettings.upstreams[source] =
-      'http://vm/select/100/prometheus?extra_label=team:a&deny_partial_response=1';
-    expect(resolvePrometheusHost(source)).toContain('/select/100/prometheus');
-    expect(resolvePrometheusHost('http://thanos/?extra_label=team:b')).toBe(
-      'http://thanos/?extra_label=team:b',
-    );
-    expect(resolvePrometheusHost('http://thanos/')).toBe('http://thanos/');
-    delete prometheusProxySettings.upstreams[source];
+    expect(
+      parsePrometheusProxySettings({ PROMETHEUS_PROXY_TIMEOUT_MS: '600000' }),
+    ).toEqual({ timeoutMs: 600000, maxConcurrent: 8 });
   });
 
   it('caps active queries and releases slots once after success, failure or cancellation', () => {

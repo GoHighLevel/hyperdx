@@ -4,10 +4,7 @@ import express from 'express';
 import request from 'supertest';
 
 import { proxyToPrometheus } from '@/routers/api/prometheus';
-import { prometheusProxySettings } from '@/utils/prometheusProxySettings';
-
-const host = 'http://thanos/';
-const target = 'http://vm/select/100/prometheus?deny_partial_response=1';
+const host = 'http://vm/select/100/prometheus?deny_partial_response=1';
 const params = {
   query: 'up',
   start: '0',
@@ -44,11 +41,7 @@ function app(deadlineMs?: number) {
 describe('Prometheus HTTP proxy lifecycle', () => {
   beforeEach(() => {
     mockFetch.mockReset();
-    prometheusProxySettings.upstreams[host] = target;
     mockFetch.mockResolvedValue(response(payload));
-  });
-  afterEach(() => {
-    delete prometheusProxySettings.upstreams[host];
   });
 
   it('keeps 90 days, tenant prefix and pinned VM policy while bounding execution time', async () => {
