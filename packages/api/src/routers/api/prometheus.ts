@@ -16,6 +16,11 @@ import {
 import { getNonNullUserWithTeam } from '@/middleware/auth';
 import { getCounter, getHistogram } from '@/utils/instrumentation';
 import logger from '@/utils/logger';
+import {
+  acquirePrometheusQuery,
+  prometheusProxySettings,
+  resolvePrometheusHost,
+} from '@/utils/prometheusProxySettings';
 import { objectIdSchema } from '@/utils/zod';
 
 const router = express.Router();
@@ -46,6 +51,8 @@ router.use(express.urlencoded({ extended: true }));
 // echoes caller-supplied text back in an error body. Set here rather than in the
 // proxy helper so the handlers' own catch blocks are covered too.
 router.use((_req, res, next) => {
+  res.locals.prometheusDeadline =
+    Date.now() + prometheusProxySettings.timeoutMs;
   res.setHeader('x-content-type-options', 'nosniff');
   next();
 });
@@ -70,7 +77,13 @@ export function parseDuration(value: string | number): number {
   const num = Number(value);
   if (!isNaN(num)) return num;
   const match = value.match(/^(\d+(?:\.\d+)?)(ms|s|m|h|d|w|y)$/);
-  if (!match) throw new Error(`Invalid duration: ${value}`);
+  if (!match) {
+    const parts = value.match(/\d+(?:\.\d+)?(?:ms|[smhdwy])/g);
+    if (parts && parts.length > 1 && parts.join('') === value) {
+      return parts.reduce((seconds, part) => seconds + parseDuration(part), 0);
+    }
+    throw new Error(`Invalid duration: ${value}`);
+  }
   const n = parseFloat(match[1]);
   switch (match[2]) {
     case 'ms':
@@ -159,7 +172,6 @@ export function formatVectorResponse(
 // Prometheus proxy (for real Prometheus backends)
 // --------------------------
 
-const PROMETHEUS_PROXY_TIMEOUT_MS = 90_000;
 const PROMETHEUS_CH_TIMEOUT_MS = 30_000;
 const PROMETHEUS_MAX_RESOLUTION = 11_000;
 // Widest window /query_exemplars will proxy. Prometheus's exemplar store is a
@@ -250,7 +262,7 @@ const CALLER_SETTABLE_PARAM_KEYS = new Set([
 // Prometheus's native response shape (`{status, data}` / `{status, errorType,
 // error}`) is already what HyperDX clients expect, so we forward the status code
 // as-is — but never the content-type, which is always relabelled (see below).
-async function proxyToPrometheus(
+export async function proxyToPrometheus(
   upstreamHost: string,
   path: string,
   params: Record<string, string | string[] | undefined>,
@@ -258,7 +270,7 @@ async function proxyToPrometheus(
 ): Promise<number> {
   let url: URL;
   try {
-    url = joinPrometheusUpstreamUrl(upstreamHost, path);
+    url = joinPrometheusUpstreamUrl(resolvePrometheusHost(upstreamHost), path);
   } catch (err) {
     // Not echoing `upstreamHost` at all -- a redaction regex on an arbitrary
     // (possibly malformed, since this is the failure branch) string can
@@ -298,94 +310,185 @@ async function proxyToPrometheus(
       url.searchParams.set(k, v);
     }
   }
-  const target = url.toString();
-
-  // A connection host may carry basic-auth credentials (`http://user:pw@host`)
-  // or a secret pinned in its own query string (e.g. VictoriaMetrics
-  // `?authKey=...`, preserved by the merge above for any key outside
-  // `CALLER_SETTABLE_PARAM_KEYS`), and the error bodies below are shown in
-  // the browser. `url.origin` never includes userinfo (WHATWG URL spec), and
-  // dropping the query/hash entirely -- rather than trying to redact only the
-  // secret-shaped parts of it -- means there's no query key to ever miss.
-  // `target` itself is unaffected and still carries everything needed to
-  // authenticate.
-  const redactedTarget = `${url.origin}${url.pathname}`;
-
-  let upstreamResp: Response;
-  try {
-    upstreamResp = await fetch(target, {
-      signal: AbortSignal.timeout(PROMETHEUS_PROXY_TIMEOUT_MS),
+  if (res.destroyed) return 499;
+  const remainingMs = Math.max(
+    0,
+    (res.locals.prometheusDeadline ??
+      Date.now() + prometheusProxySettings.timeoutMs) - Date.now(),
+  );
+  const isQuery = path === '/api/v1/query' || path === '/api/v1/query_range';
+  if (remainingMs <= 10000) {
+    res.status(504).json({
+      status: 'error',
+      errorType: 'timeout',
+      error: 'Metrics request deadline expired before execution.',
     });
-  } catch (err) {
-    if (err instanceof Error && err.name === 'TimeoutError') {
-      res.status(504).json({
+    return 504;
+  }
+  if (isQuery) {
+    try {
+      if (path === '/api/v1/query_range') {
+        const start = parseTimestamp(url.searchParams.get('start') ?? '');
+        const end = parseTimestamp(url.searchParams.get('end') ?? '');
+        const step = parseDuration(url.searchParams.get('step') ?? '0');
+        if (
+          !url.searchParams.get('start')?.trim() ||
+          !url.searchParams.get('end')?.trim() ||
+          !Number.isFinite(start) ||
+          !Number.isFinite(end) ||
+          !Number.isFinite(step) ||
+          step <= 0 ||
+          end < start ||
+          (end - start) / step > PROMETHEUS_MAX_RESOLUTION
+        ) {
+          res.status(400).json({
+            status: 'error',
+            errorType: 'bad_data',
+            error:
+              'Invalid metrics range or more than 11,000 points per series. Choose a coarser granularity.',
+          });
+          return 400;
+        }
+      }
+      const budgetSec = (remainingMs - 10000) / 1000;
+      const requestedSec = url.searchParams.has('timeout')
+        ? parseDuration(url.searchParams.get('timeout')!)
+        : budgetSec;
+      if (!Number.isFinite(requestedSec) || requestedSec <= 0)
+        throw new Error('Invalid timeout');
+      // Numeric seconds work with both Prometheus and VM; fractional unit
+      // strings such as 79.987s are rejected by Prometheus's duration parser.
+      url.searchParams.set(
+        'timeout',
+        String(Math.min(requestedSec, budgetSec)),
+      );
+    } catch {
+      res.status(400).json({
         status: 'error',
-        errorType: 'timeout',
-        error: `Prometheus request to ${redactedTarget} timed out after ${PROMETHEUS_PROXY_TIMEOUT_MS}ms`,
+        errorType: 'bad_data',
+        error: 'Query timeout must be a positive duration.',
       });
-      return 504;
+      return 400;
     }
-    // Node's fetch wraps the real network error (ECONNREFUSED, ENOTFOUND, TLS,
-    // …) in `.cause`. Without unwrapping it the client only sees a useless
-    // `"fetch failed"`.
-    const cause = err instanceof Error ? (err.cause ?? err) : err;
-    let detail: string;
-    if (cause && typeof cause === 'object' && 'code' in cause) {
-      const c = cause as { code: string; message?: string };
-      detail = c.message ? `${c.code}: ${c.message}` : c.code;
-    } else if (cause instanceof Error) {
-      detail = cause.message;
-    } else {
-      detail = String(cause);
-    }
-    res.status(502).json({
+  }
+  const release = isQuery ? acquirePrometheusQuery() : () => {};
+  if (!release) {
+    res.setHeader('retry-after', '5');
+    res.status(429).json({
       status: 'error',
       errorType: 'unavailable',
-      error: `Failed to reach Prometheus at ${redactedTarget} (${detail})`,
+      error:
+        'Metrics query capacity is busy. Retry after pending queries finish.',
     });
-    return 502;
+    return 429;
   }
-
-  res.status(upstreamResp.status);
-
-  // The connection host is member-configured, so its response is untrusted output
-  // on our own origin: the app same-origin-proxies /api/*, and the session cookie
-  // is sameSite lax. Forwarding the upstream content-type would let a text/html
-  // body render as script here, so it is never forwarded — every response is
-  // relabelled, which keeps a genuine Prometheus error body readable while making
-  // a hostile one inert.
-  //
-  // An allowlist was tried first and is not worth it. Prometheus only ever
-  // answers application/json, so passing anything through buys nothing, and
-  // getting the check right is easy to botch: `Content-Type: application/json,
-  // text/html` (which is also what Headers.get() produces from two separate
-  // headers) passes a prefix-anchored JSON test, while the browser's MIME
-  // extraction keeps the *last* essence — text/html.
-  res.setHeader('content-type', 'application/json; charset=utf-8');
-
-  if (!upstreamResp.body) {
-    res.end();
-    return upstreamResp.status;
-  }
-
+  const abort = new AbortController();
+  const timeout = setTimeout(
+    () =>
+      abort.abort(
+        new DOMException('Metrics request timed out', 'TimeoutError'),
+      ),
+    remainingMs,
+  );
+  const disconnect = () => {
+    if (!res.writableFinished) abort.abort();
+  };
+  res.once('close', disconnect);
   try {
-    await pipeline(Readable.fromWeb(upstreamResp.body as any), res);
-  } catch (err) {
-    // A client that navigates away mid-body makes `pipeline` reject too. That is
-    // not a backend failure, and returning 502 for it would have the caller count
-    // ordinary user cancellations against Prometheus's health. Report the
-    // upstream's own status in that case; only a genuine stream failure is 502.
-    const clientGone = isClientDisconnect(err);
+    const target = url.toString();
 
-    // Headers are already sent at this point — best we can do is destroy the
-    // socket so the client sees a truncated response instead of a hung
-    // connection.
-    if (!res.writableEnded) {
-      res.destroy(err instanceof Error ? err : new Error(String(err)));
+    // A connection host may carry basic-auth credentials (`http://user:pw@host`)
+    // or a secret pinned in its own query string (e.g. VictoriaMetrics
+    // `?authKey=...`, preserved by the merge above for any key outside
+    // `CALLER_SETTABLE_PARAM_KEYS`), and the error bodies below are shown in
+    // the browser. `url.origin` never includes userinfo (WHATWG URL spec), and
+    // dropping the query/hash entirely -- rather than trying to redact only the
+    // secret-shaped parts of it -- means there's no query key to ever miss.
+    // `target` itself is unaffected and still carries everything needed to
+    // authenticate.
+    const redactedTarget = `${url.origin}${url.pathname}`;
+
+    let upstreamResp: Response;
+    try {
+      upstreamResp = await fetch(target, {
+        signal: abort.signal,
+      });
+    } catch (err) {
+      if (res.destroyed) return 499;
+      if (abort.signal.reason?.name === 'TimeoutError') {
+        res.status(504).json({
+          status: 'error',
+          errorType: 'timeout',
+          error: `Prometheus request to ${redactedTarget} exceeded the metrics request deadline`,
+        });
+        return 504;
+      }
+      // Node's fetch wraps the real network error (ECONNREFUSED, ENOTFOUND, TLS,
+      // …) in `.cause`. Without unwrapping it the client only sees a useless
+      // `"fetch failed"`.
+      const cause = err instanceof Error ? (err.cause ?? err) : err;
+      let detail: string;
+      if (cause && typeof cause === 'object' && 'code' in cause) {
+        const c = cause as { code: string; message?: string };
+        detail = c.message ? `${c.code}: ${c.message}` : c.code;
+      } else if (cause instanceof Error) {
+        detail = cause.message;
+      } else {
+        detail = String(cause);
+      }
+      res.status(502).json({
+        status: 'error',
+        errorType: 'unavailable',
+        error: `Failed to reach Prometheus at ${redactedTarget} (${detail})`,
+      });
+      return 502;
     }
-    return clientGone ? upstreamResp.status : 502;
+
+    res.status(upstreamResp.status);
+
+    // The connection host is member-configured, so its response is untrusted output
+    // on our own origin: the app same-origin-proxies /api/*, and the session cookie
+    // is sameSite lax. Forwarding the upstream content-type would let a text/html
+    // body render as script here, so it is never forwarded — every response is
+    // relabelled, which keeps a genuine Prometheus error body readable while making
+    // a hostile one inert.
+    //
+    // An allowlist was tried first and is not worth it. Prometheus only ever
+    // answers application/json, so passing anything through buys nothing, and
+    // getting the check right is easy to botch: `Content-Type: application/json,
+    // text/html` (which is also what Headers.get() produces from two separate
+    // headers) passes a prefix-anchored JSON test, while the browser's MIME
+    // extraction keeps the *last* essence — text/html.
+    res.setHeader('content-type', 'application/json; charset=utf-8');
+
+    if (!upstreamResp.body) {
+      res.end();
+      return upstreamResp.status;
+    }
+
+    try {
+      await pipeline(Readable.fromWeb(upstreamResp.body as any), res);
+    } catch (err) {
+      // A client that navigates away mid-body makes `pipeline` reject too. That is
+      // not a backend failure, and returning 502 for it would have the caller count
+      // ordinary user cancellations against Prometheus's health. Report the
+      // upstream's own status in that case; only a genuine stream failure is 502.
+      const clientGone = isClientDisconnect(err);
+
+      // Headers are already sent at this point — best we can do is destroy the
+      // socket so the client sees a truncated response instead of a hung
+      // connection.
+      if (!res.writableEnded) {
+        res.destroy(err instanceof Error ? err : new Error(String(err)));
+      }
+      return clientGone ? upstreamResp.status : 502;
+    }
+    return upstreamResp.status;
+  } finally {
+    clearTimeout(timeout);
+    res.removeListener('close', disconnect);
+    release();
   }
-  return upstreamResp.status;
 }
 
 /**

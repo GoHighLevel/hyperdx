@@ -38,6 +38,8 @@ describe('prometheusApi.queryInstant', () => {
       });
       const result = await prometheusApi.queryInstant(params);
       expect(post).toHaveBeenCalledWith('v1/prometheus/query', {
+        signal: undefined,
+        retry: 0,
         searchParams: {
           query: 'vector(42)',
           time: '1789582068.451',
@@ -82,6 +84,53 @@ describe('prometheusApi.queryInstant', () => {
     await expect(prometheusApi.queryInstant(params)).rejects.toThrow(
       'instant vector or scalar',
     );
+  });
+});
+
+describe('Prometheus chart request safety', () => {
+  const params = {
+    query: 'up',
+    start: 0,
+    end: 7776000,
+    step: '21600s',
+    connectionId: 'conn',
+  };
+  const complete = {
+    status: 'success',
+    data: { resultType: 'matrix', result: [] },
+  };
+  beforeEach(() => post.mockReset());
+
+  it('rejects incomplete VM results instead of rendering them as complete', async () => {
+    post.mockReturnValue({
+      json: async () => ({ ...complete, isPartial: true }),
+    });
+    await expect(prometheusApi.queryRange(params)).rejects.toThrow(
+      /incomplete/i,
+    );
+  });
+
+  it('limits simultaneous chart requests and releases slots after completion', async () => {
+    const finish: Array<() => void> = [];
+    post.mockImplementation(() => ({
+      json: () =>
+        new Promise(resolve => {
+          finish.push(() => resolve(complete));
+        }),
+    }));
+    const requests = Array.from({ length: 6 }, () =>
+      prometheusApi.queryRange(params),
+    );
+    await new Promise(resolve => setTimeout(resolve, 0));
+    const active = post.mock.calls.length;
+    // Resolve dynamically because completing one request starts the next.
+    for (let i = 0; i < 6; i++) {
+      finish[i]();
+      await new Promise(resolve => setTimeout(resolve, 0));
+    }
+    await Promise.all(requests);
+    expect(active).toBe(4);
+    expect(post).toHaveBeenCalledTimes(6);
   });
 });
 

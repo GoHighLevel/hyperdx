@@ -37,6 +37,7 @@ import {
   fetchLabelsInWindows,
   PrometheusLabelsResponse,
 } from './utils/prometheusLabelWindows';
+import { enqueuePrometheusQuery } from './utils/prometheusQueryQueue';
 import { IS_LOCAL_MODE } from './config';
 import { getLocalDashboardTags } from './dashboard';
 type ServicesResponse = {
@@ -628,6 +629,7 @@ type PrometheusMatrixResult = {
   values: [number, string][];
 };
 type PrometheusQueryRangeResponse = {
+  isPartial?: boolean;
   status: 'success' | 'error';
   data?: {
     resultType: 'matrix';
@@ -636,6 +638,7 @@ type PrometheusQueryRangeResponse = {
   error?: string;
 };
 type PrometheusInstantResponse = {
+  isPartial?: boolean;
   status: 'success' | 'error';
   data?:
     | {
@@ -677,15 +680,28 @@ const uniqueLabels = (
 ): PrometheusLabelsResponse =>
   resp.data ? { ...resp, data: [...new Set(resp.data)] } : resp;
 
-const prometheusFetch = <T>(
+const prometheusFetch = <T extends { isPartial?: boolean }>(
   path: string,
   searchParams: Record<string, string>,
+  signal?: AbortSignal,
 ): Promise<T> =>
-  withPrometheusError(() => server.post(path, { searchParams }).json<T>());
+  enqueuePrometheusQuery(async () => {
+    signal?.throwIfAborted();
+    const response = await withPrometheusError(() =>
+      server.post(path, { searchParams, signal, retry: 0 }).json<T>(),
+    );
+    if (response.isPartial) {
+      throw new Error(
+        'Metrics results are incomplete because a storage backend did not respond. Run the query again after backend recovery.',
+      );
+    }
+    return response;
+  }, signal);
 
 export const prometheusApi = {
   // Normalize one-point vectors/scalars for the existing chart renderer.
   queryInstant: async (params: {
+    signal?: AbortSignal;
     query: string;
     time: number;
     connectionId: string;
@@ -701,6 +717,7 @@ export const prometheusApi = {
         ...(params.database ? { database: params.database } : {}),
         ...(params.table ? { table: params.table } : {}),
       },
+      params.signal,
     );
     if (resp.status !== 'success' || !resp.data) {
       throw new Error(resp.error ?? 'PromQL query failed');
@@ -726,6 +743,7 @@ export const prometheusApi = {
     };
   },
   queryRange: (params: {
+    signal?: AbortSignal;
     query: string;
     start: number;
     end: number;
@@ -734,15 +752,19 @@ export const prometheusApi = {
     database?: string;
     table?: string;
   }): Promise<PrometheusQueryRangeResponse> =>
-    prometheusFetch('v1/prometheus/query_range', {
-      query: params.query,
-      start: String(params.start),
-      end: String(params.end),
-      step: params.step,
-      connectionId: params.connectionId,
-      ...(params.database ? { database: params.database } : {}),
-      ...(params.table ? { table: params.table } : {}),
-    }),
+    prometheusFetch(
+      'v1/prometheus/query_range',
+      {
+        query: params.query,
+        start: String(params.start),
+        end: String(params.end),
+        step: params.step,
+        connectionId: params.connectionId,
+        ...(params.database ? { database: params.database } : {}),
+        ...(params.table ? { table: params.table } : {}),
+      },
+      params.signal,
+    ),
 
   labels: (params: {
     connectionId: string;
