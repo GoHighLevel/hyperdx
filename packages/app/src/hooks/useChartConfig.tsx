@@ -340,6 +340,7 @@ export function useQueriedChartConfig(
         );
 
         const params = {
+          signal: context.signal,
           query: promqlExpression,
           connectionId: config.connection,
           database: config.from?.databaseName,
@@ -474,6 +475,8 @@ export function useQueriedChartConfig(
     retry: 1,
     refetchOnWindowFocus: false,
     ...options,
+    // Repeating an expensive timed-out query amplifies backend overload.
+    ...(isPromqlChartConfig(config) ? { retry: false as const } : {}),
     // Even caller-supplied keys must distinguish number and time-series queries.
     queryKey: [
       ...(options?.queryKey ?? [

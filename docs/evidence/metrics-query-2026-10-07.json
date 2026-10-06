@@ -1,0 +1,612 @@
+{
+  "date": "2026-10-07",
+  "vmselect_last_termination": {
+    "source": "kubectl get pod, status.containerStatuses[].lastState.terminated",
+    "context": "gke_highlevel-backend_us-central1_gke-platform-prd-usc1",
+    "namespace": "victoriametrics-platform-prd",
+    "pod": "vmselect-platform-prd-857f494f99-mdf86",
+    "exitCode": 137,
+    "finishedAt": "2026-10-06T19:19:20Z",
+    "reason": "OOMKilled",
+    "startedAt": "2026-10-04T02:25:19Z",
+    "restartCount": 1
+  },
+  "method": "Read-only, sequential fixed-range probes; caches and concurrent load uncontrolled",
+  "probes": [
+    {
+      "time": "2026-10-06T19:16:42Z",
+      "route": "thanos",
+      "tile": "overview-traffic",
+      "params": {
+        "query": "label_replace((sum(rate(istio_requests_total{cluster=~\"servers-usc1-prd-cluster|web-users-servers-usc1-prd-cluster\",reporter=\"source\",source_workload=~\"istio-ingress.*\",destination_service_namespace=~\"default\",destination_service_name=~\"contacts-external-api-service\"}[5m])) * 60), \"series\", \"All requests\", \"\", \"\") or label_replace((sum(rate(istio_requests_total{cluster=~\"servers-usc1-prd-cluster|web-users-servers-usc1-prd-cluster\",reporter=\"source\",source_workload=~\"istio-ingress.*\",destination_service_namespace=~\"default\",destination_service_name=~\"contacts-external-api-service\",response_code=~\"2..\"}[5m])) * 60), \"series\", \"HTTP 2xx\", \"\", \"\") or label_replace((sum(rate(istio_requests_total{cluster=~\"servers-usc1-prd-cluster|web-users-servers-usc1-prd-cluster\",reporter=\"source\",source_workload=~\"istio-ingress.*\",destination_service_namespace=~\"default\",destination_service_name=~\"contacts-external-api-service\",response_code=~\"5..\"}[5m])) * 60), \"series\", \"HTTP 5xx\", \"\", \"\")",
+        "start": 1783512000,
+        "end": 1791288000,
+        "step": "21600"
+      },
+      "seconds": 1.81,
+      "http_status": 200,
+      "status": "success",
+      "error": null,
+      "partial": null,
+      "series": 3,
+      "points": 1083,
+      "response_sha256": "12346d95840a831db08fbb4abe5bb150ec53b9a684638dc94db6956d43c6c3f8",
+      "series_samples": [
+        {
+          "metric": {
+            "series": "All requests"
+          },
+          "first": [1783512000, "15997.8"],
+          "last": [1791288000, "27603.400000000005"]
+        },
+        {
+          "metric": {
+            "series": "HTTP 2xx"
+          },
+          "first": [1783512000, "13354.000000000002"],
+          "last": [1791288000, "24106.000000000004"]
+        },
+        {
+          "metric": {
+            "series": "HTTP 5xx"
+          },
+          "first": [1783512000, "0"],
+          "last": [1791288000, "0"]
+        }
+      ]
+    },
+    {
+      "time": "2026-10-06T19:17:03Z",
+      "route": "vm",
+      "tile": "overview-traffic",
+      "params": {
+        "query": "label_replace((sum(rate(istio_requests_total{cluster=~\"servers-usc1-prd-cluster|web-users-servers-usc1-prd-cluster\",reporter=\"source\",source_workload=~\"istio-ingress.*\",destination_service_namespace=~\"default\",destination_service_name=~\"contacts-external-api-service\"}[5m])) * 60), \"series\", \"All requests\", \"\", \"\") or label_replace((sum(rate(istio_requests_total{cluster=~\"servers-usc1-prd-cluster|web-users-servers-usc1-prd-cluster\",reporter=\"source\",source_workload=~\"istio-ingress.*\",destination_service_namespace=~\"default\",destination_service_name=~\"contacts-external-api-service\",response_code=~\"2..\"}[5m])) * 60), \"series\", \"HTTP 2xx\", \"\", \"\") or label_replace((sum(rate(istio_requests_total{cluster=~\"servers-usc1-prd-cluster|web-users-servers-usc1-prd-cluster\",reporter=\"source\",source_workload=~\"istio-ingress.*\",destination_service_namespace=~\"default\",destination_service_name=~\"contacts-external-api-service\",response_code=~\"5..\"}[5m])) * 60), \"series\", \"HTTP 5xx\", \"\", \"\")",
+        "start": 1783512000,
+        "end": 1791288000,
+        "step": "21600",
+        "timeout": "110s",
+        "deny_partial_response": "1"
+      },
+      "seconds": 1.119,
+      "http_status": 200,
+      "status": "success",
+      "error": null,
+      "partial": false,
+      "series": 3,
+      "points": 1083,
+      "response_sha256": "5658c6c21445b8f62b97ba23c30c9c525af4760a714e2b70ffa5c1b549c29bbd",
+      "series_samples": [
+        {
+          "metric": {
+            "series": "All requests"
+          },
+          "first": [1783512000, "15997.8"],
+          "last": [1791288000, "27603.4"]
+        },
+        {
+          "metric": {
+            "series": "HTTP 2xx"
+          },
+          "first": [1783512000, "13354"],
+          "last": [1791288000, "24106"]
+        },
+        {
+          "metric": {
+            "series": "HTTP 5xx"
+          },
+          "first": [1783512000, "0"],
+          "last": [1791288000, "0"]
+        }
+      ]
+    },
+    {
+      "time": "2026-10-06T19:20:53Z",
+      "route": "public-thanos",
+      "tile": "overview-traffic",
+      "params": {
+        "query": "label_replace((sum(rate(istio_requests_total{cluster=~\"servers-usc1-prd-cluster|web-users-servers-usc1-prd-cluster\",reporter=\"source\",source_workload=~\"istio-ingress.*\",destination_service_namespace=~\"default\",destination_service_name=~\"contacts-external-api-service\"}[5m])) * 60), \"series\", \"All requests\", \"\", \"\") or label_replace((sum(rate(istio_requests_total{cluster=~\"servers-usc1-prd-cluster|web-users-servers-usc1-prd-cluster\",reporter=\"source\",source_workload=~\"istio-ingress.*\",destination_service_namespace=~\"default\",destination_service_name=~\"contacts-external-api-service\",response_code=~\"2..\"}[5m])) * 60), \"series\", \"HTTP 2xx\", \"\", \"\") or label_replace((sum(rate(istio_requests_total{cluster=~\"servers-usc1-prd-cluster|web-users-servers-usc1-prd-cluster\",reporter=\"source\",source_workload=~\"istio-ingress.*\",destination_service_namespace=~\"default\",destination_service_name=~\"contacts-external-api-service\",response_code=~\"5..\"}[5m])) * 60), \"series\", \"HTTP 5xx\", \"\", \"\")",
+        "start": 1783512000,
+        "end": 1791288000,
+        "step": "21600"
+      },
+      "seconds": 0.549,
+      "http_status": 200,
+      "status": "success",
+      "error": null,
+      "partial": null,
+      "series": 3,
+      "points": 1083,
+      "response_sha256": "12346d95840a831db08fbb4abe5bb150ec53b9a684638dc94db6956d43c6c3f8",
+      "series_samples": [
+        {
+          "metric": {
+            "series": "All requests"
+          },
+          "first": [1783512000, "15997.8"],
+          "last": [1791288000, "27603.400000000005"]
+        },
+        {
+          "metric": {
+            "series": "HTTP 2xx"
+          },
+          "first": [1783512000, "13354.000000000002"],
+          "last": [1791288000, "24106.000000000004"]
+        },
+        {
+          "metric": {
+            "series": "HTTP 5xx"
+          },
+          "first": [1783512000, "0"],
+          "last": [1791288000, "0"]
+        }
+      ]
+    },
+    {
+      "time": "2026-10-06T19:17:43Z",
+      "route": "thanos",
+      "tile": "all-pools-0-cpu-headroom",
+      "params": {
+        "query": "WITH(s={cluster=\"servers-usc1-prd-cluster\"},m(v,a,b)=label_transform(v,\"nodepool\",a,b),poolmap(v)=label_match(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(label_replace(v,\"nodepool\",\"$1\",\"node\",\".*-([^-]+)-[^-]+$\"),\"^(2c157954|926edfe5|c5722be2)$\",\"custom-code-workers-np\"),\"^(1161ac27|3bce6e3b|bdc50e80)$\",\"hc-l-node-pool\"),\"^(332dd6dd|e879378c|eee72b38)$\",\"hc-xl-node-pool\"),\"^(90dcee20|aa265fdb|ca98bf98)$\",\"hc-xl-node-pool-ht-node-pool\"),\"^(0fcf3ad5|5fb40473|ba4998b7)$\",\"hc-xl-node-pool-np\"),\"^(6463d510|6dbde41f|d49a3371)$\",\"hc-xxl-node-pool\"),\"^(9c5681c4|e0990c4e|f374f50a)$\",\"jobs-node-pool\"),\"^(1b0070e6|28f775fe|db8ecb6a)$\",\"l-node-pool\"),\"^(049110ff|0d07ca91|741226d6)$\",\"n2d-standard-64-node-pool\"),\"^(5cf83164|8a0a38b5|bf71913f)$\",\"n4d-l-node-pool\"),\"^(2cf015da|4a1730b5|8b8ceefc)$\",\"n4d-xl-node-pool\"),\"^(12253142|33d6a217|e7454bd1)$\",\"nap-c3-highcpu-44-1vmpoxd0\"),\"^(05b46473|49393f3b|b2038f93)$\",\"nap-c3-standard-44-1p4zpq86\"),\"^(63f5d2e7|73018cb3|b6ba8189)$\",\"nap-c4-standard-32-1ptzgk87\"),\"^(583beae3|6a918b13|f636b3eb)$\",\"nap-c4d-highcpu-64-3hddebpd\"),\"^(08e57b06)$\",\"nap-c4d-standar-32-184ultu9\"),\"^(0b8cd2be)$\",\"nap-c4d-standar-32-1bw3whvp\"),\"^(b51d0ced)$\",\"nap-c4d-standar-64-146lcinz\"),\"^(e55573a7)$\",\"nap-c4d-standar-64-199xybnp\"),\"^(29291a53|de6dd1c8|e4b7cbde)$\",\"nap-c4d-standar-64-1f9cn66c\"),\"^(3ecb1151|ebcfb4fd)$\",\"nap-c4d-standar-64-1knyurt1\"),\"^(b7d34a06)$\",\"nap-c4d-standar-64-9jqgocx7\"),\"^(194ec713|f77bdadc|f94a9a30)$\",\"nap-n2d-highcpu-32-9v5rgf08\"),\"^(00b8720f|1974e3e8|ccc825ce)$\",\"nap-n2d-highcpu-64-1o7z5l7f\"),\"^(0f4343ae|8a5b4b0b|ceda046a)$\",\"nap-n2d-standar-16-gffbvy1a\"),\"^(5751a741|7f950fad|beb7dca0)$\",\"nap-n2d-standar-32-1ic2apig\"),\"^(4900c434|841f9709|8dac8de8)$\",\"nap-n2d-standar-64-7oe2tdvm\"),\"^(40dc01e8)$\",\"nap-n4-highcpu-64-1xham7oi\"),\"^(14d09db9|1f267711|ff79afbc)$\",\"nap-n4d-standar-64-58b7gavn\"),\"^(4e319310|819fa74e|9d9b8797)$\",\"np-servers-devops-1to4-amd64-prd\"),\"^(6a13f5a5|76b2d028|8419301f)$\",\"system-node-pool\"),\"^(38ac9fa1|6e71a442|e8e78c04)$\",\"t2d-xl-node-pool\"),\"^(1257c069|347ea5c2|690d4abf)$\",\"xl-node-pool\"),\"^(07fe258f|15b3aeee|8eb125d0)$\",\"xl-node-pool-ht-node-pool\"),\"^(560163a6|77b42713|be1a6429)$\",\"xxl-node-pool\"),\"^([a-f0-9]{8})$\",\"UNMAPPED IGM $1\"),\"nodepool\",\".*\"),c=max by(node)(kube_node_status_allocatable{s,resource=\"cpu\"}) and on(node)(max by(node)(kube_node_status_condition{s,condition=\"Ready\",status=\"true\"})==1) and on(node)(max by(node)(kube_node_spec_unschedulable{s})==0) unless on(node)(max by(node)(kube_node_spec_taint{s,key=\"ToBeDeletedByClusterAutoscaler\"})),r=sum by(namespace,node)(label_set((max by(namespace,pod,container,node)(cluster:namespace:pod_cpu:active:kube_pod_container_resource_requests{s})),\"series\",\"regular\") or label_set((max by(namespace,pod,container,node)(kube_pod_init_container_resource_requests{s,resource=\"cpu\"}) and on(namespace,pod)(max by(namespace,pod)(kube_pod_status_phase{s,phase=~\"Running|Pending\"})==1)),\"series\",\"init\"))) ((sum by(nodepool)(poolmap(c)) or on(nodepool) (0 * sum by(nodepool)(poolmap(max by(node)(kube_node_status_allocatable{s,resource=\"cpu\"}))))) - on(nodepool) (sum by(nodepool)(poolmap(sum by(node)(label_mismatch(r,\"namespace\",\"buffer-capacity\")))) or on(nodepool) (0 * (sum by(nodepool)(poolmap(c)) or on(nodepool) (0 * sum by(nodepool)(poolmap(max by(node)(kube_node_status_allocatable{s,resource=\"cpu\"}))))))))",
+        "start": 1783512000,
+        "end": 1791288000,
+        "step": "21600"
+      },
+      "seconds": 21.833,
+      "http_status": 200,
+      "status": "success",
+      "error": null,
+      "partial": null,
+      "series": 45,
+      "points": 3435,
+      "response_sha256": "8aba6b1d7cd8bec2380fb92ec79d24567f4b77e0c37011bf1e32fcbed525a231",
+      "series_samples": [
+        {
+          "metric": {
+            "nodepool": "UNMAPPED IGM 06b35095"
+          },
+          "first": [1790769600, "-0.03400000000000247"],
+          "last": [1790812800, "-0.03400000000000247"]
+        },
+        {
+          "metric": {
+            "nodepool": "UNMAPPED IGM 14b99b46"
+          },
+          "first": [1790424000, "59.886"],
+          "last": [1790510400, "59.886"]
+        },
+        {
+          "metric": {
+            "nodepool": "UNMAPPED IGM 18094229"
+          },
+          "first": [1790877600, "51.886"],
+          "last": [1790877600, "51.886"]
+        },
+        {
+          "metric": {
+            "nodepool": "UNMAPPED IGM 2d74f9c5"
+          },
+          "first": [1790164800, "28.966"],
+          "last": [1790575200, "28.966"]
+        },
+        {
+          "metric": {
+            "nodepool": "UNMAPPED IGM 61cb4c5d"
+          },
+          "first": [1790920800, "222.13400000000001"],
+          "last": [1790920800, "222.13400000000001"]
+        },
+        {
+          "metric": {
+            "nodepool": "UNMAPPED IGM 67dd1f58"
+          },
+          "first": [1790769600, "-0.06800000000000495"],
+          "last": [1790812800, "-0.06799999999999784"]
+        },
+        {
+          "metric": {
+            "nodepool": "UNMAPPED IGM 8e4f3a60"
+          },
+          "first": [1790856000, "0.7160000000000011"],
+          "last": [1790899200, "0.7160000000000011"]
+        },
+        {
+          "metric": {
+            "nodepool": "UNMAPPED IGM 92a6c2e8"
+          },
+          "first": [1786708800, "13.318000000000005"],
+          "last": [1789776000, "0.006000000000000227"]
+        },
+        {
+          "metric": {
+            "nodepool": "UNMAPPED IGM a2c82498"
+          },
+          "first": [1790964000, "155.65800000000002"],
+          "last": [1790964000, "155.65800000000002"]
+        },
+        {
+          "metric": {
+            "nodepool": "UNMAPPED IGM a5eb6f7c"
+          },
+          "first": [1790920800, "121.772"],
+          "last": [1790942400, "103.772"]
+        },
+        {
+          "metric": {
+            "nodepool": "UNMAPPED IGM bb8c3ba1"
+          },
+          "first": [1790834400, "105.772"],
+          "last": [1790899200, "2.7720000000000056"]
+        },
+        {
+          "metric": {
+            "nodepool": "UNMAPPED IGM c3585ba8"
+          },
+          "first": [1790834400, "103.772"],
+          "last": [1790834400, "103.772"]
+        },
+        {
+          "metric": {
+            "nodepool": "UNMAPPED IGM c3c8c05f"
+          },
+          "first": [1790942400, "59.886"],
+          "last": [1790985600, "44.29400000000001"]
+        },
+        {
+          "metric": {
+            "nodepool": "UNMAPPED IGM ce5b460d"
+          },
+          "first": [1786708800, "0.31800000000000495"],
+          "last": [1789797600, "3.0120000000000005"]
+        },
+        {
+          "metric": {
+            "nodepool": "UNMAPPED IGM d962358b"
+          },
+          "first": [1786708800, "0.31800000000000495"],
+          "last": [1789797600, "6.0120000000000005"]
+        },
+        {
+          "metric": {
+            "nodepool": "UNMAPPED IGM e72d72b9"
+          },
+          "first": [1790942400, "-0.03400000000000247"],
+          "last": [1790985600, "-0.03400000000000247"]
+        },
+        {
+          "metric": {
+            "nodepool": "UNMAPPED IGM f2d22aa7"
+          },
+          "first": [1790834400, "61.886"],
+          "last": [1790899200, "20.886000000000003"]
+        },
+        {
+          "metric": {
+            "nodepool": "UNMAPPED IGM fea41785"
+          },
+          "first": [1790769600, "0.681999999999995"],
+          "last": [1790812800, "0.7160000000000011"]
+        },
+        {
+          "metric": {
+            "nodepool": "custom-code-workers-np"
+          },
+          "first": [1789819200, "9.024000000000001"],
+          "last": [1791288000, "125.1379999999998"]
+        },
+        {
+          "metric": {
+            "nodepool": "hc-l-node-pool"
+          },
+          "first": [1786255200, "0.5740000000000052"],
+          "last": [1791288000, "28.03"]
+        },
+        {
+          "metric": {
+            "nodepool": "hc-xl-node-pool"
+          },
+          "first": [1786212000, "27.851"],
+          "last": [1791288000, "40.846000000000004"]
+        },
+        {
+          "metric": {
+            "nodepool": "hc-xl-node-pool-ht-node-pool"
+          },
+          "first": [1786471200, "208.66000000000003"],
+          "last": [1790683200, "60.198000000000015"]
+        },
+        {
+          "metric": {
+            "nodepool": "hc-xl-node-pool-np"
+          },
+          "first": [1788696000, "17.266000000000002"],
+          "last": [1791288000, "15.966000000000001"]
+        },
+        {
+          "metric": {
+            "nodepool": "hc-xxl-node-pool"
+          },
+          "first": [1791201600, "28.886000000000003"],
+          "last": [1791244800, "28.886000000000003"]
+        },
+        {
+          "metric": {
+            "nodepool": "jobs-node-pool"
+          },
+          "first": [1786384800, "2.936"],
+          "last": [1791288000, "2.0359999999999996"]
+        },
+        {
+          "metric": {
+            "nodepool": "l-node-pool"
+          },
+          "first": [1786212000, "44.718"],
+          "last": [1791288000, "71.542"]
+        },
+        {
+          "metric": {
+            "nodepool": "n2d-standard-64-node-pool"
+          },
+          "first": [1786212000, "4.385999999999996"],
+          "last": [1791288000, "133.88"]
+        },
+        {
+          "metric": {
+            "nodepool": "nap-c3-highcpu-44-1vmpoxd0"
+          },
+          "first": [1790704800, "99.55199999999996"],
+          "last": [1791288000, "7.436"]
+        },
+        {
+          "metric": {
+            "nodepool": "nap-c3-standard-44-1p4zpq86"
+          },
+          "first": [1790704800, "-15.51100000000001"],
+          "last": [1791288000, "0.43599999999999994"]
+        },
+        {
+          "metric": {
+            "nodepool": "nap-c4-standard-32-1ptzgk87"
+          },
+          "first": [1790856000, "30.39800000000001"],
+          "last": [1791288000, "0.3160000000000025"]
+        },
+        {
+          "metric": {
+            "nodepool": "nap-c4d-highcpu-64-3hddebpd"
+          },
+          "first": [1790661600, "25.386000000000003"],
+          "last": [1791288000, "470.6319999999998"]
+        },
+        {
+          "metric": {
+            "nodepool": "nap-c4d-standar-64-1f9cn66c"
+          },
+          "first": [1791028800, "473.08799999999997"],
+          "last": [1791288000, "406.51799999999974"]
+        },
+        {
+          "metric": {
+            "nodepool": "nap-n2d-highcpu-32-9v5rgf08"
+          },
+          "first": [1790704800, "80.864"],
+          "last": [1791288000, "51.61399999999999"]
+        },
+        {
+          "metric": {
+            "nodepool": "nap-n2d-highcpu-64-1o7z5l7f"
+          },
+          "first": [1790596800, "36.885999999999996"],
+          "last": [1791288000, "1133.2419999999997"]
+        },
+        {
+          "metric": {
+            "nodepool": "nap-n2d-standar-16-gffbvy1a"
+          },
+          "first": [1790791200, "21.11399999999969"],
+          "last": [1791288000, "4.983999999999867"]
+        },
+        {
+          "metric": {
+            "nodepool": "nap-n2d-standar-32-1ic2apig"
+          },
+          "first": [1790596800, "-0.03400000000000247"],
+          "last": [1791288000, "4.377999999999986"]
+        },
+        {
+          "metric": {
+            "nodepool": "nap-n2d-standar-64-7oe2tdvm"
+          },
+          "first": [1790596800, "19.131999999999834"],
+          "last": [1791288000, "3141.366000000022"]
+        },
+        {
+          "metric": {
+            "nodepool": "nap-n4-highcpu-64-1xham7oi"
+          },
+          "first": [1791028800, "59.886"],
+          "last": [1791028800, "59.886"]
+        },
+        {
+          "metric": {
+            "nodepool": "nap-n4d-standar-64-58b7gavn"
+          },
+          "first": [1790683200, "0.8860000000000028"],
+          "last": [1791288000, "13.022000000000006"]
+        },
+        {
+          "metric": {
+            "nodepool": "np-servers-devops-1to4-amd64-prd"
+          },
+          "first": [1786212000, "62.989999999999895"],
+          "last": [1791288000, "49.48999999999984"]
+        },
+        {
+          "metric": {
+            "nodepool": "system-node-pool"
+          },
+          "first": [1786212000, "40.965999999999994"],
+          "last": [1791288000, "33.142999999999994"]
+        },
+        {
+          "metric": {
+            "nodepool": "t2d-xl-node-pool"
+          },
+          "first": [1788696000, "10.265999999999998"],
+          "last": [1791288000, "9.951"]
+        },
+        {
+          "metric": {
+            "nodepool": "xl-node-pool"
+          },
+          "first": [1786212000, "130.062"],
+          "last": [1791288000, "3828.3729999999996"]
+        },
+        {
+          "metric": {
+            "nodepool": "xl-node-pool-ht-node-pool"
+          },
+          "first": [1786212000, "86.89800000000001"],
+          "last": [1791288000, "74.19800000000002"]
+        },
+        {
+          "metric": {
+            "nodepool": "xxl-node-pool"
+          },
+          "first": [1786212000, "65.557"],
+          "last": [1791288000, "156.632"]
+        }
+      ]
+    },
+    {
+      "time": "2026-10-06T19:18:16Z",
+      "route": "vm",
+      "tile": "all-pools-0-cpu-headroom",
+      "params": {
+        "query": "WITH(s={cluster=\"servers-usc1-prd-cluster\"},m(v,a,b)=label_transform(v,\"nodepool\",a,b),poolmap(v)=label_match(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(label_replace(v,\"nodepool\",\"$1\",\"node\",\".*-([^-]+)-[^-]+$\"),\"^(2c157954|926edfe5|c5722be2)$\",\"custom-code-workers-np\"),\"^(1161ac27|3bce6e3b|bdc50e80)$\",\"hc-l-node-pool\"),\"^(332dd6dd|e879378c|eee72b38)$\",\"hc-xl-node-pool\"),\"^(90dcee20|aa265fdb|ca98bf98)$\",\"hc-xl-node-pool-ht-node-pool\"),\"^(0fcf3ad5|5fb40473|ba4998b7)$\",\"hc-xl-node-pool-np\"),\"^(6463d510|6dbde41f|d49a3371)$\",\"hc-xxl-node-pool\"),\"^(9c5681c4|e0990c4e|f374f50a)$\",\"jobs-node-pool\"),\"^(1b0070e6|28f775fe|db8ecb6a)$\",\"l-node-pool\"),\"^(049110ff|0d07ca91|741226d6)$\",\"n2d-standard-64-node-pool\"),\"^(5cf83164|8a0a38b5|bf71913f)$\",\"n4d-l-node-pool\"),\"^(2cf015da|4a1730b5|8b8ceefc)$\",\"n4d-xl-node-pool\"),\"^(12253142|33d6a217|e7454bd1)$\",\"nap-c3-highcpu-44-1vmpoxd0\"),\"^(05b46473|49393f3b|b2038f93)$\",\"nap-c3-standard-44-1p4zpq86\"),\"^(63f5d2e7|73018cb3|b6ba8189)$\",\"nap-c4-standard-32-1ptzgk87\"),\"^(583beae3|6a918b13|f636b3eb)$\",\"nap-c4d-highcpu-64-3hddebpd\"),\"^(08e57b06)$\",\"nap-c4d-standar-32-184ultu9\"),\"^(0b8cd2be)$\",\"nap-c4d-standar-32-1bw3whvp\"),\"^(b51d0ced)$\",\"nap-c4d-standar-64-146lcinz\"),\"^(e55573a7)$\",\"nap-c4d-standar-64-199xybnp\"),\"^(29291a53|de6dd1c8|e4b7cbde)$\",\"nap-c4d-standar-64-1f9cn66c\"),\"^(3ecb1151|ebcfb4fd)$\",\"nap-c4d-standar-64-1knyurt1\"),\"^(b7d34a06)$\",\"nap-c4d-standar-64-9jqgocx7\"),\"^(194ec713|f77bdadc|f94a9a30)$\",\"nap-n2d-highcpu-32-9v5rgf08\"),\"^(00b8720f|1974e3e8|ccc825ce)$\",\"nap-n2d-highcpu-64-1o7z5l7f\"),\"^(0f4343ae|8a5b4b0b|ceda046a)$\",\"nap-n2d-standar-16-gffbvy1a\"),\"^(5751a741|7f950fad|beb7dca0)$\",\"nap-n2d-standar-32-1ic2apig\"),\"^(4900c434|841f9709|8dac8de8)$\",\"nap-n2d-standar-64-7oe2tdvm\"),\"^(40dc01e8)$\",\"nap-n4-highcpu-64-1xham7oi\"),\"^(14d09db9|1f267711|ff79afbc)$\",\"nap-n4d-standar-64-58b7gavn\"),\"^(4e319310|819fa74e|9d9b8797)$\",\"np-servers-devops-1to4-amd64-prd\"),\"^(6a13f5a5|76b2d028|8419301f)$\",\"system-node-pool\"),\"^(38ac9fa1|6e71a442|e8e78c04)$\",\"t2d-xl-node-pool\"),\"^(1257c069|347ea5c2|690d4abf)$\",\"xl-node-pool\"),\"^(07fe258f|15b3aeee|8eb125d0)$\",\"xl-node-pool-ht-node-pool\"),\"^(560163a6|77b42713|be1a6429)$\",\"xxl-node-pool\"),\"^([a-f0-9]{8})$\",\"UNMAPPED IGM $1\"),\"nodepool\",\".*\"),c=max by(node)(kube_node_status_allocatable{s,resource=\"cpu\"}) and on(node)(max by(node)(kube_node_status_condition{s,condition=\"Ready\",status=\"true\"})==1) and on(node)(max by(node)(kube_node_spec_unschedulable{s})==0) unless on(node)(max by(node)(kube_node_spec_taint{s,key=\"ToBeDeletedByClusterAutoscaler\"})),r=sum by(namespace,node)(label_set((max by(namespace,pod,container,node)(cluster:namespace:pod_cpu:active:kube_pod_container_resource_requests{s})),\"series\",\"regular\") or label_set((max by(namespace,pod,container,node)(kube_pod_init_container_resource_requests{s,resource=\"cpu\"}) and on(namespace,pod)(max by(namespace,pod)(kube_pod_status_phase{s,phase=~\"Running|Pending\"})==1)),\"series\",\"init\"))) ((sum by(nodepool)(poolmap(c)) or on(nodepool) (0 * sum by(nodepool)(poolmap(max by(node)(kube_node_status_allocatable{s,resource=\"cpu\"}))))) - on(nodepool) (sum by(nodepool)(poolmap(sum by(node)(label_mismatch(r,\"namespace\",\"buffer-capacity\")))) or on(nodepool) (0 * (sum by(nodepool)(poolmap(c)) or on(nodepool) (0 * sum by(nodepool)(poolmap(max by(node)(kube_node_status_allocatable{s,resource=\"cpu\"}))))))))",
+        "start": 1783512000,
+        "end": 1791288000,
+        "step": "21600",
+        "timeout": "110s",
+        "deny_partial_response": "1"
+      },
+      "seconds": 65.554,
+      "http_status": 0,
+      "status": null,
+      "error": "Remote end closed connection without response",
+      "partial": null,
+      "series": 0,
+      "points": 0,
+      "response_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "series_samples": []
+    },
+    {
+      "seconds": 72.292,
+      "http_status": 200,
+      "query": {
+        "query": "label_map((label_set((sum by(cluster)((max by(cluster,node)(kube_node_status_allocatable{cluster=~\"servers-usc1-prd-cluster|web-users-servers-usc1-prd-cluster|workers-us-central-production-cluster\",resource=\"cpu\"})) and on(cluster,node) (max by(cluster,node)(kube_node_status_condition{cluster=~\"servers-usc1-prd-cluster|web-users-servers-usc1-prd-cluster|workers-us-central-production-cluster\",condition=\"Ready\",status=\"true\"})==1) and on(cluster,node) (max by(cluster,node)(kube_node_spec_unschedulable{cluster=~\"servers-usc1-prd-cluster|web-users-servers-usc1-prd-cluster|workers-us-central-production-cluster\"})==0) unless on(cluster,node) (max by(cluster,node)(kube_node_spec_taint{cluster=~\"servers-usc1-prd-cluster|web-users-servers-usc1-prd-cluster|workers-us-central-production-cluster\",key=\"ToBeDeletedByClusterAutoscaler\"})))),\"series\",\"Usable capacity\") or label_set((sum by(cluster)(sum by(cluster,node)(label_set((max by(cluster,namespace,pod,container,node)(cluster:namespace:pod_cpu:active:kube_pod_container_resource_requests{cluster=~\"servers-usc1-prd-cluster|web-users-servers-usc1-prd-cluster|workers-us-central-production-cluster\",namespace!=\"buffer-capacity\"})),\"series\",\"containers\") or label_set((max by(cluster,namespace,pod,container,node)(kube_pod_init_container_resource_requests{cluster=~\"servers-usc1-prd-cluster|web-users-servers-usc1-prd-cluster|workers-us-central-production-cluster\",namespace!=\"buffer-capacity\",resource=\"cpu\"}) * on(cluster,namespace,pod) group_left() (max by(cluster,namespace,pod)(kube_pod_status_phase{cluster=~\"servers-usc1-prd-cluster|web-users-servers-usc1-prd-cluster|workers-us-central-production-cluster\",namespace!=\"buffer-capacity\",phase=~\"Running|Pending\"})==1)),\"series\",\"init\")))),\"series\",\"Workload requests\") or label_set((sum by(cluster)(sum by(cluster,node)(label_set((max by(cluster,namespace,pod,container,node)(cluster:namespace:pod_cpu:active:kube_pod_container_resource_requests{cluster=~\"servers-usc1-prd-cluster|web-users-servers-usc1-prd-cluster|workers-us-central-production-cluster\",namespace=\"buffer-capacity\"})),\"series\",\"containers\") or label_set((max by(cluster,namespace,pod,container,node)(kube_pod_init_container_resource_requests{cluster=~\"servers-usc1-prd-cluster|web-users-servers-usc1-prd-cluster|workers-us-central-production-cluster\",namespace=\"buffer-capacity\",resource=\"cpu\"}) * on(cluster,namespace,pod) group_left() (max by(cluster,namespace,pod)(kube_pod_status_phase{cluster=~\"servers-usc1-prd-cluster|web-users-servers-usc1-prd-cluster|workers-us-central-production-cluster\",namespace=\"buffer-capacity\",phase=~\"Running|Pending\"})==1)),\"series\",\"init\")))),\"series\",\"Warm-up requests\")),\"cluster\",\"servers-usc1-prd-cluster\",\"Servers\",\"web-users-servers-usc1-prd-cluster\",\"Web users\",\"workers-us-central-production-cluster\",\"Workers\")",
+        "start": "1783519424",
+        "end": "1791295424",
+        "step": "21600s",
+        "timeout": "600s"
+      },
+      "status": "success",
+      "error": null,
+      "series": 9,
+      "series_samples": [
+        {
+          "metric": {
+            "cluster": "Servers",
+            "series": "Usable capacity"
+          },
+          "first": [1786212000, "875.1399999999998"],
+          "last": [1791288000, "18495.05000000007"]
+        },
+        {
+          "metric": {
+            "cluster": "Servers",
+            "series": "Warm-up requests"
+          },
+          "first": [1790791200, "1024.0000000000002"],
+          "last": [1791288000, "8076.80000000001"]
+        },
+        {
+          "metric": {
+            "cluster": "Servers",
+            "series": "Workload requests"
+          },
+          "first": [1786212000, "411.712"],
+          "last": [1791288000, "8712.880999999996"]
+        },
+        {
+          "metric": {
+            "cluster": "Web users",
+            "series": "Usable capacity"
+          },
+          "first": [1783512000, "6229.230000000015"],
+          "last": [1791288000, "14397.390000000067"]
+        },
+        {
+          "metric": {
+            "cluster": "Web users",
+            "series": "Warm-up requests"
+          },
+          "first": [1790769600, "1024.0000000000002"],
+          "last": [1791288000, "7552.000000000004"]
+        },
+        {
+          "metric": {
+            "cluster": "Web users",
+            "series": "Workload requests"
+          },
+          "first": [1783512000, "5317.229999999994"],
+          "last": [1791288000, "7197.173000000015"]
+        },
+        {
+          "metric": {
+            "cluster": "Workers",
+            "series": "Usable capacity"
+          },
+          "first": [1783512000, "10233.230000000047"],
+          "last": [1791288000, "19889.310000000063"]
+        },
+        {
+          "metric": {
+            "cluster": "Workers",
+            "series": "Warm-up requests"
+          },
+          "first": [1790791200, "1536.0000000000007"],
+          "last": [1791288000, "13228.800000000034"]
+        },
+        {
+          "metric": {
+            "cluster": "Workers",
+            "series": "Workload requests"
+          },
+          "first": [1783512000, "9142.952000000001"],
+          "last": [1791288000, "12538.115000000027"]
+        }
+      ]
+    }
+  ],
+  "api_log_excerpts": [
+    {
+      "timestamp": "2026-10-06T14:07:43.551741406Z",
+      "insertId": "i9i6z907ktaa7yf9",
+      "pod": "hyperdx-platform-sre-prd-clickstack-app-6f4cdcb768-vn5zx",
+      "url": "/v1/prometheus/query_range?query=label_map%28%28label_set%28%28sum+by%28cluster%29%28%28max+by%28cluster%2Cnode%29%28kube_node_status_allocatable%7Bcluster%3D%7E%22servers-usc1-prd-cluster%7Cweb-users-servers-usc1-prd-cluster%7Cworkers-us-central-production-cluster%22%2Cresource%3D%22cpu%22%7D%29%29+and+on%28cluster%2Cnode%29+%28max+by%28cluster%2Cnode%29%28kube_node_status_condition%7Bcluster%3D%7E%22servers-usc1-prd-cluster%7Cweb-users-servers-usc1-prd-cluster%7Cworkers-us-central-production-cluster%22%2Ccondition%3D%22Ready%22%2Cstatus%3D%22true%22%7D%29%3D%3D1%29+and+on%28cluster%2Cnode%29+%28max+by%28cluster%2Cnode%29%28kube_node_spec_unschedulable%7Bcluster%3D%7E%22servers-usc1-prd-cluster%7Cweb-users-servers-usc1-prd-cluster%7Cworkers-us-central-production-cluster%22%7D%29%3D%3D0%29+unless+on%28cluster%2Cnode%29+%28max+by%28cluster%2Cnode%29%28kube_node_spec_taint%7Bcluster%3D%7E%22servers-usc1-prd-cluster%7Cweb-users-servers-usc1-prd-cluster%7Cworkers-us-central-production-cluster%22%2Ckey%3D%22ToBeDeletedByClusterAutoscaler%22%7D%29%29%29%29%2C%22series%22%2C%22Usable+capacity%22%29+or+label_set%28%28sum+by%28cluster%29%28sum+by%28cluster%2Cnode%29%28label_set%28%28max+by%28cluster%2Cnamespace%2Cpod%2Ccontainer%2Cnode%29%28cluster%3Anamespace%3Apod_cpu%3Aactive%3Akube_pod_container_resource_requests%7Bcluster%3D%7E%22servers-usc1-prd-cluster%7Cweb-users-servers-usc1-prd-cluster%7Cworkers-us-central-production-cluster%22%2Cnamespace%21%3D%22buffer-capacity%22%7D%29%29%2C%22series%22%2C%22containers%22%29+or+label_set%28%28max+by%28cluster%2Cnamespace%2Cpod%2Ccontainer%2Cnode%29%28kube_pod_init_container_resource_requests%7Bcluster%3D%7E%22servers-usc1-prd-cluster%7Cweb-users-servers-usc1-prd-cluster%7Cworkers-us-central-production-cluster%22%2Cnamespace%21%3D%22buffer-capacity%22%2Cresource%3D%22cpu%22%7D%29+*+on%28cluster%2Cnamespace%2Cpod%29+group_left%28%29+%28max+by%28cluster%2Cnamespace%2Cpod%29%28kube_pod_status_phase%7Bcluster%3D%7E%22servers-usc1-prd-cluster%7Cweb-users-servers-usc1-prd-cluster%7Cworkers-us-central-production-cluster%22%2Cnamespace%21%3D%22buffer-capacity%22%2Cphase%3D%7E%22Running%7CPending%22%7D%29%3D%3D1%29%29%2C%22series%22%2C%22init%22%29%29%29%29%2C%22series%22%2C%22Workload+requests%22%29+or+label_set%28%28sum+by%28cluster%29%28sum+by%28cluster%2Cnode%29%28label_set%28%28max+by%28cluster%2Cnamespace%2Cpod%2Ccontainer%2Cnode%29%28cluster%3Anamespace%3Apod_cpu%3Aactive%3Akube_pod_container_resource_requests%7Bcluster%3D%7E%22servers-usc1-prd-cluster%7Cweb-users-servers-usc1-prd-cluster%7Cworkers-us-central-production-cluster%22%2Cnamespace%3D%22buffer-capacity%22%7D%29%29%2C%22series%22%2C%22containers%22%29+or+label_set%28%28max+by%28cluster%2Cnamespace%2Cpod%2Ccontainer%2Cnode%29%28kube_pod_init_container_resource_requests%7Bcluster%3D%7E%22servers-usc1-prd-cluster%7Cweb-users-servers-usc1-prd-cluster%7Cworkers-us-central-production-cluster%22%2Cnamespace%3D%22buffer-capacity%22%2Cresource%3D%22cpu%22%7D%29+*+on%28cluster%2Cnamespace%2Cpod%29+group_left%28%29+%28max+by%28cluster%2Cnamespace%2Cpod%29%28kube_pod_status_phase%7Bcluster%3D%7E%22servers-usc1-prd-cluster%7Cweb-users-servers-usc1-prd-cluster%7Cworkers-us-central-production-cluster%22%2Cnamespace%3D%22buffer-capacity%22%2Cphase%3D%7E%22Running%7CPending%22%7D%29%3D%3D1%29%29%2C%22series%22%2C%22init%22%29%29%29%29%2C%22series%22%2C%22Warm-up+requests%22%29%29%2C%22cluster%22%2C%22servers-usc1-prd-cluster%22%2C%22Servers%22%2C%22web-users-servers-usc1-prd-cluster%22%2C%22Web+users%22%2C%22workers-us-central-production-cluster%22%2C%22Workers%22%29&start=1783519424&end=1791295424&step=21600s&connectionId=6aa77741acd7321c4deda7b6&database=prometheus&table=prometheus",
+      "query": {
+        "query": "label_map((label_set((sum by(cluster)((max by(cluster,node)(kube_node_status_allocatable{cluster=~\"servers-usc1-prd-cluster|web-users-servers-usc1-prd-cluster|workers-us-central-production-cluster\",resource=\"cpu\"})) and on(cluster,node) (max by(cluster,node)(kube_node_status_condition{cluster=~\"servers-usc1-prd-cluster|web-users-servers-usc1-prd-cluster|workers-us-central-production-cluster\",condition=\"Ready\",status=\"true\"})==1) and on(cluster,node) (max by(cluster,node)(kube_node_spec_unschedulable{cluster=~\"servers-usc1-prd-cluster|web-users-servers-usc1-prd-cluster|workers-us-central-production-cluster\"})==0) unless on(cluster,node) (max by(cluster,node)(kube_node_spec_taint{cluster=~\"servers-usc1-prd-cluster|web-users-servers-usc1-prd-cluster|workers-us-central-production-cluster\",key=\"ToBeDeletedByClusterAutoscaler\"})))),\"series\",\"Usable capacity\") or label_set((sum by(cluster)(sum by(cluster,node)(label_set((max by(cluster,namespace,pod,container,node)(cluster:namespace:pod_cpu:active:kube_pod_container_resource_requests{cluster=~\"servers-usc1-prd-cluster|web-users-servers-usc1-prd-cluster|workers-us-central-production-cluster\",namespace!=\"buffer-capacity\"})),\"series\",\"containers\") or label_set((max by(cluster,namespace,pod,container,node)(kube_pod_init_container_resource_requests{cluster=~\"servers-usc1-prd-cluster|web-users-servers-usc1-prd-cluster|workers-us-central-production-cluster\",namespace!=\"buffer-capacity\",resource=\"cpu\"}) * on(cluster,namespace,pod) group_left() (max by(cluster,namespace,pod)(kube_pod_status_phase{cluster=~\"servers-usc1-prd-cluster|web-users-servers-usc1-prd-cluster|workers-us-central-production-cluster\",namespace!=\"buffer-capacity\",phase=~\"Running|Pending\"})==1)),\"series\",\"init\")))),\"series\",\"Workload requests\") or label_set((sum by(cluster)(sum by(cluster,node)(label_set((max by(cluster,namespace,pod,container,node)(cluster:namespace:pod_cpu:active:kube_pod_container_resource_requests{cluster=~\"servers-usc1-prd-cluster|web-users-servers-usc1-prd-cluster|workers-us-central-production-cluster\",namespace=\"buffer-capacity\"})),\"series\",\"containers\") or label_set((max by(cluster,namespace,pod,container,node)(kube_pod_init_container_resource_requests{cluster=~\"servers-usc1-prd-cluster|web-users-servers-usc1-prd-cluster|workers-us-central-production-cluster\",namespace=\"buffer-capacity\",resource=\"cpu\"}) * on(cluster,namespace,pod) group_left() (max by(cluster,namespace,pod)(kube_pod_status_phase{cluster=~\"servers-usc1-prd-cluster|web-users-servers-usc1-prd-cluster|workers-us-central-production-cluster\",namespace=\"buffer-capacity\",phase=~\"Running|Pending\"})==1)),\"series\",\"init\")))),\"series\",\"Warm-up requests\")),\"cluster\",\"servers-usc1-prd-cluster\",\"Servers\",\"web-users-servers-usc1-prd-cluster\",\"Web users\",\"workers-us-central-production-cluster\",\"Workers\")",
+        "start": "1783519424",
+        "end": "1791295424",
+        "step": "21600s",
+        "connectionId": "6aa77741acd7321c4deda7b6",
+        "database": "prometheus",
+        "table": "prometheus"
+      },
+      "method": "GET",
+      "status": 504,
+      "duration_ms": 90006,
+      "message": "HTTP GET /v1/prometheus/query_range?query=label_map%28%28label_set%28%28sum+by%28cluster%29%28%28max+by%28cluster%2Cnode%29%28kube_node_status_allocatable%7Bcluster%3D%7E%22servers-usc1-prd-cluster%7Cweb-users-servers-usc1-prd-cluster%7Cworkers-us-central-production-cluster%22%2Cresource%3D%22cpu%22%7D%29%29+and+on%28cluster%2Cnode%29+%28max+by%28cluster%2Cnode%29%28kube_node_status_condition%7Bcluster%3D%7E%22servers-usc1-prd-cluster%7Cweb-users-servers-usc1-prd-cluster%7Cworkers-us-central-production-cluster%22%2Ccondition%3D%22Ready%22%2Cstatus%3D%22true%22%7D%29%3D%3D1%29+and+on%28cluster%2Cnode%29+%28max+by%28cluster%2Cnode%29%28kube_node_spec_unschedulable%7Bcluster%3D%7E%22servers-usc1-prd-cluster%7Cweb-users-servers-usc1-prd-cluster%7Cworkers-us-central-production-cluster%22%7D%29%3D%3D0%29+unless+on%28cluster%2Cnode%29+%28max+by%28cluster%2Cnode%29%28kube_node_spec_taint%7Bcluster%3D%7E%22servers-usc1-prd-cluster%7Cweb-users-servers-usc1-prd-cluster%7Cworkers-us-central-produc"
+    }
+  ]
+}

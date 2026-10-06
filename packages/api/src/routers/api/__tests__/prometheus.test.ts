@@ -56,6 +56,8 @@ describe('parseDuration', () => {
     ['1d', 86400],
     ['1w', 604800],
     ['1y', 31536000],
+    ['1h30m', 5400],
+    ['1m30s', 90],
   ])('parses %s to %d seconds', (input, expected) => {
     expect(parseDuration(input)).toBe(expected);
   });
