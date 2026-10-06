@@ -1,0 +1,796 @@
+{
+  "version": "0.1.0",
+  "name": "GKE node capacity vs demand \u2014 Production - 2",
+  "description": "Per-nodepool CPU headroom and node delivery first, selected-pool and individual-node detail, separate application and buffer scheduling backlog. Uses capacity v1 recording rules; historical backfill and parity checks are required before import.",
+  "tags": ["production", "gke", "capacity", "autoscaling"],
+  "containers": [
+    {
+      "id": "guide",
+      "title": "Pool diagnosis",
+      "collapsed": false
+    },
+    {
+      "id": "pools-0",
+      "title": "Servers \u00b7 ALL node pools: CPU and node counts",
+      "collapsed": false
+    },
+    {
+      "id": "pools-1",
+      "title": "Web users \u00b7 ALL node pools: CPU and node counts",
+      "collapsed": false
+    },
+    {
+      "id": "pools-2",
+      "title": "Workers \u00b7 ALL node pools: CPU and node counts",
+      "collapsed": false
+    },
+    {
+      "id": "app-backlog",
+      "title": "Application pods \u00b7 unschedulable",
+      "collapsed": false
+    },
+    {
+      "id": "buffer-backlog",
+      "title": "Buffer-capacity pods \u00b7 unschedulable",
+      "collapsed": false
+    },
+    {
+      "id": "individual-nodes",
+      "title": "Individual nodes \u00b7 selected pool (CPU placement drilldown)",
+      "collapsed": true
+    },
+    {
+      "id": "overview",
+      "title": "Cluster totals \u00b7 secondary context",
+      "collapsed": true
+    }
+  ],
+  "filters": [
+    {
+      "id": "cluster",
+      "name": "Backlog / cluster totals",
+      "variableName": "cluster",
+      "type": "STATIC_LIST",
+      "options": [
+        "servers-usc1-prd-cluster",
+        "web-users-servers-usc1-prd-cluster",
+        "workers-us-central-production-cluster"
+      ],
+      "minSelections": 1,
+      "isGlobalRequirement": true,
+      "isVariableEnabled": true,
+      "isBroadcastEnabled": false
+    },
+    {
+      "id": "nodepool",
+      "name": "Selected node pool \u00b7 detail only",
+      "variableName": "nodepool",
+      "type": "STATIC_LIST",
+      "options": [
+        "buffer-capacity-n2d-32-np",
+        "custom-code-workers-np",
+        "hc-l-node-pool",
+        "hc-xl-node-pool",
+        "hc-xl-node-pool-ht-node-pool",
+        "hc-xl-node-pool-np",
+        "hc-xxl-node-pool",
+        "high-throughput-high-cpu-xl-node-pool",
+        "high-throughput-standard-xl-node-pool",
+        "jobs-node-pool",
+        "jobs-node-pool-2",
+        "l-node-pool",
+        "n2d-highcpu-32-node-pool",
+        "n2d-highcpu-32-node-pool-ht-node-pool",
+        "n2d-highcpu-64-node-pool",
+        "n2d-standard-16-node-pool",
+        "n2d-standard-32-node-pool",
+        "n2d-standard-32-node-pool-ht-node-pool",
+        "n2d-standard-64-node-pool",
+        "n4d-l-node-pool",
+        "n4d-standard-16-node-pool",
+        "n4d-standard-32-node-pool",
+        "n4d-xl-node-pool",
+        "nap-c3-highcpu-44-1vmpoxd0",
+        "nap-c3-highcpu-44-rv7eeg5a",
+        "nap-c3-standard-44-1p4zpq86",
+        "nap-c3d-standar-60-12dst7ga",
+        "nap-c3d-standar-60-1haqj4of",
+        "nap-c3d-standar-60-5eaciqsd",
+        "nap-c3d-standar-60-faganekt",
+        "nap-c3d-standar-60-k74upstv",
+        "nap-c3d-standar-60-vkj5aw42",
+        "nap-c4-standard-32-1ptzgk87",
+        "nap-c4d-highcpu-32-1kuc85ms",
+        "nap-c4d-highcpu-64-12nqs85h",
+        "nap-c4d-highcpu-64-14ye1cuc",
+        "nap-c4d-highcpu-64-19nlw20x",
+        "nap-c4d-highcpu-64-19xj2hy9",
+        "nap-c4d-highcpu-64-1vca1ywr",
+        "nap-c4d-highcpu-64-3hddebpd",
+        "nap-c4d-highcpu-64-a6zeii2u",
+        "nap-c4d-highcpu-64-v18yu3a7",
+        "nap-c4d-highcpu-64-vf1a19iv",
+        "nap-c4d-standar-32-184ultu9",
+        "nap-c4d-standar-32-1bw3whvp",
+        "nap-c4d-standar-32-1g27d9mj",
+        "nap-c4d-standar-32-tg18slez",
+        "nap-c4d-standar-64-146lcinz",
+        "nap-c4d-standar-64-17i87owb",
+        "nap-c4d-standar-64-199xybnp",
+        "nap-c4d-standar-64-1f9cn66c",
+        "nap-c4d-standar-64-1knyurt1",
+        "nap-c4d-standar-64-1lq3d75a",
+        "nap-c4d-standar-64-1w5b57gs",
+        "nap-c4d-standar-64-9iabjujt",
+        "nap-c4d-standar-64-9jqgocx7",
+        "nap-c4d-standar-64-po13v8wb",
+        "nap-n2d-highcpu-32-14b70oov",
+        "nap-n2d-highcpu-32-1lqcmbhs",
+        "nap-n2d-highcpu-32-9v5rgf08",
+        "nap-n2d-highcpu-32-kz1k83u2",
+        "nap-n2d-highcpu-64-14u0kgzk",
+        "nap-n2d-highcpu-64-1gn5f8gk",
+        "nap-n2d-highcpu-64-1o7z5l7f",
+        "nap-n2d-highcpu-64-pk19b620",
+        "nap-n2d-standar-16-cesshweb",
+        "nap-n2d-standar-16-gffbvy1a",
+        "nap-n2d-standar-32-1ezu2568",
+        "nap-n2d-standar-32-1ic2apig",
+        "nap-n2d-standar-32-1njfcc1x",
+        "nap-n2d-standar-32-qh1xif1g",
+        "nap-n2d-standar-64-1c71ngox",
+        "nap-n2d-standar-64-1j9gg1dj",
+        "nap-n2d-standar-64-1q01xe4a",
+        "nap-n2d-standar-64-5kuh1apg",
+        "nap-n2d-standar-64-7oe2tdvm",
+        "nap-n2d-standar-64-pk4lsxyp",
+        "nap-n2d-standar-64-qwgt5nr9",
+        "nap-n4-highcpu-32-18hip7m8",
+        "nap-n4-highcpu-32-1bpwcvg9",
+        "nap-n4-highcpu-64-1frnr0rr",
+        "nap-n4-highcpu-64-1g0yisek",
+        "nap-n4-highcpu-64-1xham7oi",
+        "nap-n4-highcpu-64-c4n7xqza",
+        "nap-n4-highcpu-64-e99yr381",
+        "nap-n4-standard-32-1rijhf90",
+        "nap-n4-standard-64-1qna0zl1",
+        "nap-n4-standard-64-r79nsbys",
+        "nap-n4d-standar-64-33n3qln4",
+        "nap-n4d-standar-64-58b7gavn",
+        "nap-t2d-standar-32-13wt4kss",
+        "nap-t2d-standar-48-6pe3ic62",
+        "nap-t2d-standar-60-qfzo8w5f",
+        "np-servers-devops-1to4-amd64-prd",
+        "np-web-devops-1to4-amd64-prd",
+        "np-workers-devops-1to4-amd64-prd",
+        "pci-scope-np",
+        "system-node-pool",
+        "t2d-standard-32",
+        "t2d-standard-32-np",
+        "t2d-xl-node-pool",
+        "xl-node-pool",
+        "xl-node-pool-ht-node-pool",
+        "xxl-node-pool"
+      ],
+      "minSelections": 1,
+      "isGlobalRequirement": false,
+      "isVariableEnabled": true,
+      "isBroadcastEnabled": false
+    }
+  ],
+  "savedFilterValues": [
+    {
+      "type": "variable",
+      "name": "cluster",
+      "values": [
+        "servers-usc1-prd-cluster",
+        "web-users-servers-usc1-prd-cluster",
+        "workers-us-central-production-cluster"
+      ]
+    },
+    {
+      "type": "variable",
+      "name": "nodepool",
+      "values": ["n2d-standard-64-node-pool"]
+    }
+  ],
+  "savedDateRange": {
+    "type": "relative",
+    "value": 3600
+  },
+  "savedRefreshInterval": 60,
+  "tiles": [
+    {
+      "id": "readme",
+      "containerId": "guide",
+      "x": 0,
+      "y": 0,
+      "w": 24,
+      "h": 5,
+      "config": {
+        "name": "How to find a blocked pool",
+        "source": "",
+        "displayType": "markdown",
+        "markdown": "**Start with ALL-pool node counts and CPU headroom; use Selected node pool for exact CPU/memory comparisons and individual nodes.** Negative headroom means assigned application requests exceed usable CPU; positive headroom does not prove a pending pod fits. Application and buffer backlogs are separate below. Buffer target labels use verified current selectors: **POOL = fixed node pool; CLASS = ComputeClass, not one physical pool**. Unassigned application pods cannot truthfully be attributed to a physical pool. GKE desired-node counts are not exposed by the available metrics; requested/available buffer replicas show warm-up delivery, not desired nodes. Missing samples are unknown. Every time-series legend shows **Min \u00b7 Max \u00b7 Last**. **History:** capacity v1 records one-minute observations; Min/Max/Last describe the returned chart points, not every raw sample. CPU/memory requests retain the previous regular-plus-init upper bound, not exact scheduler effective requests. Recorded observations expire after two minutes to avoid reviving disappeared nodes at coarse chart steps. Missing recorded history is unknown; this dashboard must be imported only after backfill coverage is verified.",
+        "select": [],
+        "where": "",
+        "whereLanguage": "sql"
+      }
+    },
+    {
+      "id": "all-pools-0-cpu-headroom",
+      "containerId": "pools-0",
+      "x": 0,
+      "y": 0,
+      "w": 24,
+      "h": 14,
+      "config": {
+        "name": "ALL pools \u00b7 CPU headroom after assigned workloads",
+        "displayType": "line",
+        "numberFormat": {
+          "output": "number",
+          "mantissa": 2,
+          "thousandSeparated": true,
+          "unit": "cores"
+        },
+        "fillNulls": false,
+        "seriesLimit": 300,
+        "configType": "promql",
+        "promqlExpression": "WITH(s={cluster=\"servers-usc1-prd-cluster\"},m(v,a,b)=label_transform(v,\"nodepool\",a,b),poolmap(v)=label_match(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(label_replace(v,\"nodepool\",\"$1\",\"node\",\".*-([^-]+)-[^-]+$\"),\"^(2c157954|926edfe5|c5722be2)$\",\"custom-code-workers-np\"),\"^(1161ac27|3bce6e3b|bdc50e80)$\",\"hc-l-node-pool\"),\"^(332dd6dd|e879378c|eee72b38)$\",\"hc-xl-node-pool\"),\"^(90dcee20|aa265fdb|ca98bf98)$\",\"hc-xl-node-pool-ht-node-pool\"),\"^(0fcf3ad5|5fb40473|ba4998b7)$\",\"hc-xl-node-pool-np\"),\"^(6463d510|6dbde41f|d49a3371)$\",\"hc-xxl-node-pool\"),\"^(9c5681c4|e0990c4e|f374f50a)$\",\"jobs-node-pool\"),\"^(1b0070e6|28f775fe|db8ecb6a)$\",\"l-node-pool\"),\"^(049110ff|0d07ca91|741226d6)$\",\"n2d-standard-64-node-pool\"),\"^(5cf83164|8a0a38b5|bf71913f)$\",\"n4d-l-node-pool\"),\"^(2cf015da|4a1730b5|8b8ceefc)$\",\"n4d-xl-node-pool\"),\"^(12253142|33d6a217|e7454bd1)$\",\"nap-c3-highcpu-44-1vmpoxd0\"),\"^(05b46473|49393f3b|b2038f93)$\",\"nap-c3-standard-44-1p4zpq86\"),\"^(63f5d2e7|73018cb3|b6ba8189)$\",\"nap-c4-standard-32-1ptzgk87\"),\"^(583beae3|6a918b13|f636b3eb)$\",\"nap-c4d-highcpu-64-3hddebpd\"),\"^(08e57b06)$\",\"nap-c4d-standar-32-184ultu9\"),\"^(0b8cd2be)$\",\"nap-c4d-standar-32-1bw3whvp\"),\"^(b51d0ced)$\",\"nap-c4d-standar-64-146lcinz\"),\"^(e55573a7)$\",\"nap-c4d-standar-64-199xybnp\"),\"^(29291a53|de6dd1c8|e4b7cbde)$\",\"nap-c4d-standar-64-1f9cn66c\"),\"^(3ecb1151|ebcfb4fd)$\",\"nap-c4d-standar-64-1knyurt1\"),\"^(b7d34a06)$\",\"nap-c4d-standar-64-9jqgocx7\"),\"^(194ec713|f77bdadc|f94a9a30)$\",\"nap-n2d-highcpu-32-9v5rgf08\"),\"^(00b8720f|1974e3e8|ccc825ce)$\",\"nap-n2d-highcpu-64-1o7z5l7f\"),\"^(0f4343ae|8a5b4b0b|ceda046a)$\",\"nap-n2d-standar-16-gffbvy1a\"),\"^(5751a741|7f950fad|beb7dca0)$\",\"nap-n2d-standar-32-1ic2apig\"),\"^(4900c434|841f9709|8dac8de8)$\",\"nap-n2d-standar-64-7oe2tdvm\"),\"^(40dc01e8)$\",\"nap-n4-highcpu-64-1xham7oi\"),\"^(14d09db9|1f267711|ff79afbc)$\",\"nap-n4d-standar-64-58b7gavn\"),\"^(4e319310|819fa74e|9d9b8797)$\",\"np-servers-devops-1to4-amd64-prd\"),\"^(6a13f5a5|76b2d028|8419301f)$\",\"system-node-pool\"),\"^(38ac9fa1|6e71a442|e8e78c04)$\",\"t2d-xl-node-pool\"),\"^(1257c069|347ea5c2|690d4abf)$\",\"xl-node-pool\"),\"^(07fe258f|15b3aeee|8eb125d0)$\",\"xl-node-pool-ht-node-pool\"),\"^(560163a6|77b42713|be1a6429)$\",\"xxl-node-pool\"),\"^([a-f0-9]{8})$\",\"UNMAPPED IGM $1\"),\"nodepool\",\".*\"),c=max by(node)(default_rollup(hyperdx_capacity_v1:node_usable_allocatable{s,resource=\"cpu\"}[2m])),r=sum by(namespace,node)(default_rollup(hyperdx_capacity_v1:node_cpu_requests_upper_bound{s}[2m]))) ((sum by(nodepool)(poolmap(c)) or on(nodepool) (0 * sum by(nodepool)(poolmap(max by(node)(default_rollup(hyperdx_capacity_v1:node_allocatable{s,resource=\"cpu\"}[2m])))))) - on(nodepool) (sum by(nodepool)(poolmap(sum by(node)(label_mismatch(r,\"namespace\",\"buffer-capacity\")))) or on(nodepool) (0 * (sum by(nodepool)(poolmap(c)) or on(nodepool) (0 * sum by(nodepool)(poolmap(max by(node)(default_rollup(hyperdx_capacity_v1:node_allocatable{s,resource=\"cpu\"}[2m])))))))))",
+        "connection": "6aa77741acd7321c4deda7b6",
+        "source": "6aa77741acd7321c4deda7bc",
+        "legendTemplate": "{{nodepool}}"
+      }
+    },
+    {
+      "id": "all-pools-0-nodes",
+      "containerId": "pools-0",
+      "x": 0,
+      "y": 14,
+      "w": 24,
+      "h": 16,
+      "config": {
+        "name": "ALL pools \u00b7 total versus usable node count",
+        "displayType": "line",
+        "numberFormat": {
+          "output": "number",
+          "mantissa": 0,
+          "thousandSeparated": true,
+          "unit": "nodes"
+        },
+        "fillNulls": false,
+        "seriesLimit": 300,
+        "configType": "promql",
+        "promqlExpression": "WITH(s={cluster=\"servers-usc1-prd-cluster\"},m(v,a,b)=label_transform(v,\"nodepool\",a,b),poolmap(v)=label_match(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(label_replace(v,\"nodepool\",\"$1\",\"node\",\".*-([^-]+)-[^-]+$\"),\"^(2c157954|926edfe5|c5722be2)$\",\"custom-code-workers-np\"),\"^(1161ac27|3bce6e3b|bdc50e80)$\",\"hc-l-node-pool\"),\"^(332dd6dd|e879378c|eee72b38)$\",\"hc-xl-node-pool\"),\"^(90dcee20|aa265fdb|ca98bf98)$\",\"hc-xl-node-pool-ht-node-pool\"),\"^(0fcf3ad5|5fb40473|ba4998b7)$\",\"hc-xl-node-pool-np\"),\"^(6463d510|6dbde41f|d49a3371)$\",\"hc-xxl-node-pool\"),\"^(9c5681c4|e0990c4e|f374f50a)$\",\"jobs-node-pool\"),\"^(1b0070e6|28f775fe|db8ecb6a)$\",\"l-node-pool\"),\"^(049110ff|0d07ca91|741226d6)$\",\"n2d-standard-64-node-pool\"),\"^(5cf83164|8a0a38b5|bf71913f)$\",\"n4d-l-node-pool\"),\"^(2cf015da|4a1730b5|8b8ceefc)$\",\"n4d-xl-node-pool\"),\"^(12253142|33d6a217|e7454bd1)$\",\"nap-c3-highcpu-44-1vmpoxd0\"),\"^(05b46473|49393f3b|b2038f93)$\",\"nap-c3-standard-44-1p4zpq86\"),\"^(63f5d2e7|73018cb3|b6ba8189)$\",\"nap-c4-standard-32-1ptzgk87\"),\"^(583beae3|6a918b13|f636b3eb)$\",\"nap-c4d-highcpu-64-3hddebpd\"),\"^(08e57b06)$\",\"nap-c4d-standar-32-184ultu9\"),\"^(0b8cd2be)$\",\"nap-c4d-standar-32-1bw3whvp\"),\"^(b51d0ced)$\",\"nap-c4d-standar-64-146lcinz\"),\"^(e55573a7)$\",\"nap-c4d-standar-64-199xybnp\"),\"^(29291a53|de6dd1c8|e4b7cbde)$\",\"nap-c4d-standar-64-1f9cn66c\"),\"^(3ecb1151|ebcfb4fd)$\",\"nap-c4d-standar-64-1knyurt1\"),\"^(b7d34a06)$\",\"nap-c4d-standar-64-9jqgocx7\"),\"^(194ec713|f77bdadc|f94a9a30)$\",\"nap-n2d-highcpu-32-9v5rgf08\"),\"^(00b8720f|1974e3e8|ccc825ce)$\",\"nap-n2d-highcpu-64-1o7z5l7f\"),\"^(0f4343ae|8a5b4b0b|ceda046a)$\",\"nap-n2d-standar-16-gffbvy1a\"),\"^(5751a741|7f950fad|beb7dca0)$\",\"nap-n2d-standar-32-1ic2apig\"),\"^(4900c434|841f9709|8dac8de8)$\",\"nap-n2d-standar-64-7oe2tdvm\"),\"^(40dc01e8)$\",\"nap-n4-highcpu-64-1xham7oi\"),\"^(14d09db9|1f267711|ff79afbc)$\",\"nap-n4d-standar-64-58b7gavn\"),\"^(4e319310|819fa74e|9d9b8797)$\",\"np-servers-devops-1to4-amd64-prd\"),\"^(6a13f5a5|76b2d028|8419301f)$\",\"system-node-pool\"),\"^(38ac9fa1|6e71a442|e8e78c04)$\",\"t2d-xl-node-pool\"),\"^(1257c069|347ea5c2|690d4abf)$\",\"xl-node-pool\"),\"^(07fe258f|15b3aeee|8eb125d0)$\",\"xl-node-pool-ht-node-pool\"),\"^(560163a6|77b42713|be1a6429)$\",\"xxl-node-pool\"),\"^([a-f0-9]{8})$\",\"UNMAPPED IGM $1\"),\"nodepool\",\".*\")) sum by(nodepool,series)(poolmap(default_rollup(hyperdx_capacity_v1:node_state{s}[2m])))",
+        "connection": "6aa77741acd7321c4deda7b6",
+        "source": "6aa77741acd7321c4deda7bc",
+        "legendTemplate": "{{nodepool}} \u00b7 {{series}}"
+      }
+    },
+    {
+      "id": "pool-0-cpu",
+      "containerId": "pools-0",
+      "x": 0,
+      "y": 30,
+      "w": 24,
+      "h": 10,
+      "config": {
+        "name": "SELECTED pool \u00b7 CPU capacity / workload / buffer",
+        "displayType": "line",
+        "numberFormat": {
+          "output": "number",
+          "mantissa": 2,
+          "thousandSeparated": true,
+          "unit": "cores"
+        },
+        "fillNulls": false,
+        "seriesLimit": 300,
+        "configType": "promql",
+        "promqlExpression": "WITH(s={cluster=\"servers-usc1-prd-cluster\"},m(v,a,b)=label_transform(v,\"nodepool\",a,b),poolmap(v)=label_match(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(label_replace(v,\"nodepool\",\"$1\",\"node\",\".*-([^-]+)-[^-]+$\"),\"^(2c157954|926edfe5|c5722be2)$\",\"custom-code-workers-np\"),\"^(1161ac27|3bce6e3b|bdc50e80)$\",\"hc-l-node-pool\"),\"^(332dd6dd|e879378c|eee72b38)$\",\"hc-xl-node-pool\"),\"^(90dcee20|aa265fdb|ca98bf98)$\",\"hc-xl-node-pool-ht-node-pool\"),\"^(0fcf3ad5|5fb40473|ba4998b7)$\",\"hc-xl-node-pool-np\"),\"^(6463d510|6dbde41f|d49a3371)$\",\"hc-xxl-node-pool\"),\"^(9c5681c4|e0990c4e|f374f50a)$\",\"jobs-node-pool\"),\"^(1b0070e6|28f775fe|db8ecb6a)$\",\"l-node-pool\"),\"^(049110ff|0d07ca91|741226d6)$\",\"n2d-standard-64-node-pool\"),\"^(5cf83164|8a0a38b5|bf71913f)$\",\"n4d-l-node-pool\"),\"^(2cf015da|4a1730b5|8b8ceefc)$\",\"n4d-xl-node-pool\"),\"^(12253142|33d6a217|e7454bd1)$\",\"nap-c3-highcpu-44-1vmpoxd0\"),\"^(05b46473|49393f3b|b2038f93)$\",\"nap-c3-standard-44-1p4zpq86\"),\"^(63f5d2e7|73018cb3|b6ba8189)$\",\"nap-c4-standard-32-1ptzgk87\"),\"^(583beae3|6a918b13|f636b3eb)$\",\"nap-c4d-highcpu-64-3hddebpd\"),\"^(08e57b06)$\",\"nap-c4d-standar-32-184ultu9\"),\"^(0b8cd2be)$\",\"nap-c4d-standar-32-1bw3whvp\"),\"^(b51d0ced)$\",\"nap-c4d-standar-64-146lcinz\"),\"^(e55573a7)$\",\"nap-c4d-standar-64-199xybnp\"),\"^(29291a53|de6dd1c8|e4b7cbde)$\",\"nap-c4d-standar-64-1f9cn66c\"),\"^(3ecb1151|ebcfb4fd)$\",\"nap-c4d-standar-64-1knyurt1\"),\"^(b7d34a06)$\",\"nap-c4d-standar-64-9jqgocx7\"),\"^(194ec713|f77bdadc|f94a9a30)$\",\"nap-n2d-highcpu-32-9v5rgf08\"),\"^(00b8720f|1974e3e8|ccc825ce)$\",\"nap-n2d-highcpu-64-1o7z5l7f\"),\"^(0f4343ae|8a5b4b0b|ceda046a)$\",\"nap-n2d-standar-16-gffbvy1a\"),\"^(5751a741|7f950fad|beb7dca0)$\",\"nap-n2d-standar-32-1ic2apig\"),\"^(4900c434|841f9709|8dac8de8)$\",\"nap-n2d-standar-64-7oe2tdvm\"),\"^(40dc01e8)$\",\"nap-n4-highcpu-64-1xham7oi\"),\"^(14d09db9|1f267711|ff79afbc)$\",\"nap-n4d-standar-64-58b7gavn\"),\"^(4e319310|819fa74e|9d9b8797)$\",\"np-servers-devops-1to4-amd64-prd\"),\"^(6a13f5a5|76b2d028|8419301f)$\",\"system-node-pool\"),\"^(38ac9fa1|6e71a442|e8e78c04)$\",\"t2d-xl-node-pool\"),\"^(1257c069|347ea5c2|690d4abf)$\",\"xl-node-pool\"),\"^(07fe258f|15b3aeee|8eb125d0)$\",\"xl-node-pool-ht-node-pool\"),\"^(560163a6|77b42713|be1a6429)$\",\"xxl-node-pool\"),\"^([a-f0-9]{8})$\",\"UNMAPPED IGM $1\"),\"nodepool\",\"${nodepool:regex}\"),c=max by(node)(default_rollup(hyperdx_capacity_v1:node_usable_allocatable{s,resource=\"cpu\"}[2m])),r=sum by(namespace,node)(default_rollup(hyperdx_capacity_v1:node_cpu_requests_upper_bound{s}[2m]))) sum by(nodepool,series)(poolmap(label_set((c),\"series\",\"Usable capacity\") or label_set((sum by(node)(label_mismatch(r,\"namespace\",\"buffer-capacity\"))),\"series\",\"Workload requests\") or label_set((sum by(node)(label_match(r,\"namespace\",\"buffer-capacity\"))),\"series\",\"Warm-up requests\")))",
+        "connection": "6aa77741acd7321c4deda7b6",
+        "source": "6aa77741acd7321c4deda7bc",
+        "legendTemplate": "{{nodepool}} \u00b7 {{series}}"
+      }
+    },
+    {
+      "id": "pool-0-memory",
+      "containerId": "pools-0",
+      "x": 0,
+      "y": 40,
+      "w": 24,
+      "h": 10,
+      "config": {
+        "name": "SELECTED pool \u00b7 MEMORY capacity / workload / buffer",
+        "displayType": "line",
+        "numberFormat": {
+          "output": "number",
+          "mantissa": 2,
+          "thousandSeparated": true,
+          "unit": "GiB"
+        },
+        "fillNulls": false,
+        "seriesLimit": 300,
+        "configType": "promql",
+        "promqlExpression": "WITH(s={cluster=\"servers-usc1-prd-cluster\"},m(v,a,b)=label_transform(v,\"nodepool\",a,b),poolmap(v)=label_match(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(label_replace(v,\"nodepool\",\"$1\",\"node\",\".*-([^-]+)-[^-]+$\"),\"^(2c157954|926edfe5|c5722be2)$\",\"custom-code-workers-np\"),\"^(1161ac27|3bce6e3b|bdc50e80)$\",\"hc-l-node-pool\"),\"^(332dd6dd|e879378c|eee72b38)$\",\"hc-xl-node-pool\"),\"^(90dcee20|aa265fdb|ca98bf98)$\",\"hc-xl-node-pool-ht-node-pool\"),\"^(0fcf3ad5|5fb40473|ba4998b7)$\",\"hc-xl-node-pool-np\"),\"^(6463d510|6dbde41f|d49a3371)$\",\"hc-xxl-node-pool\"),\"^(9c5681c4|e0990c4e|f374f50a)$\",\"jobs-node-pool\"),\"^(1b0070e6|28f775fe|db8ecb6a)$\",\"l-node-pool\"),\"^(049110ff|0d07ca91|741226d6)$\",\"n2d-standard-64-node-pool\"),\"^(5cf83164|8a0a38b5|bf71913f)$\",\"n4d-l-node-pool\"),\"^(2cf015da|4a1730b5|8b8ceefc)$\",\"n4d-xl-node-pool\"),\"^(12253142|33d6a217|e7454bd1)$\",\"nap-c3-highcpu-44-1vmpoxd0\"),\"^(05b46473|49393f3b|b2038f93)$\",\"nap-c3-standard-44-1p4zpq86\"),\"^(63f5d2e7|73018cb3|b6ba8189)$\",\"nap-c4-standard-32-1ptzgk87\"),\"^(583beae3|6a918b13|f636b3eb)$\",\"nap-c4d-highcpu-64-3hddebpd\"),\"^(08e57b06)$\",\"nap-c4d-standar-32-184ultu9\"),\"^(0b8cd2be)$\",\"nap-c4d-standar-32-1bw3whvp\"),\"^(b51d0ced)$\",\"nap-c4d-standar-64-146lcinz\"),\"^(e55573a7)$\",\"nap-c4d-standar-64-199xybnp\"),\"^(29291a53|de6dd1c8|e4b7cbde)$\",\"nap-c4d-standar-64-1f9cn66c\"),\"^(3ecb1151|ebcfb4fd)$\",\"nap-c4d-standar-64-1knyurt1\"),\"^(b7d34a06)$\",\"nap-c4d-standar-64-9jqgocx7\"),\"^(194ec713|f77bdadc|f94a9a30)$\",\"nap-n2d-highcpu-32-9v5rgf08\"),\"^(00b8720f|1974e3e8|ccc825ce)$\",\"nap-n2d-highcpu-64-1o7z5l7f\"),\"^(0f4343ae|8a5b4b0b|ceda046a)$\",\"nap-n2d-standar-16-gffbvy1a\"),\"^(5751a741|7f950fad|beb7dca0)$\",\"nap-n2d-standar-32-1ic2apig\"),\"^(4900c434|841f9709|8dac8de8)$\",\"nap-n2d-standar-64-7oe2tdvm\"),\"^(40dc01e8)$\",\"nap-n4-highcpu-64-1xham7oi\"),\"^(14d09db9|1f267711|ff79afbc)$\",\"nap-n4d-standar-64-58b7gavn\"),\"^(4e319310|819fa74e|9d9b8797)$\",\"np-servers-devops-1to4-amd64-prd\"),\"^(6a13f5a5|76b2d028|8419301f)$\",\"system-node-pool\"),\"^(38ac9fa1|6e71a442|e8e78c04)$\",\"t2d-xl-node-pool\"),\"^(1257c069|347ea5c2|690d4abf)$\",\"xl-node-pool\"),\"^(07fe258f|15b3aeee|8eb125d0)$\",\"xl-node-pool-ht-node-pool\"),\"^(560163a6|77b42713|be1a6429)$\",\"xxl-node-pool\"),\"^([a-f0-9]{8})$\",\"UNMAPPED IGM $1\"),\"nodepool\",\"${nodepool:regex}\"),c=max by(node)(default_rollup(hyperdx_capacity_v1:node_usable_allocatable{s,resource=\"memory\"}[2m])),r=sum by(namespace,node)(default_rollup(hyperdx_capacity_v1:node_memory_requests_upper_bound{s}[2m]))) sum by(nodepool,series)(poolmap(label_set((c),\"series\",\"Usable capacity\") or label_set((sum by(node)(label_mismatch(r,\"namespace\",\"buffer-capacity\"))),\"series\",\"Workload requests\") or label_set((sum by(node)(label_match(r,\"namespace\",\"buffer-capacity\"))),\"series\",\"Warm-up requests\"))) / 1073741824",
+        "connection": "6aa77741acd7321c4deda7b6",
+        "source": "6aa77741acd7321c4deda7bc",
+        "legendTemplate": "{{nodepool}} \u00b7 {{series}}"
+      }
+    },
+    {
+      "id": "all-pools-1-cpu-headroom",
+      "containerId": "pools-1",
+      "x": 0,
+      "y": 0,
+      "w": 24,
+      "h": 14,
+      "config": {
+        "name": "ALL pools \u00b7 CPU headroom after assigned workloads",
+        "displayType": "line",
+        "numberFormat": {
+          "output": "number",
+          "mantissa": 2,
+          "thousandSeparated": true,
+          "unit": "cores"
+        },
+        "fillNulls": false,
+        "seriesLimit": 300,
+        "configType": "promql",
+        "promqlExpression": "WITH(s={cluster=\"web-users-servers-usc1-prd-cluster\"},m(v,a,b)=label_transform(v,\"nodepool\",a,b),poolmap(v)=label_match(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(label_replace(v,\"nodepool\",\"$1\",\"node\",\".*-([^-]+)-[^-]+$\"),\"^(73932b6d|b6297750|d95caa6c)$\",\"custom-code-workers-np\"),\"^(80c63b6c|a848b9e1|af80d148)$\",\"hc-xl-node-pool\"),\"^(177bb130|73717dae|afbf5aaf)$\",\"hc-xxl-node-pool\"),\"^(5e5ac2cf|675343a9|85be410d)$\",\"high-throughput-high-cpu-xl-node-pool\"),\"^(44c8d8c0|6fd82d6a|ffb1639c)$\",\"high-throughput-standard-xl-node-pool\"),\"^(79cc0502|88fcad10|f48bddaa)$\",\"n2d-standard-64-node-pool\"),\"^(75763d5c)$\",\"nap-c3-highcpu-44-rv7eeg5a\"),\"^(21deeb19|8716f0a0|a6689a65)$\",\"nap-c3d-standar-60-12dst7ga\"),\"^(0c1f5151|24af1206)$\",\"nap-c3d-standar-60-1haqj4of\"),\"^(71d358a4)$\",\"nap-c3d-standar-60-5eaciqsd\"),\"^(6462ec2d|6dca6fb1)$\",\"nap-c3d-standar-60-faganekt\"),\"^(1bc21a0a|54349a92|e3d9c648)$\",\"nap-c3d-standar-60-k74upstv\"),\"^(c387d7e1)$\",\"nap-c3d-standar-60-vkj5aw42\"),\"^(b7916ad9|bfcc35ec|ed4d5547)$\",\"nap-c4d-highcpu-64-14ye1cuc\"),\"^(2bfe5457)$\",\"nap-c4d-standar-64-17i87owb\"),\"^(9901f56f)$\",\"nap-c4d-standar-64-1lq3d75a\"),\"^(26b97f7b|4811e93c|fabdb43d)$\",\"nap-n2d-highcpu-32-kz1k83u2\"),\"^(a3f3da23|abc60088|ddf33ba2)$\",\"nap-n2d-highcpu-64-14u0kgzk\"),\"^(29a3ad05|b2a48937|ce966eb3)$\",\"nap-n2d-standar-32-1njfcc1x\"),\"^(3ba4dc5d|5a570f84|e5e68faf)$\",\"nap-n2d-standar-64-1j9gg1dj\"),\"^(3bdbd8a5)$\",\"nap-n4-highcpu-64-c4n7xqza\"),\"^(dd59d5c5|e6f50a4f|f435c1b3)$\",\"np-web-devops-1to4-amd64-prd\"),\"^(97ba7c81)$\",\"pci-scope-np\"),\"^(5a187699|7c295185|d8ad68de)$\",\"system-node-pool\"),\"^(05031f4c|5073a2df|968a5e73)$\",\"xl-node-pool\"),\"^(1ac911b7|5e58111e|9a1ba7c9|bb63f84a)$\",\"xxl-node-pool\"),\"^([a-f0-9]{8})$\",\"UNMAPPED IGM $1\"),\"nodepool\",\".*\"),c=max by(node)(default_rollup(hyperdx_capacity_v1:node_usable_allocatable{s,resource=\"cpu\"}[2m])),r=sum by(namespace,node)(default_rollup(hyperdx_capacity_v1:node_cpu_requests_upper_bound{s}[2m]))) ((sum by(nodepool)(poolmap(c)) or on(nodepool) (0 * sum by(nodepool)(poolmap(max by(node)(default_rollup(hyperdx_capacity_v1:node_allocatable{s,resource=\"cpu\"}[2m])))))) - on(nodepool) (sum by(nodepool)(poolmap(sum by(node)(label_mismatch(r,\"namespace\",\"buffer-capacity\")))) or on(nodepool) (0 * (sum by(nodepool)(poolmap(c)) or on(nodepool) (0 * sum by(nodepool)(poolmap(max by(node)(default_rollup(hyperdx_capacity_v1:node_allocatable{s,resource=\"cpu\"}[2m])))))))))",
+        "connection": "6aa77741acd7321c4deda7b6",
+        "source": "6aa77741acd7321c4deda7bc",
+        "legendTemplate": "{{nodepool}}"
+      }
+    },
+    {
+      "id": "all-pools-1-nodes",
+      "containerId": "pools-1",
+      "x": 0,
+      "y": 14,
+      "w": 24,
+      "h": 16,
+      "config": {
+        "name": "ALL pools \u00b7 total versus usable node count",
+        "displayType": "line",
+        "numberFormat": {
+          "output": "number",
+          "mantissa": 0,
+          "thousandSeparated": true,
+          "unit": "nodes"
+        },
+        "fillNulls": false,
+        "seriesLimit": 300,
+        "configType": "promql",
+        "promqlExpression": "WITH(s={cluster=\"web-users-servers-usc1-prd-cluster\"},m(v,a,b)=label_transform(v,\"nodepool\",a,b),poolmap(v)=label_match(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(label_replace(v,\"nodepool\",\"$1\",\"node\",\".*-([^-]+)-[^-]+$\"),\"^(73932b6d|b6297750|d95caa6c)$\",\"custom-code-workers-np\"),\"^(80c63b6c|a848b9e1|af80d148)$\",\"hc-xl-node-pool\"),\"^(177bb130|73717dae|afbf5aaf)$\",\"hc-xxl-node-pool\"),\"^(5e5ac2cf|675343a9|85be410d)$\",\"high-throughput-high-cpu-xl-node-pool\"),\"^(44c8d8c0|6fd82d6a|ffb1639c)$\",\"high-throughput-standard-xl-node-pool\"),\"^(79cc0502|88fcad10|f48bddaa)$\",\"n2d-standard-64-node-pool\"),\"^(75763d5c)$\",\"nap-c3-highcpu-44-rv7eeg5a\"),\"^(21deeb19|8716f0a0|a6689a65)$\",\"nap-c3d-standar-60-12dst7ga\"),\"^(0c1f5151|24af1206)$\",\"nap-c3d-standar-60-1haqj4of\"),\"^(71d358a4)$\",\"nap-c3d-standar-60-5eaciqsd\"),\"^(6462ec2d|6dca6fb1)$\",\"nap-c3d-standar-60-faganekt\"),\"^(1bc21a0a|54349a92|e3d9c648)$\",\"nap-c3d-standar-60-k74upstv\"),\"^(c387d7e1)$\",\"nap-c3d-standar-60-vkj5aw42\"),\"^(b7916ad9|bfcc35ec|ed4d5547)$\",\"nap-c4d-highcpu-64-14ye1cuc\"),\"^(2bfe5457)$\",\"nap-c4d-standar-64-17i87owb\"),\"^(9901f56f)$\",\"nap-c4d-standar-64-1lq3d75a\"),\"^(26b97f7b|4811e93c|fabdb43d)$\",\"nap-n2d-highcpu-32-kz1k83u2\"),\"^(a3f3da23|abc60088|ddf33ba2)$\",\"nap-n2d-highcpu-64-14u0kgzk\"),\"^(29a3ad05|b2a48937|ce966eb3)$\",\"nap-n2d-standar-32-1njfcc1x\"),\"^(3ba4dc5d|5a570f84|e5e68faf)$\",\"nap-n2d-standar-64-1j9gg1dj\"),\"^(3bdbd8a5)$\",\"nap-n4-highcpu-64-c4n7xqza\"),\"^(dd59d5c5|e6f50a4f|f435c1b3)$\",\"np-web-devops-1to4-amd64-prd\"),\"^(97ba7c81)$\",\"pci-scope-np\"),\"^(5a187699|7c295185|d8ad68de)$\",\"system-node-pool\"),\"^(05031f4c|5073a2df|968a5e73)$\",\"xl-node-pool\"),\"^(1ac911b7|5e58111e|9a1ba7c9|bb63f84a)$\",\"xxl-node-pool\"),\"^([a-f0-9]{8})$\",\"UNMAPPED IGM $1\"),\"nodepool\",\".*\")) sum by(nodepool,series)(poolmap(default_rollup(hyperdx_capacity_v1:node_state{s}[2m])))",
+        "connection": "6aa77741acd7321c4deda7b6",
+        "source": "6aa77741acd7321c4deda7bc",
+        "legendTemplate": "{{nodepool}} \u00b7 {{series}}"
+      }
+    },
+    {
+      "id": "pool-1-cpu",
+      "containerId": "pools-1",
+      "x": 0,
+      "y": 30,
+      "w": 24,
+      "h": 10,
+      "config": {
+        "name": "SELECTED pool \u00b7 CPU capacity / workload / buffer",
+        "displayType": "line",
+        "numberFormat": {
+          "output": "number",
+          "mantissa": 2,
+          "thousandSeparated": true,
+          "unit": "cores"
+        },
+        "fillNulls": false,
+        "seriesLimit": 300,
+        "configType": "promql",
+        "promqlExpression": "WITH(s={cluster=\"web-users-servers-usc1-prd-cluster\"},m(v,a,b)=label_transform(v,\"nodepool\",a,b),poolmap(v)=label_match(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(label_replace(v,\"nodepool\",\"$1\",\"node\",\".*-([^-]+)-[^-]+$\"),\"^(73932b6d|b6297750|d95caa6c)$\",\"custom-code-workers-np\"),\"^(80c63b6c|a848b9e1|af80d148)$\",\"hc-xl-node-pool\"),\"^(177bb130|73717dae|afbf5aaf)$\",\"hc-xxl-node-pool\"),\"^(5e5ac2cf|675343a9|85be410d)$\",\"high-throughput-high-cpu-xl-node-pool\"),\"^(44c8d8c0|6fd82d6a|ffb1639c)$\",\"high-throughput-standard-xl-node-pool\"),\"^(79cc0502|88fcad10|f48bddaa)$\",\"n2d-standard-64-node-pool\"),\"^(75763d5c)$\",\"nap-c3-highcpu-44-rv7eeg5a\"),\"^(21deeb19|8716f0a0|a6689a65)$\",\"nap-c3d-standar-60-12dst7ga\"),\"^(0c1f5151|24af1206)$\",\"nap-c3d-standar-60-1haqj4of\"),\"^(71d358a4)$\",\"nap-c3d-standar-60-5eaciqsd\"),\"^(6462ec2d|6dca6fb1)$\",\"nap-c3d-standar-60-faganekt\"),\"^(1bc21a0a|54349a92|e3d9c648)$\",\"nap-c3d-standar-60-k74upstv\"),\"^(c387d7e1)$\",\"nap-c3d-standar-60-vkj5aw42\"),\"^(b7916ad9|bfcc35ec|ed4d5547)$\",\"nap-c4d-highcpu-64-14ye1cuc\"),\"^(2bfe5457)$\",\"nap-c4d-standar-64-17i87owb\"),\"^(9901f56f)$\",\"nap-c4d-standar-64-1lq3d75a\"),\"^(26b97f7b|4811e93c|fabdb43d)$\",\"nap-n2d-highcpu-32-kz1k83u2\"),\"^(a3f3da23|abc60088|ddf33ba2)$\",\"nap-n2d-highcpu-64-14u0kgzk\"),\"^(29a3ad05|b2a48937|ce966eb3)$\",\"nap-n2d-standar-32-1njfcc1x\"),\"^(3ba4dc5d|5a570f84|e5e68faf)$\",\"nap-n2d-standar-64-1j9gg1dj\"),\"^(3bdbd8a5)$\",\"nap-n4-highcpu-64-c4n7xqza\"),\"^(dd59d5c5|e6f50a4f|f435c1b3)$\",\"np-web-devops-1to4-amd64-prd\"),\"^(97ba7c81)$\",\"pci-scope-np\"),\"^(5a187699|7c295185|d8ad68de)$\",\"system-node-pool\"),\"^(05031f4c|5073a2df|968a5e73)$\",\"xl-node-pool\"),\"^(1ac911b7|5e58111e|9a1ba7c9|bb63f84a)$\",\"xxl-node-pool\"),\"^([a-f0-9]{8})$\",\"UNMAPPED IGM $1\"),\"nodepool\",\"${nodepool:regex}\"),c=max by(node)(default_rollup(hyperdx_capacity_v1:node_usable_allocatable{s,resource=\"cpu\"}[2m])),r=sum by(namespace,node)(default_rollup(hyperdx_capacity_v1:node_cpu_requests_upper_bound{s}[2m]))) sum by(nodepool,series)(poolmap(label_set((c),\"series\",\"Usable capacity\") or label_set((sum by(node)(label_mismatch(r,\"namespace\",\"buffer-capacity\"))),\"series\",\"Workload requests\") or label_set((sum by(node)(label_match(r,\"namespace\",\"buffer-capacity\"))),\"series\",\"Warm-up requests\")))",
+        "connection": "6aa77741acd7321c4deda7b6",
+        "source": "6aa77741acd7321c4deda7bc",
+        "legendTemplate": "{{nodepool}} \u00b7 {{series}}"
+      }
+    },
+    {
+      "id": "pool-1-memory",
+      "containerId": "pools-1",
+      "x": 0,
+      "y": 40,
+      "w": 24,
+      "h": 10,
+      "config": {
+        "name": "SELECTED pool \u00b7 MEMORY capacity / workload / buffer",
+        "displayType": "line",
+        "numberFormat": {
+          "output": "number",
+          "mantissa": 2,
+          "thousandSeparated": true,
+          "unit": "GiB"
+        },
+        "fillNulls": false,
+        "seriesLimit": 300,
+        "configType": "promql",
+        "promqlExpression": "WITH(s={cluster=\"web-users-servers-usc1-prd-cluster\"},m(v,a,b)=label_transform(v,\"nodepool\",a,b),poolmap(v)=label_match(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(label_replace(v,\"nodepool\",\"$1\",\"node\",\".*-([^-]+)-[^-]+$\"),\"^(73932b6d|b6297750|d95caa6c)$\",\"custom-code-workers-np\"),\"^(80c63b6c|a848b9e1|af80d148)$\",\"hc-xl-node-pool\"),\"^(177bb130|73717dae|afbf5aaf)$\",\"hc-xxl-node-pool\"),\"^(5e5ac2cf|675343a9|85be410d)$\",\"high-throughput-high-cpu-xl-node-pool\"),\"^(44c8d8c0|6fd82d6a|ffb1639c)$\",\"high-throughput-standard-xl-node-pool\"),\"^(79cc0502|88fcad10|f48bddaa)$\",\"n2d-standard-64-node-pool\"),\"^(75763d5c)$\",\"nap-c3-highcpu-44-rv7eeg5a\"),\"^(21deeb19|8716f0a0|a6689a65)$\",\"nap-c3d-standar-60-12dst7ga\"),\"^(0c1f5151|24af1206)$\",\"nap-c3d-standar-60-1haqj4of\"),\"^(71d358a4)$\",\"nap-c3d-standar-60-5eaciqsd\"),\"^(6462ec2d|6dca6fb1)$\",\"nap-c3d-standar-60-faganekt\"),\"^(1bc21a0a|54349a92|e3d9c648)$\",\"nap-c3d-standar-60-k74upstv\"),\"^(c387d7e1)$\",\"nap-c3d-standar-60-vkj5aw42\"),\"^(b7916ad9|bfcc35ec|ed4d5547)$\",\"nap-c4d-highcpu-64-14ye1cuc\"),\"^(2bfe5457)$\",\"nap-c4d-standar-64-17i87owb\"),\"^(9901f56f)$\",\"nap-c4d-standar-64-1lq3d75a\"),\"^(26b97f7b|4811e93c|fabdb43d)$\",\"nap-n2d-highcpu-32-kz1k83u2\"),\"^(a3f3da23|abc60088|ddf33ba2)$\",\"nap-n2d-highcpu-64-14u0kgzk\"),\"^(29a3ad05|b2a48937|ce966eb3)$\",\"nap-n2d-standar-32-1njfcc1x\"),\"^(3ba4dc5d|5a570f84|e5e68faf)$\",\"nap-n2d-standar-64-1j9gg1dj\"),\"^(3bdbd8a5)$\",\"nap-n4-highcpu-64-c4n7xqza\"),\"^(dd59d5c5|e6f50a4f|f435c1b3)$\",\"np-web-devops-1to4-amd64-prd\"),\"^(97ba7c81)$\",\"pci-scope-np\"),\"^(5a187699|7c295185|d8ad68de)$\",\"system-node-pool\"),\"^(05031f4c|5073a2df|968a5e73)$\",\"xl-node-pool\"),\"^(1ac911b7|5e58111e|9a1ba7c9|bb63f84a)$\",\"xxl-node-pool\"),\"^([a-f0-9]{8})$\",\"UNMAPPED IGM $1\"),\"nodepool\",\"${nodepool:regex}\"),c=max by(node)(default_rollup(hyperdx_capacity_v1:node_usable_allocatable{s,resource=\"memory\"}[2m])),r=sum by(namespace,node)(default_rollup(hyperdx_capacity_v1:node_memory_requests_upper_bound{s}[2m]))) sum by(nodepool,series)(poolmap(label_set((c),\"series\",\"Usable capacity\") or label_set((sum by(node)(label_mismatch(r,\"namespace\",\"buffer-capacity\"))),\"series\",\"Workload requests\") or label_set((sum by(node)(label_match(r,\"namespace\",\"buffer-capacity\"))),\"series\",\"Warm-up requests\"))) / 1073741824",
+        "connection": "6aa77741acd7321c4deda7b6",
+        "source": "6aa77741acd7321c4deda7bc",
+        "legendTemplate": "{{nodepool}} \u00b7 {{series}}"
+      }
+    },
+    {
+      "id": "all-pools-2-cpu-headroom",
+      "containerId": "pools-2",
+      "x": 0,
+      "y": 0,
+      "w": 24,
+      "h": 14,
+      "config": {
+        "name": "ALL pools \u00b7 CPU headroom after assigned workloads",
+        "displayType": "line",
+        "numberFormat": {
+          "output": "number",
+          "mantissa": 2,
+          "thousandSeparated": true,
+          "unit": "cores"
+        },
+        "fillNulls": false,
+        "seriesLimit": 300,
+        "configType": "promql",
+        "promqlExpression": "WITH(s={cluster=\"workers-us-central-production-cluster\"},m(v,a,b)=label_transform(v,\"nodepool\",a,b),poolmap(v)=label_match(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(label_replace(v,\"nodepool\",\"$1\",\"node\",\".*-([^-]+)-[^-]+$\"),\"^(3048e721|569a03bd|bbfb21cb)$\",\"buffer-capacity-n2d-32-np\"),\"^(1d68fd42|45d49f5e|8b496f8b)$\",\"custom-code-workers-np\"),\"^(3ba9e14a|8ca37ce8|e9b1a0d8)$\",\"jobs-node-pool\"),\"^(6ccc956e|cd054d97|fe525916)$\",\"jobs-node-pool-2\"),\"^(082cb5cd|82f0495e|d07a093e)$\",\"n2d-highcpu-32-node-pool\"),\"^(15bd38c3|9c5770c6|d3750ab4)$\",\"n2d-highcpu-32-node-pool-ht-node-pool\"),\"^(32ceda3f|7ade4fc9|9ff3e675)$\",\"n2d-highcpu-64-node-pool\"),\"^(45828638|50dc2004|ca25ffe1)$\",\"n2d-standard-16-node-pool\"),\"^(13441fdf|1a35d62a|6b38e8e3)$\",\"n2d-standard-32-node-pool\"),\"^(47bd99b6|732b72d5|ce810755)$\",\"n2d-standard-32-node-pool-ht-node-pool\"),\"^(1a85291e|1f4b9b22|7399ef7b)$\",\"n2d-standard-64-node-pool\"),\"^(78664c4a|9c893a8e|d690a6aa)$\",\"n4d-standard-16-node-pool\"),\"^(1a0d5576|785629f8|a61bfc14)$\",\"n4d-standard-32-node-pool\"),\"^(78039ec3|c2a00597|dd10e9b6)$\",\"nap-c4d-highcpu-32-1kuc85ms\"),\"^(a1ab5cda|b4dea26d|f3a6caf1)$\",\"nap-c4d-highcpu-64-12nqs85h\"),\"^(2e1f9a63|5d95665a|9d13e660)$\",\"nap-c4d-highcpu-64-19nlw20x\"),\"^(0d5eeedf|5d2eecd5|b6778ceb)$\",\"nap-c4d-highcpu-64-19xj2hy9\"),\"^(70fe3cd8|ad97643c|b4a4e9e6)$\",\"nap-c4d-highcpu-64-1vca1ywr\"),\"^(40474543|a578b10b|c0543e51)$\",\"nap-c4d-highcpu-64-a6zeii2u\"),\"^(25c4c190|6e27ae12|7a9e2840)$\",\"nap-c4d-highcpu-64-v18yu3a7\"),\"^(4b44a6f2|932f72fe|eb164efa)$\",\"nap-c4d-highcpu-64-vf1a19iv\"),\"^(a0ef3b24)$\",\"nap-c4d-standar-32-1g27d9mj\"),\"^(7f245465)$\",\"nap-c4d-standar-32-tg18slez\"),\"^(2f059d11|780de217|8ef9e245)$\",\"nap-c4d-standar-64-1w5b57gs\"),\"^(201cbcbb|848e77bf)$\",\"nap-c4d-standar-64-9iabjujt\"),\"^(0c607751|34533a36|5ec31ca0)$\",\"nap-c4d-standar-64-po13v8wb\"),\"^(f92b80b5)$\",\"nap-n2d-highcpu-32-14b70oov\"),\"^(5739cdc1|58671c83|dad803ad)$\",\"nap-n2d-highcpu-32-1lqcmbhs\"),\"^(291749f3|4b80f30b|7cb993e5)$\",\"nap-n2d-highcpu-64-1gn5f8gk\"),\"^(0270d5ef|9392c52a|a70783c1)$\",\"nap-n2d-highcpu-64-pk19b620\"),\"^(2e9276fc|ca912aa9|de65e858)$\",\"nap-n2d-standar-16-cesshweb\"),\"^(2bf46475|a991c878|e77c3a5d)$\",\"nap-n2d-standar-32-1ezu2568\"),\"^(692990dc|712f3615|77b2b034)$\",\"nap-n2d-standar-32-qh1xif1g\"),\"^(1b031ee0|5714320e|6f674df3)$\",\"nap-n2d-standar-64-1c71ngox\"),\"^(55f8923c|864aa050|ffd7061d)$\",\"nap-n2d-standar-64-1q01xe4a\"),\"^(52e165f5|f4f8126f|f6e9911c)$\",\"nap-n2d-standar-64-5kuh1apg\"),\"^(180b00d6|822e037d|fecdffe0)$\",\"nap-n2d-standar-64-pk4lsxyp\"),\"^(73400b61|e178da7e|e4eef174)$\",\"nap-n2d-standar-64-qwgt5nr9\"),\"^(7ebd1f3f)$\",\"nap-n4-highcpu-32-18hip7m8\"),\"^(17f74393)$\",\"nap-n4-highcpu-32-1bpwcvg9\"),\"^(4d1fa8ce|ae08b602|d2064074)$\",\"nap-n4-highcpu-64-1frnr0rr\"),\"^(526ee747)$\",\"nap-n4-highcpu-64-1g0yisek\"),\"^(d1445744)$\",\"nap-n4-highcpu-64-e99yr381\"),\"^(53407aaf)$\",\"nap-n4-standard-32-1rijhf90\"),\"^(56fb19ec|e2b34ab3|fb3e3276)$\",\"nap-n4-standard-64-1qna0zl1\"),\"^(4395bbb2|5415fb00|b620ff68)$\",\"nap-n4-standard-64-r79nsbys\"),\"^(3f798a83|a400b4ad|af7b3630)$\",\"nap-n4d-standar-64-33n3qln4\"),\"^(bcb3819c|d6f816ff|d896d646)$\",\"nap-t2d-standar-32-13wt4kss\"),\"^(2934ec31|8cb1886d|b340dd3b)$\",\"nap-t2d-standar-48-6pe3ic62\"),\"^(18dc21ea|382f43ba|8d1d87cc)$\",\"nap-t2d-standar-60-qfzo8w5f\"),\"^(9820c242|cbbbe82f|ed912b52)$\",\"np-workers-devops-1to4-amd64-prd\"),\"^(0fa4b446|3916527b|a4c11530)$\",\"system-node-pool\"),\"^(395045c2|7691429b|975a31c7)$\",\"t2d-standard-32\"),\"^(02368a78|311f7ae3|56547cae)$\",\"t2d-standard-32-np\"),\"^([a-f0-9]{8})$\",\"UNMAPPED IGM $1\"),\"nodepool\",\".*\"),c=max by(node)(default_rollup(hyperdx_capacity_v1:node_usable_allocatable{s,resource=\"cpu\"}[2m])),r=sum by(namespace,node)(default_rollup(hyperdx_capacity_v1:node_cpu_requests_upper_bound{s}[2m]))) ((sum by(nodepool)(poolmap(c)) or on(nodepool) (0 * sum by(nodepool)(poolmap(max by(node)(default_rollup(hyperdx_capacity_v1:node_allocatable{s,resource=\"cpu\"}[2m])))))) - on(nodepool) (sum by(nodepool)(poolmap(sum by(node)(label_mismatch(r,\"namespace\",\"buffer-capacity\")))) or on(nodepool) (0 * (sum by(nodepool)(poolmap(c)) or on(nodepool) (0 * sum by(nodepool)(poolmap(max by(node)(default_rollup(hyperdx_capacity_v1:node_allocatable{s,resource=\"cpu\"}[2m])))))))))",
+        "connection": "6aa77741acd7321c4deda7b6",
+        "source": "6aa77741acd7321c4deda7bc",
+        "legendTemplate": "{{nodepool}}"
+      }
+    },
+    {
+      "id": "all-pools-2-nodes",
+      "containerId": "pools-2",
+      "x": 0,
+      "y": 14,
+      "w": 24,
+      "h": 16,
+      "config": {
+        "name": "ALL pools \u00b7 total versus usable node count",
+        "displayType": "line",
+        "numberFormat": {
+          "output": "number",
+          "mantissa": 0,
+          "thousandSeparated": true,
+          "unit": "nodes"
+        },
+        "fillNulls": false,
+        "seriesLimit": 300,
+        "configType": "promql",
+        "promqlExpression": "WITH(s={cluster=\"workers-us-central-production-cluster\"},m(v,a,b)=label_transform(v,\"nodepool\",a,b),poolmap(v)=label_match(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(label_replace(v,\"nodepool\",\"$1\",\"node\",\".*-([^-]+)-[^-]+$\"),\"^(3048e721|569a03bd|bbfb21cb)$\",\"buffer-capacity-n2d-32-np\"),\"^(1d68fd42|45d49f5e|8b496f8b)$\",\"custom-code-workers-np\"),\"^(3ba9e14a|8ca37ce8|e9b1a0d8)$\",\"jobs-node-pool\"),\"^(6ccc956e|cd054d97|fe525916)$\",\"jobs-node-pool-2\"),\"^(082cb5cd|82f0495e|d07a093e)$\",\"n2d-highcpu-32-node-pool\"),\"^(15bd38c3|9c5770c6|d3750ab4)$\",\"n2d-highcpu-32-node-pool-ht-node-pool\"),\"^(32ceda3f|7ade4fc9|9ff3e675)$\",\"n2d-highcpu-64-node-pool\"),\"^(45828638|50dc2004|ca25ffe1)$\",\"n2d-standard-16-node-pool\"),\"^(13441fdf|1a35d62a|6b38e8e3)$\",\"n2d-standard-32-node-pool\"),\"^(47bd99b6|732b72d5|ce810755)$\",\"n2d-standard-32-node-pool-ht-node-pool\"),\"^(1a85291e|1f4b9b22|7399ef7b)$\",\"n2d-standard-64-node-pool\"),\"^(78664c4a|9c893a8e|d690a6aa)$\",\"n4d-standard-16-node-pool\"),\"^(1a0d5576|785629f8|a61bfc14)$\",\"n4d-standard-32-node-pool\"),\"^(78039ec3|c2a00597|dd10e9b6)$\",\"nap-c4d-highcpu-32-1kuc85ms\"),\"^(a1ab5cda|b4dea26d|f3a6caf1)$\",\"nap-c4d-highcpu-64-12nqs85h\"),\"^(2e1f9a63|5d95665a|9d13e660)$\",\"nap-c4d-highcpu-64-19nlw20x\"),\"^(0d5eeedf|5d2eecd5|b6778ceb)$\",\"nap-c4d-highcpu-64-19xj2hy9\"),\"^(70fe3cd8|ad97643c|b4a4e9e6)$\",\"nap-c4d-highcpu-64-1vca1ywr\"),\"^(40474543|a578b10b|c0543e51)$\",\"nap-c4d-highcpu-64-a6zeii2u\"),\"^(25c4c190|6e27ae12|7a9e2840)$\",\"nap-c4d-highcpu-64-v18yu3a7\"),\"^(4b44a6f2|932f72fe|eb164efa)$\",\"nap-c4d-highcpu-64-vf1a19iv\"),\"^(a0ef3b24)$\",\"nap-c4d-standar-32-1g27d9mj\"),\"^(7f245465)$\",\"nap-c4d-standar-32-tg18slez\"),\"^(2f059d11|780de217|8ef9e245)$\",\"nap-c4d-standar-64-1w5b57gs\"),\"^(201cbcbb|848e77bf)$\",\"nap-c4d-standar-64-9iabjujt\"),\"^(0c607751|34533a36|5ec31ca0)$\",\"nap-c4d-standar-64-po13v8wb\"),\"^(f92b80b5)$\",\"nap-n2d-highcpu-32-14b70oov\"),\"^(5739cdc1|58671c83|dad803ad)$\",\"nap-n2d-highcpu-32-1lqcmbhs\"),\"^(291749f3|4b80f30b|7cb993e5)$\",\"nap-n2d-highcpu-64-1gn5f8gk\"),\"^(0270d5ef|9392c52a|a70783c1)$\",\"nap-n2d-highcpu-64-pk19b620\"),\"^(2e9276fc|ca912aa9|de65e858)$\",\"nap-n2d-standar-16-cesshweb\"),\"^(2bf46475|a991c878|e77c3a5d)$\",\"nap-n2d-standar-32-1ezu2568\"),\"^(692990dc|712f3615|77b2b034)$\",\"nap-n2d-standar-32-qh1xif1g\"),\"^(1b031ee0|5714320e|6f674df3)$\",\"nap-n2d-standar-64-1c71ngox\"),\"^(55f8923c|864aa050|ffd7061d)$\",\"nap-n2d-standar-64-1q01xe4a\"),\"^(52e165f5|f4f8126f|f6e9911c)$\",\"nap-n2d-standar-64-5kuh1apg\"),\"^(180b00d6|822e037d|fecdffe0)$\",\"nap-n2d-standar-64-pk4lsxyp\"),\"^(73400b61|e178da7e|e4eef174)$\",\"nap-n2d-standar-64-qwgt5nr9\"),\"^(7ebd1f3f)$\",\"nap-n4-highcpu-32-18hip7m8\"),\"^(17f74393)$\",\"nap-n4-highcpu-32-1bpwcvg9\"),\"^(4d1fa8ce|ae08b602|d2064074)$\",\"nap-n4-highcpu-64-1frnr0rr\"),\"^(526ee747)$\",\"nap-n4-highcpu-64-1g0yisek\"),\"^(d1445744)$\",\"nap-n4-highcpu-64-e99yr381\"),\"^(53407aaf)$\",\"nap-n4-standard-32-1rijhf90\"),\"^(56fb19ec|e2b34ab3|fb3e3276)$\",\"nap-n4-standard-64-1qna0zl1\"),\"^(4395bbb2|5415fb00|b620ff68)$\",\"nap-n4-standard-64-r79nsbys\"),\"^(3f798a83|a400b4ad|af7b3630)$\",\"nap-n4d-standar-64-33n3qln4\"),\"^(bcb3819c|d6f816ff|d896d646)$\",\"nap-t2d-standar-32-13wt4kss\"),\"^(2934ec31|8cb1886d|b340dd3b)$\",\"nap-t2d-standar-48-6pe3ic62\"),\"^(18dc21ea|382f43ba|8d1d87cc)$\",\"nap-t2d-standar-60-qfzo8w5f\"),\"^(9820c242|cbbbe82f|ed912b52)$\",\"np-workers-devops-1to4-amd64-prd\"),\"^(0fa4b446|3916527b|a4c11530)$\",\"system-node-pool\"),\"^(395045c2|7691429b|975a31c7)$\",\"t2d-standard-32\"),\"^(02368a78|311f7ae3|56547cae)$\",\"t2d-standard-32-np\"),\"^([a-f0-9]{8})$\",\"UNMAPPED IGM $1\"),\"nodepool\",\".*\")) sum by(nodepool,series)(poolmap(default_rollup(hyperdx_capacity_v1:node_state{s}[2m])))",
+        "connection": "6aa77741acd7321c4deda7b6",
+        "source": "6aa77741acd7321c4deda7bc",
+        "legendTemplate": "{{nodepool}} \u00b7 {{series}}"
+      }
+    },
+    {
+      "id": "pool-2-cpu",
+      "containerId": "pools-2",
+      "x": 0,
+      "y": 30,
+      "w": 24,
+      "h": 10,
+      "config": {
+        "name": "SELECTED pool \u00b7 CPU capacity / workload / buffer",
+        "displayType": "line",
+        "numberFormat": {
+          "output": "number",
+          "mantissa": 2,
+          "thousandSeparated": true,
+          "unit": "cores"
+        },
+        "fillNulls": false,
+        "seriesLimit": 300,
+        "configType": "promql",
+        "promqlExpression": "WITH(s={cluster=\"workers-us-central-production-cluster\"},m(v,a,b)=label_transform(v,\"nodepool\",a,b),poolmap(v)=label_match(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(label_replace(v,\"nodepool\",\"$1\",\"node\",\".*-([^-]+)-[^-]+$\"),\"^(3048e721|569a03bd|bbfb21cb)$\",\"buffer-capacity-n2d-32-np\"),\"^(1d68fd42|45d49f5e|8b496f8b)$\",\"custom-code-workers-np\"),\"^(3ba9e14a|8ca37ce8|e9b1a0d8)$\",\"jobs-node-pool\"),\"^(6ccc956e|cd054d97|fe525916)$\",\"jobs-node-pool-2\"),\"^(082cb5cd|82f0495e|d07a093e)$\",\"n2d-highcpu-32-node-pool\"),\"^(15bd38c3|9c5770c6|d3750ab4)$\",\"n2d-highcpu-32-node-pool-ht-node-pool\"),\"^(32ceda3f|7ade4fc9|9ff3e675)$\",\"n2d-highcpu-64-node-pool\"),\"^(45828638|50dc2004|ca25ffe1)$\",\"n2d-standard-16-node-pool\"),\"^(13441fdf|1a35d62a|6b38e8e3)$\",\"n2d-standard-32-node-pool\"),\"^(47bd99b6|732b72d5|ce810755)$\",\"n2d-standard-32-node-pool-ht-node-pool\"),\"^(1a85291e|1f4b9b22|7399ef7b)$\",\"n2d-standard-64-node-pool\"),\"^(78664c4a|9c893a8e|d690a6aa)$\",\"n4d-standard-16-node-pool\"),\"^(1a0d5576|785629f8|a61bfc14)$\",\"n4d-standard-32-node-pool\"),\"^(78039ec3|c2a00597|dd10e9b6)$\",\"nap-c4d-highcpu-32-1kuc85ms\"),\"^(a1ab5cda|b4dea26d|f3a6caf1)$\",\"nap-c4d-highcpu-64-12nqs85h\"),\"^(2e1f9a63|5d95665a|9d13e660)$\",\"nap-c4d-highcpu-64-19nlw20x\"),\"^(0d5eeedf|5d2eecd5|b6778ceb)$\",\"nap-c4d-highcpu-64-19xj2hy9\"),\"^(70fe3cd8|ad97643c|b4a4e9e6)$\",\"nap-c4d-highcpu-64-1vca1ywr\"),\"^(40474543|a578b10b|c0543e51)$\",\"nap-c4d-highcpu-64-a6zeii2u\"),\"^(25c4c190|6e27ae12|7a9e2840)$\",\"nap-c4d-highcpu-64-v18yu3a7\"),\"^(4b44a6f2|932f72fe|eb164efa)$\",\"nap-c4d-highcpu-64-vf1a19iv\"),\"^(a0ef3b24)$\",\"nap-c4d-standar-32-1g27d9mj\"),\"^(7f245465)$\",\"nap-c4d-standar-32-tg18slez\"),\"^(2f059d11|780de217|8ef9e245)$\",\"nap-c4d-standar-64-1w5b57gs\"),\"^(201cbcbb|848e77bf)$\",\"nap-c4d-standar-64-9iabjujt\"),\"^(0c607751|34533a36|5ec31ca0)$\",\"nap-c4d-standar-64-po13v8wb\"),\"^(f92b80b5)$\",\"nap-n2d-highcpu-32-14b70oov\"),\"^(5739cdc1|58671c83|dad803ad)$\",\"nap-n2d-highcpu-32-1lqcmbhs\"),\"^(291749f3|4b80f30b|7cb993e5)$\",\"nap-n2d-highcpu-64-1gn5f8gk\"),\"^(0270d5ef|9392c52a|a70783c1)$\",\"nap-n2d-highcpu-64-pk19b620\"),\"^(2e9276fc|ca912aa9|de65e858)$\",\"nap-n2d-standar-16-cesshweb\"),\"^(2bf46475|a991c878|e77c3a5d)$\",\"nap-n2d-standar-32-1ezu2568\"),\"^(692990dc|712f3615|77b2b034)$\",\"nap-n2d-standar-32-qh1xif1g\"),\"^(1b031ee0|5714320e|6f674df3)$\",\"nap-n2d-standar-64-1c71ngox\"),\"^(55f8923c|864aa050|ffd7061d)$\",\"nap-n2d-standar-64-1q01xe4a\"),\"^(52e165f5|f4f8126f|f6e9911c)$\",\"nap-n2d-standar-64-5kuh1apg\"),\"^(180b00d6|822e037d|fecdffe0)$\",\"nap-n2d-standar-64-pk4lsxyp\"),\"^(73400b61|e178da7e|e4eef174)$\",\"nap-n2d-standar-64-qwgt5nr9\"),\"^(7ebd1f3f)$\",\"nap-n4-highcpu-32-18hip7m8\"),\"^(17f74393)$\",\"nap-n4-highcpu-32-1bpwcvg9\"),\"^(4d1fa8ce|ae08b602|d2064074)$\",\"nap-n4-highcpu-64-1frnr0rr\"),\"^(526ee747)$\",\"nap-n4-highcpu-64-1g0yisek\"),\"^(d1445744)$\",\"nap-n4-highcpu-64-e99yr381\"),\"^(53407aaf)$\",\"nap-n4-standard-32-1rijhf90\"),\"^(56fb19ec|e2b34ab3|fb3e3276)$\",\"nap-n4-standard-64-1qna0zl1\"),\"^(4395bbb2|5415fb00|b620ff68)$\",\"nap-n4-standard-64-r79nsbys\"),\"^(3f798a83|a400b4ad|af7b3630)$\",\"nap-n4d-standar-64-33n3qln4\"),\"^(bcb3819c|d6f816ff|d896d646)$\",\"nap-t2d-standar-32-13wt4kss\"),\"^(2934ec31|8cb1886d|b340dd3b)$\",\"nap-t2d-standar-48-6pe3ic62\"),\"^(18dc21ea|382f43ba|8d1d87cc)$\",\"nap-t2d-standar-60-qfzo8w5f\"),\"^(9820c242|cbbbe82f|ed912b52)$\",\"np-workers-devops-1to4-amd64-prd\"),\"^(0fa4b446|3916527b|a4c11530)$\",\"system-node-pool\"),\"^(395045c2|7691429b|975a31c7)$\",\"t2d-standard-32\"),\"^(02368a78|311f7ae3|56547cae)$\",\"t2d-standard-32-np\"),\"^([a-f0-9]{8})$\",\"UNMAPPED IGM $1\"),\"nodepool\",\"${nodepool:regex}\"),c=max by(node)(default_rollup(hyperdx_capacity_v1:node_usable_allocatable{s,resource=\"cpu\"}[2m])),r=sum by(namespace,node)(default_rollup(hyperdx_capacity_v1:node_cpu_requests_upper_bound{s}[2m]))) sum by(nodepool,series)(poolmap(label_set((c),\"series\",\"Usable capacity\") or label_set((sum by(node)(label_mismatch(r,\"namespace\",\"buffer-capacity\"))),\"series\",\"Workload requests\") or label_set((sum by(node)(label_match(r,\"namespace\",\"buffer-capacity\"))),\"series\",\"Warm-up requests\")))",
+        "connection": "6aa77741acd7321c4deda7b6",
+        "source": "6aa77741acd7321c4deda7bc",
+        "legendTemplate": "{{nodepool}} \u00b7 {{series}}"
+      }
+    },
+    {
+      "id": "pool-2-memory",
+      "containerId": "pools-2",
+      "x": 0,
+      "y": 40,
+      "w": 24,
+      "h": 10,
+      "config": {
+        "name": "SELECTED pool \u00b7 MEMORY capacity / workload / buffer",
+        "displayType": "line",
+        "numberFormat": {
+          "output": "number",
+          "mantissa": 2,
+          "thousandSeparated": true,
+          "unit": "GiB"
+        },
+        "fillNulls": false,
+        "seriesLimit": 300,
+        "configType": "promql",
+        "promqlExpression": "WITH(s={cluster=\"workers-us-central-production-cluster\"},m(v,a,b)=label_transform(v,\"nodepool\",a,b),poolmap(v)=label_match(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(label_replace(v,\"nodepool\",\"$1\",\"node\",\".*-([^-]+)-[^-]+$\"),\"^(3048e721|569a03bd|bbfb21cb)$\",\"buffer-capacity-n2d-32-np\"),\"^(1d68fd42|45d49f5e|8b496f8b)$\",\"custom-code-workers-np\"),\"^(3ba9e14a|8ca37ce8|e9b1a0d8)$\",\"jobs-node-pool\"),\"^(6ccc956e|cd054d97|fe525916)$\",\"jobs-node-pool-2\"),\"^(082cb5cd|82f0495e|d07a093e)$\",\"n2d-highcpu-32-node-pool\"),\"^(15bd38c3|9c5770c6|d3750ab4)$\",\"n2d-highcpu-32-node-pool-ht-node-pool\"),\"^(32ceda3f|7ade4fc9|9ff3e675)$\",\"n2d-highcpu-64-node-pool\"),\"^(45828638|50dc2004|ca25ffe1)$\",\"n2d-standard-16-node-pool\"),\"^(13441fdf|1a35d62a|6b38e8e3)$\",\"n2d-standard-32-node-pool\"),\"^(47bd99b6|732b72d5|ce810755)$\",\"n2d-standard-32-node-pool-ht-node-pool\"),\"^(1a85291e|1f4b9b22|7399ef7b)$\",\"n2d-standard-64-node-pool\"),\"^(78664c4a|9c893a8e|d690a6aa)$\",\"n4d-standard-16-node-pool\"),\"^(1a0d5576|785629f8|a61bfc14)$\",\"n4d-standard-32-node-pool\"),\"^(78039ec3|c2a00597|dd10e9b6)$\",\"nap-c4d-highcpu-32-1kuc85ms\"),\"^(a1ab5cda|b4dea26d|f3a6caf1)$\",\"nap-c4d-highcpu-64-12nqs85h\"),\"^(2e1f9a63|5d95665a|9d13e660)$\",\"nap-c4d-highcpu-64-19nlw20x\"),\"^(0d5eeedf|5d2eecd5|b6778ceb)$\",\"nap-c4d-highcpu-64-19xj2hy9\"),\"^(70fe3cd8|ad97643c|b4a4e9e6)$\",\"nap-c4d-highcpu-64-1vca1ywr\"),\"^(40474543|a578b10b|c0543e51)$\",\"nap-c4d-highcpu-64-a6zeii2u\"),\"^(25c4c190|6e27ae12|7a9e2840)$\",\"nap-c4d-highcpu-64-v18yu3a7\"),\"^(4b44a6f2|932f72fe|eb164efa)$\",\"nap-c4d-highcpu-64-vf1a19iv\"),\"^(a0ef3b24)$\",\"nap-c4d-standar-32-1g27d9mj\"),\"^(7f245465)$\",\"nap-c4d-standar-32-tg18slez\"),\"^(2f059d11|780de217|8ef9e245)$\",\"nap-c4d-standar-64-1w5b57gs\"),\"^(201cbcbb|848e77bf)$\",\"nap-c4d-standar-64-9iabjujt\"),\"^(0c607751|34533a36|5ec31ca0)$\",\"nap-c4d-standar-64-po13v8wb\"),\"^(f92b80b5)$\",\"nap-n2d-highcpu-32-14b70oov\"),\"^(5739cdc1|58671c83|dad803ad)$\",\"nap-n2d-highcpu-32-1lqcmbhs\"),\"^(291749f3|4b80f30b|7cb993e5)$\",\"nap-n2d-highcpu-64-1gn5f8gk\"),\"^(0270d5ef|9392c52a|a70783c1)$\",\"nap-n2d-highcpu-64-pk19b620\"),\"^(2e9276fc|ca912aa9|de65e858)$\",\"nap-n2d-standar-16-cesshweb\"),\"^(2bf46475|a991c878|e77c3a5d)$\",\"nap-n2d-standar-32-1ezu2568\"),\"^(692990dc|712f3615|77b2b034)$\",\"nap-n2d-standar-32-qh1xif1g\"),\"^(1b031ee0|5714320e|6f674df3)$\",\"nap-n2d-standar-64-1c71ngox\"),\"^(55f8923c|864aa050|ffd7061d)$\",\"nap-n2d-standar-64-1q01xe4a\"),\"^(52e165f5|f4f8126f|f6e9911c)$\",\"nap-n2d-standar-64-5kuh1apg\"),\"^(180b00d6|822e037d|fecdffe0)$\",\"nap-n2d-standar-64-pk4lsxyp\"),\"^(73400b61|e178da7e|e4eef174)$\",\"nap-n2d-standar-64-qwgt5nr9\"),\"^(7ebd1f3f)$\",\"nap-n4-highcpu-32-18hip7m8\"),\"^(17f74393)$\",\"nap-n4-highcpu-32-1bpwcvg9\"),\"^(4d1fa8ce|ae08b602|d2064074)$\",\"nap-n4-highcpu-64-1frnr0rr\"),\"^(526ee747)$\",\"nap-n4-highcpu-64-1g0yisek\"),\"^(d1445744)$\",\"nap-n4-highcpu-64-e99yr381\"),\"^(53407aaf)$\",\"nap-n4-standard-32-1rijhf90\"),\"^(56fb19ec|e2b34ab3|fb3e3276)$\",\"nap-n4-standard-64-1qna0zl1\"),\"^(4395bbb2|5415fb00|b620ff68)$\",\"nap-n4-standard-64-r79nsbys\"),\"^(3f798a83|a400b4ad|af7b3630)$\",\"nap-n4d-standar-64-33n3qln4\"),\"^(bcb3819c|d6f816ff|d896d646)$\",\"nap-t2d-standar-32-13wt4kss\"),\"^(2934ec31|8cb1886d|b340dd3b)$\",\"nap-t2d-standar-48-6pe3ic62\"),\"^(18dc21ea|382f43ba|8d1d87cc)$\",\"nap-t2d-standar-60-qfzo8w5f\"),\"^(9820c242|cbbbe82f|ed912b52)$\",\"np-workers-devops-1to4-amd64-prd\"),\"^(0fa4b446|3916527b|a4c11530)$\",\"system-node-pool\"),\"^(395045c2|7691429b|975a31c7)$\",\"t2d-standard-32\"),\"^(02368a78|311f7ae3|56547cae)$\",\"t2d-standard-32-np\"),\"^([a-f0-9]{8})$\",\"UNMAPPED IGM $1\"),\"nodepool\",\"${nodepool:regex}\"),c=max by(node)(default_rollup(hyperdx_capacity_v1:node_usable_allocatable{s,resource=\"memory\"}[2m])),r=sum by(namespace,node)(default_rollup(hyperdx_capacity_v1:node_memory_requests_upper_bound{s}[2m]))) sum by(nodepool,series)(poolmap(label_set((c),\"series\",\"Usable capacity\") or label_set((sum by(node)(label_mismatch(r,\"namespace\",\"buffer-capacity\"))),\"series\",\"Workload requests\") or label_set((sum by(node)(label_match(r,\"namespace\",\"buffer-capacity\"))),\"series\",\"Warm-up requests\"))) / 1073741824",
+        "connection": "6aa77741acd7321c4deda7b6",
+        "source": "6aa77741acd7321c4deda7bc",
+        "legendTemplate": "{{nodepool}} \u00b7 {{series}}"
+      }
+    },
+    {
+      "id": "app-backlog-pods",
+      "containerId": "app-backlog",
+      "x": 0,
+      "y": 0,
+      "w": 24,
+      "h": 9,
+      "config": {
+        "name": "Application pods \u00b7 unschedulable count",
+        "displayType": "line",
+        "numberFormat": {
+          "output": "number",
+          "mantissa": 0,
+          "thousandSeparated": true,
+          "unit": "pods"
+        },
+        "fillNulls": false,
+        "seriesLimit": 300,
+        "configType": "promql",
+        "promqlExpression": "label_map(default_rollup(hyperdx_capacity_v1:app_backlog_pods{cluster=~\"${cluster:regex}\"}[2m]),\"cluster\",\"servers-usc1-prd-cluster\",\"Servers\",\"web-users-servers-usc1-prd-cluster\",\"Web users\",\"workers-us-central-production-cluster\",\"Workers\")",
+        "connection": "6aa77741acd7321c4deda7b6",
+        "source": "6aa77741acd7321c4deda7bc",
+        "legendTemplate": "{{cluster}}"
+      }
+    },
+    {
+      "id": "app-backlog-cpu",
+      "containerId": "app-backlog",
+      "x": 0,
+      "y": 9,
+      "w": 24,
+      "h": 9,
+      "config": {
+        "name": "Application pods \u00b7 unschedulable requested CPU (regular containers)",
+        "displayType": "line",
+        "numberFormat": {
+          "output": "number",
+          "mantissa": 2,
+          "thousandSeparated": true,
+          "unit": "cores"
+        },
+        "fillNulls": false,
+        "seriesLimit": 300,
+        "configType": "promql",
+        "promqlExpression": "label_map(default_rollup(hyperdx_capacity_v1:app_backlog_cpu{cluster=~\"${cluster:regex}\"}[2m]),\"cluster\",\"servers-usc1-prd-cluster\",\"Servers\",\"web-users-servers-usc1-prd-cluster\",\"Web users\",\"workers-us-central-production-cluster\",\"Workers\")",
+        "connection": "6aa77741acd7321c4deda7b6",
+        "source": "6aa77741acd7321c4deda7bc",
+        "legendTemplate": "{{cluster}}"
+      }
+    },
+    {
+      "id": "buffer-backlog-pods",
+      "containerId": "buffer-backlog",
+      "x": 0,
+      "y": 0,
+      "w": 24,
+      "h": 9,
+      "config": {
+        "name": "Buffer-capacity pods \u00b7 unschedulable count",
+        "displayType": "line",
+        "numberFormat": {
+          "output": "number",
+          "mantissa": 0,
+          "thousandSeparated": true,
+          "unit": "pods"
+        },
+        "fillNulls": false,
+        "seriesLimit": 300,
+        "configType": "promql",
+        "promqlExpression": "label_map(default_rollup(hyperdx_capacity_v1:buffer_backlog_pods{cluster=~\"${cluster:regex}\"}[2m]),\"cluster\",\"servers-usc1-prd-cluster\",\"Servers\",\"web-users-servers-usc1-prd-cluster\",\"Web users\",\"workers-us-central-production-cluster\",\"Workers\")",
+        "connection": "6aa77741acd7321c4deda7b6",
+        "source": "6aa77741acd7321c4deda7bc",
+        "legendTemplate": "{{cluster}}"
+      }
+    },
+    {
+      "id": "buffer-backlog-cpu",
+      "containerId": "buffer-backlog",
+      "x": 0,
+      "y": 9,
+      "w": 24,
+      "h": 9,
+      "config": {
+        "name": "Buffer-capacity pods \u00b7 unschedulable requested CPU (regular containers)",
+        "displayType": "line",
+        "numberFormat": {
+          "output": "number",
+          "mantissa": 2,
+          "thousandSeparated": true,
+          "unit": "cores"
+        },
+        "fillNulls": false,
+        "seriesLimit": 300,
+        "configType": "promql",
+        "promqlExpression": "label_map(default_rollup(hyperdx_capacity_v1:buffer_backlog_cpu{cluster=~\"${cluster:regex}\"}[2m]),\"cluster\",\"servers-usc1-prd-cluster\",\"Servers\",\"web-users-servers-usc1-prd-cluster\",\"Web users\",\"workers-us-central-production-cluster\",\"Workers\")",
+        "connection": "6aa77741acd7321c4deda7b6",
+        "source": "6aa77741acd7321c4deda7bc",
+        "legendTemplate": "{{cluster}}"
+      }
+    },
+    {
+      "id": "buffer-target-backlog",
+      "containerId": "buffer-backlog",
+      "x": 0,
+      "y": 18,
+      "w": 24,
+      "h": 12,
+      "config": {
+        "name": "Buffer pods blocked \u00b7 intended POOL or CLASS (current selector mapping)",
+        "displayType": "line",
+        "numberFormat": {
+          "output": "number",
+          "mantissa": 0,
+          "thousandSeparated": true,
+          "unit": "pods"
+        },
+        "fillNulls": false,
+        "seriesLimit": 300,
+        "configType": "promql",
+        "promqlExpression": "label_map((WITH(v=(default_rollup(hyperdx_capacity_v1:buffer_target_backlog{cluster=~\"${cluster:regex}\"}[2m]))) (label_map(label_match(v,\"cluster\",\"servers-usc1-prd-cluster\"),\"buffer_group\",\"custom-code\",\"POOL custom-code-workers-np\",\"standard\",\"CLASS standard\",\"highcpu\",\"CLASS highcpu\",\"pci\",\"POOL pci-scope-np\",\"default\",\"POOL xl-node-pool\",\"high-throughput\",\"POOL xl-node-pool-ht-node-pool\") or label_map(label_match(v,\"cluster\",\"web-users-servers-usc1-prd-cluster\"),\"buffer_group\",\"custom-code\",\"POOL custom-code-workers-np\",\"standard\",\"CLASS standard\",\"highcpu\",\"CLASS highcpu\",\"pci\",\"POOL pci-scope-np\",\"default\",\"POOL xl-node-pool\",\"high-throughput\",\"POOL high-throughput-standard-xl-node-pool\") or label_map(label_match(v,\"cluster\",\"workers-us-central-production-cluster\"),\"buffer_group\",\"custom-code\",\"POOL custom-code-workers-np\",\"standard\",\"CLASS standard\",\"highcpu\",\"CLASS highcpu\",\"pci\",\"POOL pci-scope-np\",\"default\",\"POOL buffer-capacity-n2d-32-np\"))),\"cluster\",\"servers-usc1-prd-cluster\",\"Servers\",\"web-users-servers-usc1-prd-cluster\",\"Web users\",\"workers-us-central-production-cluster\",\"Workers\")",
+        "connection": "6aa77741acd7321c4deda7b6",
+        "source": "6aa77741acd7321c4deda7bc",
+        "legendTemplate": "{{cluster}} \u00b7 {{buffer_group}}"
+      }
+    },
+    {
+      "id": "buffer-target-ready",
+      "containerId": "buffer-backlog",
+      "x": 0,
+      "y": 30,
+      "w": 24,
+      "h": 14,
+      "config": {
+        "name": "Warm-up delivery \u00b7 requested versus available buffer replicas",
+        "displayType": "line",
+        "numberFormat": {
+          "output": "number",
+          "mantissa": 0,
+          "thousandSeparated": true,
+          "unit": "pods"
+        },
+        "fillNulls": false,
+        "seriesLimit": 300,
+        "configType": "promql",
+        "promqlExpression": "label_map((WITH(v=(default_rollup(hyperdx_capacity_v1:buffer_target_ready{cluster=~\"${cluster:regex}\"}[2m]))) (label_map(label_match(v,\"cluster\",\"servers-usc1-prd-cluster\"),\"buffer_group\",\"custom-code\",\"POOL custom-code-workers-np\",\"standard\",\"CLASS standard\",\"highcpu\",\"CLASS highcpu\",\"pci\",\"POOL pci-scope-np\",\"default\",\"POOL xl-node-pool\",\"high-throughput\",\"POOL xl-node-pool-ht-node-pool\") or label_map(label_match(v,\"cluster\",\"web-users-servers-usc1-prd-cluster\"),\"buffer_group\",\"custom-code\",\"POOL custom-code-workers-np\",\"standard\",\"CLASS standard\",\"highcpu\",\"CLASS highcpu\",\"pci\",\"POOL pci-scope-np\",\"default\",\"POOL xl-node-pool\",\"high-throughput\",\"POOL high-throughput-standard-xl-node-pool\") or label_map(label_match(v,\"cluster\",\"workers-us-central-production-cluster\"),\"buffer_group\",\"custom-code\",\"POOL custom-code-workers-np\",\"standard\",\"CLASS standard\",\"highcpu\",\"CLASS highcpu\",\"pci\",\"POOL pci-scope-np\",\"default\",\"POOL buffer-capacity-n2d-32-np\"))),\"cluster\",\"servers-usc1-prd-cluster\",\"Servers\",\"web-users-servers-usc1-prd-cluster\",\"Web users\",\"workers-us-central-production-cluster\",\"Workers\")",
+        "connection": "6aa77741acd7321c4deda7b6",
+        "source": "6aa77741acd7321c4deda7bc",
+        "legendTemplate": "{{cluster}} \u00b7 {{buffer_group}} \u00b7 {{series}}"
+      }
+    },
+    {
+      "id": "individual-0-cpu",
+      "containerId": "individual-nodes",
+      "x": 0,
+      "y": 0,
+      "w": 24,
+      "h": 14,
+      "config": {
+        "name": "Servers \u00b7 CPU per node in selected pool",
+        "displayType": "line",
+        "numberFormat": {
+          "output": "number",
+          "mantissa": 2,
+          "thousandSeparated": true,
+          "unit": "cores"
+        },
+        "fillNulls": false,
+        "seriesLimit": 3000,
+        "configType": "promql",
+        "promqlExpression": "WITH(s={cluster=\"servers-usc1-prd-cluster\"},m(v,a,b)=label_transform(v,\"nodepool\",a,b),poolmap(v)=label_match(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(label_replace(v,\"nodepool\",\"$1\",\"node\",\".*-([^-]+)-[^-]+$\"),\"^(2c157954|926edfe5|c5722be2)$\",\"custom-code-workers-np\"),\"^(1161ac27|3bce6e3b|bdc50e80)$\",\"hc-l-node-pool\"),\"^(332dd6dd|e879378c|eee72b38)$\",\"hc-xl-node-pool\"),\"^(90dcee20|aa265fdb|ca98bf98)$\",\"hc-xl-node-pool-ht-node-pool\"),\"^(0fcf3ad5|5fb40473|ba4998b7)$\",\"hc-xl-node-pool-np\"),\"^(6463d510|6dbde41f|d49a3371)$\",\"hc-xxl-node-pool\"),\"^(9c5681c4|e0990c4e|f374f50a)$\",\"jobs-node-pool\"),\"^(1b0070e6|28f775fe|db8ecb6a)$\",\"l-node-pool\"),\"^(049110ff|0d07ca91|741226d6)$\",\"n2d-standard-64-node-pool\"),\"^(5cf83164|8a0a38b5|bf71913f)$\",\"n4d-l-node-pool\"),\"^(2cf015da|4a1730b5|8b8ceefc)$\",\"n4d-xl-node-pool\"),\"^(12253142|33d6a217|e7454bd1)$\",\"nap-c3-highcpu-44-1vmpoxd0\"),\"^(05b46473|49393f3b|b2038f93)$\",\"nap-c3-standard-44-1p4zpq86\"),\"^(63f5d2e7|73018cb3|b6ba8189)$\",\"nap-c4-standard-32-1ptzgk87\"),\"^(583beae3|6a918b13|f636b3eb)$\",\"nap-c4d-highcpu-64-3hddebpd\"),\"^(08e57b06)$\",\"nap-c4d-standar-32-184ultu9\"),\"^(0b8cd2be)$\",\"nap-c4d-standar-32-1bw3whvp\"),\"^(b51d0ced)$\",\"nap-c4d-standar-64-146lcinz\"),\"^(e55573a7)$\",\"nap-c4d-standar-64-199xybnp\"),\"^(29291a53|de6dd1c8|e4b7cbde)$\",\"nap-c4d-standar-64-1f9cn66c\"),\"^(3ecb1151|ebcfb4fd)$\",\"nap-c4d-standar-64-1knyurt1\"),\"^(b7d34a06)$\",\"nap-c4d-standar-64-9jqgocx7\"),\"^(194ec713|f77bdadc|f94a9a30)$\",\"nap-n2d-highcpu-32-9v5rgf08\"),\"^(00b8720f|1974e3e8|ccc825ce)$\",\"nap-n2d-highcpu-64-1o7z5l7f\"),\"^(0f4343ae|8a5b4b0b|ceda046a)$\",\"nap-n2d-standar-16-gffbvy1a\"),\"^(5751a741|7f950fad|beb7dca0)$\",\"nap-n2d-standar-32-1ic2apig\"),\"^(4900c434|841f9709|8dac8de8)$\",\"nap-n2d-standar-64-7oe2tdvm\"),\"^(40dc01e8)$\",\"nap-n4-highcpu-64-1xham7oi\"),\"^(14d09db9|1f267711|ff79afbc)$\",\"nap-n4d-standar-64-58b7gavn\"),\"^(4e319310|819fa74e|9d9b8797)$\",\"np-servers-devops-1to4-amd64-prd\"),\"^(6a13f5a5|76b2d028|8419301f)$\",\"system-node-pool\"),\"^(38ac9fa1|6e71a442|e8e78c04)$\",\"t2d-xl-node-pool\"),\"^(1257c069|347ea5c2|690d4abf)$\",\"xl-node-pool\"),\"^(07fe258f|15b3aeee|8eb125d0)$\",\"xl-node-pool-ht-node-pool\"),\"^(560163a6|77b42713|be1a6429)$\",\"xxl-node-pool\"),\"^([a-f0-9]{8})$\",\"UNMAPPED IGM $1\"),\"nodepool\",\"${nodepool:regex}\"),c=max by(node)(default_rollup(hyperdx_capacity_v1:node_usable_allocatable{s,resource=\"cpu\"}[2m])),r=sum by(namespace,node)(default_rollup(hyperdx_capacity_v1:node_cpu_requests_upper_bound{s}[2m]))) poolmap(label_set((c),\"series\",\"Usable CPU\") or label_set((sum by(node)(label_mismatch(r,\"namespace\",\"buffer-capacity\"))),\"series\",\"Workload CPU\") or label_set((sum by(node)(label_match(r,\"namespace\",\"buffer-capacity\"))),\"series\",\"Buffer CPU\"))",
+        "connection": "6aa77741acd7321c4deda7b6",
+        "source": "6aa77741acd7321c4deda7bc",
+        "legendTemplate": "{{nodepool}} \u00b7 {{node}} \u00b7 {{series}}"
+      }
+    },
+    {
+      "id": "individual-1-cpu",
+      "containerId": "individual-nodes",
+      "x": 0,
+      "y": 14,
+      "w": 24,
+      "h": 14,
+      "config": {
+        "name": "Web users \u00b7 CPU per node in selected pool",
+        "displayType": "line",
+        "numberFormat": {
+          "output": "number",
+          "mantissa": 2,
+          "thousandSeparated": true,
+          "unit": "cores"
+        },
+        "fillNulls": false,
+        "seriesLimit": 3000,
+        "configType": "promql",
+        "promqlExpression": "WITH(s={cluster=\"web-users-servers-usc1-prd-cluster\"},m(v,a,b)=label_transform(v,\"nodepool\",a,b),poolmap(v)=label_match(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(label_replace(v,\"nodepool\",\"$1\",\"node\",\".*-([^-]+)-[^-]+$\"),\"^(73932b6d|b6297750|d95caa6c)$\",\"custom-code-workers-np\"),\"^(80c63b6c|a848b9e1|af80d148)$\",\"hc-xl-node-pool\"),\"^(177bb130|73717dae|afbf5aaf)$\",\"hc-xxl-node-pool\"),\"^(5e5ac2cf|675343a9|85be410d)$\",\"high-throughput-high-cpu-xl-node-pool\"),\"^(44c8d8c0|6fd82d6a|ffb1639c)$\",\"high-throughput-standard-xl-node-pool\"),\"^(79cc0502|88fcad10|f48bddaa)$\",\"n2d-standard-64-node-pool\"),\"^(75763d5c)$\",\"nap-c3-highcpu-44-rv7eeg5a\"),\"^(21deeb19|8716f0a0|a6689a65)$\",\"nap-c3d-standar-60-12dst7ga\"),\"^(0c1f5151|24af1206)$\",\"nap-c3d-standar-60-1haqj4of\"),\"^(71d358a4)$\",\"nap-c3d-standar-60-5eaciqsd\"),\"^(6462ec2d|6dca6fb1)$\",\"nap-c3d-standar-60-faganekt\"),\"^(1bc21a0a|54349a92|e3d9c648)$\",\"nap-c3d-standar-60-k74upstv\"),\"^(c387d7e1)$\",\"nap-c3d-standar-60-vkj5aw42\"),\"^(b7916ad9|bfcc35ec|ed4d5547)$\",\"nap-c4d-highcpu-64-14ye1cuc\"),\"^(2bfe5457)$\",\"nap-c4d-standar-64-17i87owb\"),\"^(9901f56f)$\",\"nap-c4d-standar-64-1lq3d75a\"),\"^(26b97f7b|4811e93c|fabdb43d)$\",\"nap-n2d-highcpu-32-kz1k83u2\"),\"^(a3f3da23|abc60088|ddf33ba2)$\",\"nap-n2d-highcpu-64-14u0kgzk\"),\"^(29a3ad05|b2a48937|ce966eb3)$\",\"nap-n2d-standar-32-1njfcc1x\"),\"^(3ba4dc5d|5a570f84|e5e68faf)$\",\"nap-n2d-standar-64-1j9gg1dj\"),\"^(3bdbd8a5)$\",\"nap-n4-highcpu-64-c4n7xqza\"),\"^(dd59d5c5|e6f50a4f|f435c1b3)$\",\"np-web-devops-1to4-amd64-prd\"),\"^(97ba7c81)$\",\"pci-scope-np\"),\"^(5a187699|7c295185|d8ad68de)$\",\"system-node-pool\"),\"^(05031f4c|5073a2df|968a5e73)$\",\"xl-node-pool\"),\"^(1ac911b7|5e58111e|9a1ba7c9|bb63f84a)$\",\"xxl-node-pool\"),\"^([a-f0-9]{8})$\",\"UNMAPPED IGM $1\"),\"nodepool\",\"${nodepool:regex}\"),c=max by(node)(default_rollup(hyperdx_capacity_v1:node_usable_allocatable{s,resource=\"cpu\"}[2m])),r=sum by(namespace,node)(default_rollup(hyperdx_capacity_v1:node_cpu_requests_upper_bound{s}[2m]))) poolmap(label_set((c),\"series\",\"Usable CPU\") or label_set((sum by(node)(label_mismatch(r,\"namespace\",\"buffer-capacity\"))),\"series\",\"Workload CPU\") or label_set((sum by(node)(label_match(r,\"namespace\",\"buffer-capacity\"))),\"series\",\"Buffer CPU\"))",
+        "connection": "6aa77741acd7321c4deda7b6",
+        "source": "6aa77741acd7321c4deda7bc",
+        "legendTemplate": "{{nodepool}} \u00b7 {{node}} \u00b7 {{series}}"
+      }
+    },
+    {
+      "id": "individual-2-cpu",
+      "containerId": "individual-nodes",
+      "x": 0,
+      "y": 28,
+      "w": 24,
+      "h": 14,
+      "config": {
+        "name": "Workers \u00b7 CPU per node in selected pool",
+        "displayType": "line",
+        "numberFormat": {
+          "output": "number",
+          "mantissa": 2,
+          "thousandSeparated": true,
+          "unit": "cores"
+        },
+        "fillNulls": false,
+        "seriesLimit": 3000,
+        "configType": "promql",
+        "promqlExpression": "WITH(s={cluster=\"workers-us-central-production-cluster\"},m(v,a,b)=label_transform(v,\"nodepool\",a,b),poolmap(v)=label_match(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(m(label_replace(v,\"nodepool\",\"$1\",\"node\",\".*-([^-]+)-[^-]+$\"),\"^(3048e721|569a03bd|bbfb21cb)$\",\"buffer-capacity-n2d-32-np\"),\"^(1d68fd42|45d49f5e|8b496f8b)$\",\"custom-code-workers-np\"),\"^(3ba9e14a|8ca37ce8|e9b1a0d8)$\",\"jobs-node-pool\"),\"^(6ccc956e|cd054d97|fe525916)$\",\"jobs-node-pool-2\"),\"^(082cb5cd|82f0495e|d07a093e)$\",\"n2d-highcpu-32-node-pool\"),\"^(15bd38c3|9c5770c6|d3750ab4)$\",\"n2d-highcpu-32-node-pool-ht-node-pool\"),\"^(32ceda3f|7ade4fc9|9ff3e675)$\",\"n2d-highcpu-64-node-pool\"),\"^(45828638|50dc2004|ca25ffe1)$\",\"n2d-standard-16-node-pool\"),\"^(13441fdf|1a35d62a|6b38e8e3)$\",\"n2d-standard-32-node-pool\"),\"^(47bd99b6|732b72d5|ce810755)$\",\"n2d-standard-32-node-pool-ht-node-pool\"),\"^(1a85291e|1f4b9b22|7399ef7b)$\",\"n2d-standard-64-node-pool\"),\"^(78664c4a|9c893a8e|d690a6aa)$\",\"n4d-standard-16-node-pool\"),\"^(1a0d5576|785629f8|a61bfc14)$\",\"n4d-standard-32-node-pool\"),\"^(78039ec3|c2a00597|dd10e9b6)$\",\"nap-c4d-highcpu-32-1kuc85ms\"),\"^(a1ab5cda|b4dea26d|f3a6caf1)$\",\"nap-c4d-highcpu-64-12nqs85h\"),\"^(2e1f9a63|5d95665a|9d13e660)$\",\"nap-c4d-highcpu-64-19nlw20x\"),\"^(0d5eeedf|5d2eecd5|b6778ceb)$\",\"nap-c4d-highcpu-64-19xj2hy9\"),\"^(70fe3cd8|ad97643c|b4a4e9e6)$\",\"nap-c4d-highcpu-64-1vca1ywr\"),\"^(40474543|a578b10b|c0543e51)$\",\"nap-c4d-highcpu-64-a6zeii2u\"),\"^(25c4c190|6e27ae12|7a9e2840)$\",\"nap-c4d-highcpu-64-v18yu3a7\"),\"^(4b44a6f2|932f72fe|eb164efa)$\",\"nap-c4d-highcpu-64-vf1a19iv\"),\"^(a0ef3b24)$\",\"nap-c4d-standar-32-1g27d9mj\"),\"^(7f245465)$\",\"nap-c4d-standar-32-tg18slez\"),\"^(2f059d11|780de217|8ef9e245)$\",\"nap-c4d-standar-64-1w5b57gs\"),\"^(201cbcbb|848e77bf)$\",\"nap-c4d-standar-64-9iabjujt\"),\"^(0c607751|34533a36|5ec31ca0)$\",\"nap-c4d-standar-64-po13v8wb\"),\"^(f92b80b5)$\",\"nap-n2d-highcpu-32-14b70oov\"),\"^(5739cdc1|58671c83|dad803ad)$\",\"nap-n2d-highcpu-32-1lqcmbhs\"),\"^(291749f3|4b80f30b|7cb993e5)$\",\"nap-n2d-highcpu-64-1gn5f8gk\"),\"^(0270d5ef|9392c52a|a70783c1)$\",\"nap-n2d-highcpu-64-pk19b620\"),\"^(2e9276fc|ca912aa9|de65e858)$\",\"nap-n2d-standar-16-cesshweb\"),\"^(2bf46475|a991c878|e77c3a5d)$\",\"nap-n2d-standar-32-1ezu2568\"),\"^(692990dc|712f3615|77b2b034)$\",\"nap-n2d-standar-32-qh1xif1g\"),\"^(1b031ee0|5714320e|6f674df3)$\",\"nap-n2d-standar-64-1c71ngox\"),\"^(55f8923c|864aa050|ffd7061d)$\",\"nap-n2d-standar-64-1q01xe4a\"),\"^(52e165f5|f4f8126f|f6e9911c)$\",\"nap-n2d-standar-64-5kuh1apg\"),\"^(180b00d6|822e037d|fecdffe0)$\",\"nap-n2d-standar-64-pk4lsxyp\"),\"^(73400b61|e178da7e|e4eef174)$\",\"nap-n2d-standar-64-qwgt5nr9\"),\"^(7ebd1f3f)$\",\"nap-n4-highcpu-32-18hip7m8\"),\"^(17f74393)$\",\"nap-n4-highcpu-32-1bpwcvg9\"),\"^(4d1fa8ce|ae08b602|d2064074)$\",\"nap-n4-highcpu-64-1frnr0rr\"),\"^(526ee747)$\",\"nap-n4-highcpu-64-1g0yisek\"),\"^(d1445744)$\",\"nap-n4-highcpu-64-e99yr381\"),\"^(53407aaf)$\",\"nap-n4-standard-32-1rijhf90\"),\"^(56fb19ec|e2b34ab3|fb3e3276)$\",\"nap-n4-standard-64-1qna0zl1\"),\"^(4395bbb2|5415fb00|b620ff68)$\",\"nap-n4-standard-64-r79nsbys\"),\"^(3f798a83|a400b4ad|af7b3630)$\",\"nap-n4d-standar-64-33n3qln4\"),\"^(bcb3819c|d6f816ff|d896d646)$\",\"nap-t2d-standar-32-13wt4kss\"),\"^(2934ec31|8cb1886d|b340dd3b)$\",\"nap-t2d-standar-48-6pe3ic62\"),\"^(18dc21ea|382f43ba|8d1d87cc)$\",\"nap-t2d-standar-60-qfzo8w5f\"),\"^(9820c242|cbbbe82f|ed912b52)$\",\"np-workers-devops-1to4-amd64-prd\"),\"^(0fa4b446|3916527b|a4c11530)$\",\"system-node-pool\"),\"^(395045c2|7691429b|975a31c7)$\",\"t2d-standard-32\"),\"^(02368a78|311f7ae3|56547cae)$\",\"t2d-standard-32-np\"),\"^([a-f0-9]{8})$\",\"UNMAPPED IGM $1\"),\"nodepool\",\"${nodepool:regex}\"),c=max by(node)(default_rollup(hyperdx_capacity_v1:node_usable_allocatable{s,resource=\"cpu\"}[2m])),r=sum by(namespace,node)(default_rollup(hyperdx_capacity_v1:node_cpu_requests_upper_bound{s}[2m]))) poolmap(label_set((c),\"series\",\"Usable CPU\") or label_set((sum by(node)(label_mismatch(r,\"namespace\",\"buffer-capacity\"))),\"series\",\"Workload CPU\") or label_set((sum by(node)(label_match(r,\"namespace\",\"buffer-capacity\"))),\"series\",\"Buffer CPU\"))",
+        "connection": "6aa77741acd7321c4deda7b6",
+        "source": "6aa77741acd7321c4deda7bc",
+        "legendTemplate": "{{nodepool}} \u00b7 {{node}} \u00b7 {{series}}"
+      }
+    },
+    {
+      "id": "cluster-cpu",
+      "containerId": "overview",
+      "x": 0,
+      "y": 4,
+      "w": 24,
+      "h": 10,
+      "config": {
+        "name": "Cluster CPU \u00b7 capacity, workload and warm-up",
+        "displayType": "line",
+        "numberFormat": {
+          "output": "number",
+          "mantissa": 2,
+          "thousandSeparated": true,
+          "unit": "cores"
+        },
+        "fillNulls": false,
+        "seriesLimit": 300,
+        "configType": "promql",
+        "promqlExpression": "label_map((label_set((sum by(cluster)(default_rollup(hyperdx_capacity_v1:node_usable_allocatable{cluster=~\"${cluster:regex}\",resource=\"cpu\"}[2m]))),\"series\",\"Usable capacity\") or label_set((sum by(cluster)(default_rollup(hyperdx_capacity_v1:node_cpu_requests_upper_bound{cluster=~\"${cluster:regex}\",namespace!=\"buffer-capacity\"}[2m]))),\"series\",\"Workload requests\") or label_set((sum by(cluster)(default_rollup(hyperdx_capacity_v1:node_cpu_requests_upper_bound{cluster=~\"${cluster:regex}\",namespace=\"buffer-capacity\"}[2m]))),\"series\",\"Warm-up requests\")),\"cluster\",\"servers-usc1-prd-cluster\",\"Servers\",\"web-users-servers-usc1-prd-cluster\",\"Web users\",\"workers-us-central-production-cluster\",\"Workers\")",
+        "connection": "6aa77741acd7321c4deda7b6",
+        "source": "6aa77741acd7321c4deda7bc",
+        "legendTemplate": "{{cluster}} \u00b7 {{series}}"
+      }
+    },
+    {
+      "id": "cluster-memory",
+      "containerId": "overview",
+      "x": 0,
+      "y": 14,
+      "w": 24,
+      "h": 10,
+      "config": {
+        "name": "Cluster MEMORY \u00b7 capacity, workload and warm-up",
+        "displayType": "line",
+        "numberFormat": {
+          "output": "number",
+          "mantissa": 2,
+          "thousandSeparated": true,
+          "unit": "GiB"
+        },
+        "fillNulls": false,
+        "seriesLimit": 300,
+        "configType": "promql",
+        "promqlExpression": "label_map((label_set((sum by(cluster)(default_rollup(hyperdx_capacity_v1:node_usable_allocatable{cluster=~\"${cluster:regex}\",resource=\"memory\"}[2m])) / 1073741824),\"series\",\"Usable capacity\") or label_set((sum by(cluster)(default_rollup(hyperdx_capacity_v1:node_memory_requests_upper_bound{cluster=~\"${cluster:regex}\",namespace!=\"buffer-capacity\"}[2m])) / 1073741824),\"series\",\"Workload requests\") or label_set((sum by(cluster)(default_rollup(hyperdx_capacity_v1:node_memory_requests_upper_bound{cluster=~\"${cluster:regex}\",namespace=\"buffer-capacity\"}[2m])) / 1073741824),\"series\",\"Warm-up requests\")),\"cluster\",\"servers-usc1-prd-cluster\",\"Servers\",\"web-users-servers-usc1-prd-cluster\",\"Web users\",\"workers-us-central-production-cluster\",\"Workers\")",
+        "connection": "6aa77741acd7321c4deda7b6",
+        "source": "6aa77741acd7321c4deda7bc",
+        "legendTemplate": "{{cluster}} \u00b7 {{series}}"
+      }
+    }
+  ]
+}
