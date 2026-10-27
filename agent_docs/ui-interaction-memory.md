@@ -1,5 +1,53 @@
 # HyperDX UI interaction memory
 
+## Dashboard header dragging and query feedback — 2026-10-26
+
+Source: local changes against `de9dd7d092e8f52935f5c592f88d8bccf2e3cbb1` on
+`recover/sep18-custom43-integrated`; not deployed.
+
+- The Tile content wrapper in `packages/app/src/DBDashboardPage.tsx` marked
+  the entire shared chart, including its header, `data-dashboard-no-drag`.
+  React Grid Layout therefore rejected title drags. An earlier fixture with
+  a separate header outside that wrapper did not reproduce this embedding.
+- Both dashboard grids now use the shared ChartContainer card header as the
+  drag handle. Chart bodies, normal/collapsed toolbars and portals remain
+  excluded. Existing permissions, resize and layout-save callbacks remain in
+  place. Rendering-error placeholders retain the title and actions too.
+- The dashboard toolbar now observes active React Query requests through
+  `DashboardLoadingIndicator`. It displays a spinner and accessible status
+  during initial loading and background refetches, including range changes
+  retaining old results. It clears after success/error and ignores inactive
+  superseded requests. Its scope includes all active queries in the shared
+  client; it does not promise that offscreen lazy panels have been loaded.
+- Regression tests use the real grid and ChartContainer, not a mock drag
+  header: normal/scrolling bodies, toolbar protection and read-only behavior.
+  Loading tests cover idle-to-range-change, retained data, errors and inactive
+  queries. Existing dropdown-dismissal tests remain part of the focused gate.
+- Validation: focused tests and app type check pass; changed-file lint has no
+  errors. The full app suite has 59 failures across six unrelated suites;
+  the identical 59 failures reproduce in an isolated HEAD baseline. Full
+  repository lint also reports an existing restricted parent-relative import
+  in `SQLEditor/__tests__/SQLInlineEditor.commentCommand.test.ts`.
+- Browser evidence: the local synthetic fixture showed the spinner while old
+  values remained, then the new values with the spinner cleared. A header drag
+  visibly moved a panel and its menu still opened. Native browser control
+  intermittently returned `cgWindowNotFound`; the drag overlay also stayed active
+  until a subsequent click. Final drop/save behavior was therefore inconclusive
+  in that browser run. Screenshots were captured in the task conversation.
+- A suspected single-move persistence defect was not reproduced: the real-grid
+  `SnapGridLayout.persistence.test.tsx` passes single/multiple moves, exactly-one
+  layout notification, collision compaction and no-op click checks without any
+  grid-wrapper change. Do not add a persistence workaround based solely on the
+  native input observation or the library's reference-based equality check.
+- No production verification is claimed. Before release, verify grouped and
+  ungrouped drag and saved positions after reload, menu/body interaction,
+  read-only/kiosk behavior, and loading through the actual dashboard. Keep the
+  previous portal-dismissal checks; do not restore blanket no-drag around the
+  shared header.
+- Local diagnostic logs/fixture live in ignored `.ai-local/one-off/` and are not
+  release artifacts. Central lesson/Wiki publication is pending: this task's
+  write boundary is this repository only.
+
 ## Footer omits page counts — 2026-09-18
 
 - User guidance: "Showing newest 1,000 logs" (or any loaded-page count) is not
