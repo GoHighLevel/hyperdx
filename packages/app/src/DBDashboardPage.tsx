@@ -125,6 +125,7 @@ import {
 import { IsolatedChartSyncProvider } from '@/chartSync';
 import { mergeAnnotations } from '@/components/charts/chartAnnotations';
 import { ContactSupportText } from '@/components/ContactSupportText';
+import DashboardLoadingIndicator from '@/components/dashboard/DashboardLoadingIndicator';
 import SnapGridLayout from '@/components/dashboard/SnapGridLayout';
 import DashboardContainer from '@/components/DashboardContainer';
 import {
@@ -1258,9 +1259,11 @@ const Tile = ({
         <ErrorBoundary
           onError={console.error}
           fallback={
-            <div className="text-danger px-2 py-1 m-2 fs-7 font-monospace bg-danger-transparent">
-              An error occurred while rendering the chart.
-            </div>
+            <TilePlaceholder title={title} toolbarItems={toolbar}>
+              <span className="text-danger">
+                An error occurred while rendering the chart.
+              </span>
+            </TilePlaceholder>
           }
         >
           {isBlockedByRequiredFilters ? (
@@ -1575,7 +1578,6 @@ const Tile = ({
           ref={inViewportRef}
           className="fs-7 text-muted flex-grow-1 overflow-hidden cursor-default"
           style={{ paddingInline: DASHBOARD_TILE_PADDING_INLINE }}
-          data-dashboard-no-drag
         >
           <CollapsedToolbarProvider
             menuItems={collapsedMenuItems}
@@ -1835,6 +1837,7 @@ function DashboardContainerRow({
           >
             {visibleTiles.length > 0 && (
               <SnapGridLayout
+                draggableHandle="[data-dashboard-drag-handle]"
                 layout={visibleTiles.map(tileToLayoutItem)}
                 containerPadding={[0, 0]}
                 onLayoutChange={readOnly ? undefined : layoutChangeHandler}
@@ -3232,6 +3235,7 @@ function DBDashboardPage({
       >
         Run
       </Button>
+      <DashboardLoadingIndicator />
     </Flex>
   );
 
@@ -3399,6 +3403,7 @@ function DBDashboardPage({
                 >
                   {ungroupedTiles.length > 0 && (
                     <SnapGridLayout
+                      draggableHandle="[data-dashboard-drag-handle]"
                       layout={ungroupedTiles.map(tileToLayoutItem)}
                       containerPadding={[0, 0]}
                       onLayoutChange={

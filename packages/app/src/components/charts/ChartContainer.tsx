@@ -111,6 +111,8 @@ function ChartContainer({
       >
         {showHeader && (
           <Group
+            data-dashboard-drag-handle={cardHeader || undefined}
+            className={cardHeader ? styles.cardHeader : undefined}
             justify="space-between"
             align={cardHeader ? 'center' : 'start'}
             wrap="nowrap"
@@ -165,6 +167,7 @@ function ChartContainer({
               <>
                 {/* Normal toolbar: visible at wider sizes */}
                 <Group
+                  data-dashboard-no-drag
                   flex={0}
                   wrap="nowrap"
                   gap={5}
@@ -178,7 +181,10 @@ function ChartContainer({
                     Row 1 shows inline items (indicators, toggles) as-is,
                     then a divider, then flattened action Menu.Items. */}
                 {collapsedToolbar && (
-                  <div className={styles.toolbarCollapsed}>
+                  <div
+                    className={styles.toolbarCollapsed}
+                    data-dashboard-no-drag
+                  >
                     <Menu width={220} position="bottom-end">
                       <Menu.Target>
                         <Tooltip label="Tile actions" position="top" withArrow>
@@ -217,7 +223,10 @@ function ChartContainer({
             // body owns the scroll. This keeps a sticky-style header genuinely
             // pinned for tall, normal-flow content (e.g. a long bar list) that
             // would otherwise scroll the whole card and drag the header away.
-            <div style={{ flex: 1, minHeight: 0, overflow: 'auto' }}>
+            <div
+              data-dashboard-no-drag
+              style={{ flex: 1, minHeight: 0, overflow: 'auto' }}
+            >
               {children}
             </div>
           ) : (
@@ -225,6 +234,7 @@ function ChartContainer({
           )
         ) : (
           <div
+            data-dashboard-no-drag
             // Hack, recharts will release real fix soon https://github.com/recharts/recharts/issues/172
             style={{
               position: 'relative',
