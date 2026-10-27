@@ -25,8 +25,14 @@ function DisplaySwitcher<T extends string>({
       wrap="nowrap"
     >
       {options.map(({ icon, label, value: optionValue, disabled }) => (
-        <Tooltip label={label} key={optionValue}>
+        <Tooltip
+          label={label}
+          key={optionValue}
+          events={{ hover: true, focus: true, touch: false }}
+        >
           <ActionIcon
+            aria-label={label}
+            aria-pressed={value === optionValue}
             size="xs"
             me={2}
             className={cx({

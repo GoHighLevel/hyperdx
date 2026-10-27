@@ -187,8 +187,17 @@ function ChartContainer({
                   >
                     <Menu width={220} position="bottom-end">
                       <Menu.Target>
-                        <Tooltip label="Tile actions" position="top" withArrow>
-                          <ActionIcon variant="subtle" size="sm">
+                        <Tooltip
+                          label="Panel actions"
+                          position="top"
+                          withArrow
+                          events={{ hover: true, focus: true, touch: false }}
+                        >
+                          <ActionIcon
+                            variant="subtle"
+                            size="sm"
+                            aria-label="Panel actions"
+                          >
                             <IconDotsVertical size={16} />
                           </ActionIcon>
                         </Tooltip>

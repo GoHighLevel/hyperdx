@@ -412,6 +412,18 @@ the picker from its input.
   DBRowTable/DBDashboardPage were changed; SummaryFieldPicker was untracked.
   Source fallback was required. The graph does not prove behavioral coverage.
 
+## Panel action discoverability — 2026-10-27
+
+Design contract: preserve the existing panel layout, permissions and drag
+exclusions. Dashboard toolbar controls own their names and focus tooltips;
+`ChartContainer` owns the narrow-panel menu, and `DisplaySwitcher` owns chart
+mode labels and pressed state. Reuse Mantine controls and semantic theme tokens.
+Tooltips must appear on keyboard focus as well as hover; names must exist before
+the tooltip opens. Check Enter activation, disabled modes, compact menus and
+grid dragging together. Local shared-component screenshots cover both brands
+and light/dark themes; full dashboard and staging integration remain release
+checks. This does not constitute a screen-reader or measured contrast audit.
+
 ## Installed workflow
 
 - Shared skill: `~/.agents/skills/hyperdx-ui-regression-memory/SKILL.md`.
