@@ -1,5 +1,22 @@
 # HyperDX UI interaction memory
 
+## Shared time-picker context — 2026-10-27
+
+Design contract: adapt Grafana's searchable ranges and explicit time context
+inside the existing Mantine `TimePicker`, preserving both brands, color modes,
+presets, query callbacks and retention restrictions. The footer previews the
+outer text input, not unsaved calendar fields or the range of fetched results.
+Relative previews resolve when the picker opens; they are not a live clock.
+
+The preview uses the existing parser and UTC preference, includes full dates
+and offsets, and measures elapsed 24-hour days rather than calendar days.
+Regression checks cover a 23-hour DST window, invalid input, preset filtering,
+and Enter on Clear: it must clear and retain focus without submitting the
+existing global Apply shortcut. Local component/browser checks do not establish
+authenticated-page or staging verification; those remain release checks.
+
+Reference: https://grafana.com/docs/grafana/latest/dashboards/time-range-controls/
+
 ## Dashboard header dragging and query feedback — 2026-10-26
 
 Source: local changes against `de9dd7d092e8f52935f5c592f88d8bccf2e3cbb1` on
