@@ -872,7 +872,12 @@ const Tile = ({
         my={2} // Margin to ensure that the Alert Indicator doesn't clip on non-Line/Bar display types
       >
         {replaySearchUrl && (
-          <Tooltip label="Replay search" position="top" withArrow>
+          <Tooltip
+            label="Replay search"
+            position="top"
+            withArrow
+            events={{ hover: true, focus: true, touch: false }}
+          >
             <ActionIcon
               component={Link}
               href={replaySearchUrl}
@@ -900,9 +905,14 @@ const Tile = ({
               processing={alert.state === AlertState.ALERT}
               mr={4}
             >
-              <Tooltip label={alertTooltip} withArrow>
+              <Tooltip
+                label={alertTooltip}
+                withArrow
+                events={{ hover: true, focus: true, touch: false }}
+              >
                 <ActionIcon
                   data-testid={`tile-alerts-button-${chart.id}`}
+                  aria-label="Edit alert"
                   variant="subtle"
                   size="sm"
                   onClick={onEditClick}
@@ -914,9 +924,14 @@ const Tile = ({
           ) : (
             // No alert yet: a dedicated "bell +" icon reads clearly on any
             // background, unlike an overlaid indicator badge.
-            <Tooltip label={alertTooltip} withArrow>
+            <Tooltip
+              label={alertTooltip}
+              withArrow
+              events={{ hover: true, focus: true, touch: false }}
+            >
               <ActionIcon
                 data-testid={`tile-alerts-button-${chart.id}`}
+                aria-label="Add alert"
                 variant="subtle"
                 size="sm"
                 onClick={onEditClick}
@@ -929,9 +944,15 @@ const Tile = ({
 
         {/* Fullscreen is a primary action, so it lives directly in the
               toolbar rather than buried in the "More actions" menu. */}
-        <Tooltip label="View fullscreen (f)" position="top" withArrow>
+        <Tooltip
+          label="View fullscreen (f)"
+          position="top"
+          withArrow
+          events={{ hover: true, focus: true, touch: false }}
+        >
           <ActionIcon
             data-testid={`tile-fullscreen-button-${chart.id}`}
+            aria-label="View fullscreen"
             variant="subtle"
             size="sm"
             onClick={() => openFullscreen()}
@@ -943,9 +964,15 @@ const Tile = ({
 
         <Menu width={220} position="bottom-end">
           <Menu.Target>
-            <Tooltip label="More actions" position="top" withArrow>
+            <Tooltip
+              label="Panel actions"
+              position="top"
+              withArrow
+              events={{ hover: true, focus: true, touch: false }}
+            >
               <ActionIcon
                 data-testid={`tile-actions-button-${chart.id}`}
+                aria-label="Panel actions"
                 variant="subtle"
                 size="sm"
               >
