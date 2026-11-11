@@ -1,0 +1,315 @@
+{
+  "version": "0.1.0",
+  "name": "Whitelabel LB — requests including customer domains",
+  "description": "Dedicated proxy-listener request estimates for 35.202.49.152; activation required; bounded hostname breakdown.",
+  "tags": ["production", "whitelabel", "load-balancers"],
+  "filters": [
+    {
+      "id": "status",
+      "name": "HTTP status class",
+      "variableName": "status",
+      "type": "STATIC_LIST",
+      "options": ["1xx", "2xx", "3xx", "4xx", "5xx", "other"],
+      "isVariableEnabled": true,
+      "isBroadcastEnabled": false
+    },
+    {
+      "id": "host",
+      "name": "Host · selected-host panels only",
+      "variableName": "host",
+      "type": "PROMETHEUS_LABEL",
+      "source": "Production Metrics",
+      "label": "host",
+      "match": "nginx_lb_http_requests_by_host_total{cluster=\"live-us-central1-cluster\",namespace=\"default\",container=\"auto-ssl-backend\",lb=\"a8c356da9198a4d53abc2169e8dadea9\"}",
+      "isVariableEnabled": true,
+      "isBroadcastEnabled": false
+    }
+  ],
+  "savedFilterValues": [],
+  "savedDateRange": {
+    "type": "relative",
+    "value": 86400
+  },
+  "savedRefreshInterval": 120,
+  "tiles": [
+    {
+      "id": "scope",
+      "x": 0,
+      "y": 0,
+      "w": 24,
+      "h": 9,
+      "config": {
+        "name": "Scope, variables and collection readiness",
+        "displayType": "markdown",
+        "source": "",
+        "select": "",
+        "where": "",
+        "markdown": "**Selected LB: 35.202.49.152 · a8c356da9198a4d53abc2169e8dadea9.** Completed HTTP requests across whitelabel.gohighlevel.com and customer domains using this LB; includes static resources, errors and redirects. Excludes health probes, metrics/status endpoints, ACME and subrequests. This is not a count of unique users or business operations.\n\n**Collection requires the proxy instrumentation and separate Service activation PRs.** No historical backfill; enabled targets alone do not prove activation or full scrape coverage. Blank data is not zero traffic. Choose a range entirely after activation and inspect scrape gaps/exporter errors before publishing estimates.\n\n**Status** filters request panels. **Host** filters only panels named “Selected hosts”; all-host totals always include every counted domain and overflow. Named-host metrics admit 1,000 hosts per pod; further hosts are grouped into `__other_hosts__`, so an individual domain can have a partial named count. Invalid hosts use `__invalid_host__`. The top-20 graph is a changing sample, not a complete inventory.\n\nDaily average = range total ÷ (selected seconds / 86,400), including fractional days. Counters are adjusted per target before summation. Request rates use a 5-minute lookback, which can begin before the selected range. Time-series legends must visibly show **Min · Max · Last** in the deployed HyperDX renderer."
+      }
+    },
+    {
+      "id": "total",
+      "x": 0,
+      "y": 9,
+      "w": 6,
+      "h": 6,
+      "config": {
+        "name": "All hosts · selected-range requests",
+        "configType": "promql",
+        "displayType": "number",
+        "source": "Production Metrics",
+        "connection": "Production Metrics Querier",
+        "promqlExpression": "sum(increase(nginx_lb_http_requests_total{cluster=\"live-us-central1-cluster\",namespace=\"default\",container=\"auto-ssl-backend\",lb=\"a8c356da9198a4d53abc2169e8dadea9\",status_class=~\"${status:regex}\"}[$__range]))",
+        "legendTemplate": "",
+        "fillNulls": false,
+        "seriesLimit": 250,
+        "numberFormat": {
+          "output": "number",
+          "mantissa": 2,
+          "thousandSeparated": true,
+          "unit": "requests"
+        }
+      }
+    },
+    {
+      "id": "daily",
+      "x": 6,
+      "y": 9,
+      "w": 6,
+      "h": 6,
+      "config": {
+        "name": "All hosts · average requests/day",
+        "configType": "promql",
+        "displayType": "number",
+        "source": "Production Metrics",
+        "connection": "Production Metrics Querier",
+        "promqlExpression": "sum(increase(nginx_lb_http_requests_total{cluster=\"live-us-central1-cluster\",namespace=\"default\",container=\"auto-ssl-backend\",lb=\"a8c356da9198a4d53abc2169e8dadea9\",status_class=~\"${status:regex}\"}[$__range])) / ($__range_s / 86400)",
+        "legendTemplate": "",
+        "fillNulls": false,
+        "seriesLimit": 250,
+        "numberFormat": {
+          "output": "number",
+          "mantissa": 2,
+          "thousandSeparated": true,
+          "unit": "requests/day"
+        }
+      }
+    },
+    {
+      "id": "average-rps",
+      "x": 12,
+      "y": 9,
+      "w": 6,
+      "h": 6,
+      "config": {
+        "name": "All hosts · selected-range average RPS",
+        "configType": "promql",
+        "displayType": "number",
+        "source": "Production Metrics",
+        "connection": "Production Metrics Querier",
+        "promqlExpression": "sum(increase(nginx_lb_http_requests_total{cluster=\"live-us-central1-cluster\",namespace=\"default\",container=\"auto-ssl-backend\",lb=\"a8c356da9198a4d53abc2169e8dadea9\",status_class=~\"${status:regex}\"}[$__range])) / $__range_s",
+        "legendTemplate": "",
+        "fillNulls": false,
+        "seriesLimit": 250,
+        "numberFormat": {
+          "output": "number",
+          "mantissa": 2,
+          "thousandSeparated": true,
+          "unit": "requests/s"
+        }
+      }
+    },
+    {
+      "id": "enabled",
+      "x": 18,
+      "y": 9,
+      "w": 6,
+      "h": 6,
+      "config": {
+        "name": "Enabled scrape targets · not activation proof",
+        "configType": "promql",
+        "displayType": "number",
+        "source": "Production Metrics",
+        "connection": "Production Metrics Querier",
+        "promqlExpression": "sum(nginx_lb_request_metrics_enabled{cluster=\"live-us-central1-cluster\",namespace=\"default\",container=\"auto-ssl-backend\",lb=\"a8c356da9198a4d53abc2169e8dadea9\"})",
+        "legendTemplate": "",
+        "fillNulls": false,
+        "seriesLimit": 250,
+        "numberFormat": {
+          "output": "number",
+          "mantissa": 2,
+          "thousandSeparated": true,
+          "unit": "targets"
+        }
+      }
+    },
+    {
+      "id": "rps",
+      "x": 0,
+      "y": 15,
+      "w": 12,
+      "h": 11,
+      "config": {
+        "name": "All hosts · requests/s · 5m rate",
+        "configType": "promql",
+        "displayType": "line",
+        "source": "Production Metrics",
+        "connection": "Production Metrics Querier",
+        "promqlExpression": "sum(rate(nginx_lb_http_requests_total{cluster=\"live-us-central1-cluster\",namespace=\"default\",container=\"auto-ssl-backend\",lb=\"a8c356da9198a4d53abc2169e8dadea9\",status_class=~\"${status:regex}\"}[5m]))",
+        "legendTemplate": "All hosts",
+        "fillNulls": false,
+        "seriesLimit": 250,
+        "numberFormat": {
+          "output": "number",
+          "mantissa": 2,
+          "thousandSeparated": true,
+          "unit": "requests/s"
+        }
+      }
+    },
+    {
+      "id": "status",
+      "x": 12,
+      "y": 15,
+      "w": 12,
+      "h": 11,
+      "config": {
+        "name": "All hosts · requests/s by status · 5m rate",
+        "configType": "promql",
+        "displayType": "line",
+        "source": "Production Metrics",
+        "connection": "Production Metrics Querier",
+        "promqlExpression": "sum by (status_class) (rate(nginx_lb_http_requests_total{cluster=\"live-us-central1-cluster\",namespace=\"default\",container=\"auto-ssl-backend\",lb=\"a8c356da9198a4d53abc2169e8dadea9\",status_class=~\"${status:regex}\"}[5m]))",
+        "legendTemplate": "{{status_class}}",
+        "fillNulls": false,
+        "seriesLimit": 250,
+        "numberFormat": {
+          "output": "number",
+          "mantissa": 2,
+          "thousandSeparated": true,
+          "unit": "requests/s"
+        }
+      }
+    },
+    {
+      "id": "host-total",
+      "x": 0,
+      "y": 26,
+      "w": 12,
+      "h": 6,
+      "config": {
+        "name": "Selected hosts · selected-range requests",
+        "configType": "promql",
+        "displayType": "number",
+        "source": "Production Metrics",
+        "connection": "Production Metrics Querier",
+        "promqlExpression": "sum(increase(nginx_lb_http_requests_by_host_total{cluster=\"live-us-central1-cluster\",namespace=\"default\",container=\"auto-ssl-backend\",lb=\"a8c356da9198a4d53abc2169e8dadea9\",status_class=~\"${status:regex}\",host=~\"${host:regex}\"}[$__range]))",
+        "legendTemplate": "",
+        "fillNulls": false,
+        "seriesLimit": 250,
+        "numberFormat": {
+          "output": "number",
+          "mantissa": 2,
+          "thousandSeparated": true,
+          "unit": "requests"
+        }
+      }
+    },
+    {
+      "id": "host-daily",
+      "x": 12,
+      "y": 26,
+      "w": 12,
+      "h": 6,
+      "config": {
+        "name": "Selected hosts · average requests/day",
+        "configType": "promql",
+        "displayType": "number",
+        "source": "Production Metrics",
+        "connection": "Production Metrics Querier",
+        "promqlExpression": "sum(increase(nginx_lb_http_requests_by_host_total{cluster=\"live-us-central1-cluster\",namespace=\"default\",container=\"auto-ssl-backend\",lb=\"a8c356da9198a4d53abc2169e8dadea9\",status_class=~\"${status:regex}\",host=~\"${host:regex}\"}[$__range])) / ($__range_s / 86400)",
+        "legendTemplate": "",
+        "fillNulls": false,
+        "seriesLimit": 250,
+        "numberFormat": {
+          "output": "number",
+          "mantissa": 2,
+          "thousandSeparated": true,
+          "unit": "requests/day"
+        }
+      }
+    },
+    {
+      "id": "hosts",
+      "x": 0,
+      "y": 32,
+      "w": 24,
+      "h": 12,
+      "config": {
+        "name": "Selected hosts · top 20 requests/s · 5m rate",
+        "configType": "promql",
+        "displayType": "line",
+        "source": "Production Metrics",
+        "connection": "Production Metrics Querier",
+        "promqlExpression": "topk(20, sum by (host) (rate(nginx_lb_http_requests_by_host_total{cluster=\"live-us-central1-cluster\",namespace=\"default\",container=\"auto-ssl-backend\",lb=\"a8c356da9198a4d53abc2169e8dadea9\",status_class=~\"${status:regex}\",host=~\"${host:regex}\"}[5m])))",
+        "legendTemplate": "{{host}}",
+        "fillNulls": false,
+        "seriesLimit": 250,
+        "numberFormat": {
+          "output": "number",
+          "mantissa": 2,
+          "thousandSeparated": true,
+          "unit": "requests/s"
+        }
+      }
+    },
+    {
+      "id": "overflow",
+      "x": 0,
+      "y": 44,
+      "w": 12,
+      "h": 6,
+      "config": {
+        "name": "All hosts · overflow requests · no series until first overflow",
+        "configType": "promql",
+        "displayType": "number",
+        "source": "Production Metrics",
+        "connection": "Production Metrics Querier",
+        "promqlExpression": "sum(increase(nginx_lb_http_requests_by_host_total{cluster=\"live-us-central1-cluster\",namespace=\"default\",container=\"auto-ssl-backend\",lb=\"a8c356da9198a4d53abc2169e8dadea9\",status_class=~\"${status:regex}\",host=\"__other_hosts__\"}[$__range]))",
+        "legendTemplate": "",
+        "fillNulls": false,
+        "seriesLimit": 250,
+        "numberFormat": {
+          "output": "number",
+          "mantissa": 2,
+          "thousandSeparated": true,
+          "unit": "requests"
+        }
+      }
+    },
+    {
+      "id": "errors",
+      "x": 12,
+      "y": 44,
+      "w": 12,
+      "h": 6,
+      "config": {
+        "name": "Proxy exporter errors · all backend targets",
+        "configType": "promql",
+        "displayType": "number",
+        "source": "Production Metrics",
+        "connection": "Production Metrics Querier",
+        "promqlExpression": "sum(increase(nginx_lb_request_metric_errors_total{cluster=\"live-us-central1-cluster\",namespace=\"default\",container=\"auto-ssl-backend\"}[$__range]))",
+        "legendTemplate": "",
+        "fillNulls": false,
+        "seriesLimit": 250,
+        "numberFormat": {
+          "output": "number",
+          "mantissa": 2,
+          "thousandSeparated": true,
+          "unit": "errors"
+        }
+      }
+    }
+  ]
+}
