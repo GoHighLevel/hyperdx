@@ -618,11 +618,15 @@ describe('DBSearchPage direct trace flow', () => {
     expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
   });
 
-  it('does not advance the log range on a background refresh timer', async () => {
+  it('does not advance ascending chronological logs on a background refresh timer', async () => {
     jest.useFakeTimers();
     try {
       mockDirectTraceId = null;
-      mockSearchedConfig = { ...mockSearchedConfig, source: 'log-source' };
+      mockSearchedConfig = {
+        ...mockSearchedConfig,
+        source: 'log-source',
+        orderBy: 'Timestamp ASC',
+      };
       window.history.pushState({}, '', '/search?source=log-source');
       await act(async () => renderWithMantine(<DBSearchPage />));
       mockOnTimeRangeSelect.mockClear();
@@ -630,6 +634,31 @@ describe('DBSearchPage direct trace flow', () => {
         jest.advanceTimersByTime(60000);
       });
       expect(mockOnTimeRangeSelect).not.toHaveBeenCalled();
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('refreshes the time range for newest-first live logs', async () => {
+    jest.useFakeTimers();
+    try {
+      mockDirectTraceId = null;
+      mockSearchedConfig = {
+        ...mockSearchedConfig,
+        source: 'log-source',
+        orderBy: 'Timestamp DESC',
+      };
+      window.history.pushState(
+        {},
+        '',
+        '/search?source=log-source&orderBy=Timestamp%20DESC',
+      );
+      await act(async () => renderWithMantine(<DBSearchPage />));
+      mockOnTimeRangeSelect.mockClear();
+      await act(async () => {
+        jest.advanceTimersByTime(10000);
+      });
+      expect(mockOnTimeRangeSelect).toHaveBeenCalled();
     } finally {
       jest.useRealTimers();
     }

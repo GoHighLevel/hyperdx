@@ -113,7 +113,10 @@ import {
 } from '@/dashboard';
 import { useAliasMapFromChartConfig } from '@/hooks/useChartConfig';
 import { useExplainQuery } from '@/hooks/useExplainQuery';
-import { chronologicalLogConfig } from '@/hooks/useLiveLogQuery';
+import {
+  chronologicalLogConfig,
+  isDescendingLogConfig,
+} from '@/hooks/useLiveLogQuery';
 import { useResolvedSourceParam } from '@/hooks/useResolvedSourceParam';
 import { useSearchDashboardExport } from '@/hooks/useSearchDashboardExport';
 import { useSearchViewPreference } from '@/hooks/useSearchViewPreference';
@@ -1721,9 +1724,12 @@ function SearchPageContents({ dashboard }: { dashboard?: Dashboard }) {
   }, [updateRelativeTimeInputValue, searchedConfig.source, isReady]);
 
   useLiveUpdate({
-    // Chronological logs load on downward intent. Updating the range on a
-    // timer also reruns histograms and facet counts while the reader is idle.
-    isLive: isLive && searchedSource?.kind !== SourceKind.Log,
+    // Ascending logs use explicit chronological navigation. Descending logs
+    // use standard pagination and need the timer to keep the latest range fresh.
+    isLive:
+      isLive &&
+      (searchedSource?.kind !== SourceKind.Log ||
+        (chartConfig != null && isDescendingLogConfig(chartConfig))),
     interval,
     refreshFrequency,
     onTimeRangeSelect,
