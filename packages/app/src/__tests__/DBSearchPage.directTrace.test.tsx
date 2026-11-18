@@ -562,10 +562,10 @@ describe('DBSearchPage direct trace flow', () => {
     );
   });
 
-  it('retains a saved-search link configuration while normalizing log chronology', async () => {
+  it('retains a saved-search link configuration with its explicit newest-first order', async () => {
     // On `/search/<savedSearchId>` the source is written to the URL by the
     // saved-search effect, so the form catches up to it on a cold load. The
-    // Order normalization must preserve the bookmarked SELECT and source.
+    // Order handling must preserve the bookmarked SELECT, source and DESC.
     mockDirectTraceId = null;
     mockSourcesLoading = true;
     mockSearchedConfig = {
@@ -588,7 +588,7 @@ describe('DBSearchPage direct trace flow', () => {
       expect.objectContaining({
         source: 'log-source',
         select: 'Timestamp, Body, lower(Body) as body_lower',
-        orderBy: 'Timestamp ASC',
+        orderBy: 'Timestamp DESC',
       }),
     );
     expect(latestRowTableProps).toEqual(
@@ -596,7 +596,7 @@ describe('DBSearchPage direct trace flow', () => {
         sourceId: 'log-source',
         enabled: true,
         config: expect.objectContaining({
-          orderBy: 'Timestamp ASC',
+          orderBy: 'Timestamp DESC',
           select: 'Timestamp, Body, lower(Body) as body_lower',
         }),
       }),

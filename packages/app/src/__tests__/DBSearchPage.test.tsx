@@ -56,6 +56,11 @@ describe('useDefaultOrderBy', () => {
       {
         kind: SourceKind.Log,
         orderByExpression: 'Timestamp DESC',
+        expected: 'Timestamp DESC',
+      },
+      {
+        kind: SourceKind.Log,
+        orderByExpression: 'Timestamp ASC',
         expected: 'Timestamp ASC',
       },
       {
@@ -89,149 +94,149 @@ describe('useDefaultOrderBy', () => {
       const testCases = [
         {
           sortingKey: undefined,
-          expected: 'Timestamp ASC',
+          expected: 'Timestamp DESC',
         },
         {
           sortingKey: '',
-          expected: 'Timestamp ASC',
+          expected: 'Timestamp DESC',
         },
         {
           sortingKey: 'ServiceName, SpanName, toDateTime(Timestamp)',
-          expected: '(toDateTime(Timestamp), Timestamp) ASC',
+          expected: '(toDateTime(Timestamp), Timestamp) DESC',
         },
         {
           sortingKey:
             'toStartOfHour(Timestamp), ServiceName, SpanName, toDateTime(Timestamp)',
           expected:
-            '(toStartOfHour(Timestamp), toDateTime(Timestamp), Timestamp) ASC',
+            '(toStartOfHour(Timestamp), toDateTime(Timestamp), Timestamp) DESC',
         },
         {
           sortingKey:
             'toStartOfHour(Timestamp), ServiceName, SpanName, toDateTime(Timestamp)',
           expected:
-            '(toStartOfHour(Timestamp), toDateTime(Timestamp), Timestamp) ASC',
+            '(toStartOfHour(Timestamp), toDateTime(Timestamp), Timestamp) DESC',
         },
         {
           sortingKey: 'toDateTime(Timestamp), ServiceName, SpanName, Timestamp',
-          expected: '(toDateTime(Timestamp), Timestamp) ASC',
+          expected: '(toDateTime(Timestamp), Timestamp) DESC',
         },
         {
           sortingKey: 'toDateTime(Timestamp), ServiceName, SpanName',
-          expected: '(toDateTime(Timestamp), Timestamp) ASC',
+          expected: '(toDateTime(Timestamp), Timestamp) DESC',
         },
         {
           sortingKey: 'toStartOfHour(Timestamp), other_column, Timestamp',
-          expected: '(toStartOfHour(Timestamp), Timestamp) ASC',
+          expected: '(toStartOfHour(Timestamp), Timestamp) DESC',
         },
         {
           sortingKey: 'Timestamp, other_column',
-          expected: 'Timestamp ASC',
+          expected: 'Timestamp DESC',
         },
         {
           sortingKey: 'user_id, toStartOfHour(Timestamp), status, Timestamp',
-          expected: '(toStartOfHour(Timestamp), Timestamp) ASC',
+          expected: '(toStartOfHour(Timestamp), Timestamp) DESC',
         },
         {
           sortingKey:
             'toStartOfMinute(Timestamp), user_id, status, toUnixTimestamp(Timestamp)',
           expected:
-            '(toStartOfMinute(Timestamp), toUnixTimestamp(Timestamp), Timestamp) ASC',
+            '(toStartOfMinute(Timestamp), toUnixTimestamp(Timestamp), Timestamp) DESC',
         },
         {
           // test variation of toUnixTimestamp
           sortingKey:
             'toStartOfMinute(Timestamp), user_id, status, toUnixTimestamp64Nano(Timestamp)',
           expected:
-            '(toStartOfMinute(Timestamp), toUnixTimestamp64Nano(Timestamp), Timestamp) ASC',
+            '(toStartOfMinute(Timestamp), toUnixTimestamp64Nano(Timestamp), Timestamp) DESC',
         },
         {
           sortingKey:
             'toUnixTimestamp(toStartOfMinute(Timestamp)), user_id, status, Timestamp',
           expected:
-            '(toUnixTimestamp(toStartOfMinute(Timestamp)), Timestamp) ASC',
+            '(toUnixTimestamp(toStartOfMinute(Timestamp)), Timestamp) DESC',
         },
         {
           sortingKey: 'toStartOfMinute(Timestamp), user_id, status, Timestamp',
           timestampValueExpression: 'Timestamp, toStartOfMinute(Timestamp)',
-          expected: '(toStartOfMinute(Timestamp), Timestamp) ASC',
+          expected: '(toStartOfMinute(Timestamp), Timestamp) DESC',
         },
         {
           sortingKey: 'toStartOfMinute(Timestamp), user_id, status, Timestamp',
           timestampValueExpression: 'toStartOfMinute(Timestamp), Timestamp',
-          expected: '(toStartOfMinute(Timestamp), Timestamp) ASC',
+          expected: '(toStartOfMinute(Timestamp), Timestamp) DESC',
         },
         {
           sortingKey: 'toStartOfMinute(Timestamp), user_id, status, Timestamp',
-          expected: '(toStartOfMinute(Timestamp), Timestamp) ASC',
+          expected: '(toStartOfMinute(Timestamp), Timestamp) DESC',
         },
         {
           sortingKey: 'toStartOfMinute(Timestamp), user_id, status',
-          expected: '(toStartOfMinute(Timestamp), Timestamp) ASC',
+          expected: '(toStartOfMinute(Timestamp), Timestamp) DESC',
         },
         {
           sortingKey: 'toStartOfMinute(Timestamp), user_id, status',
           timestampValueExpression: 'toStartOfMinute(Timestamp), Timestamp',
-          expected: '(toStartOfMinute(Timestamp), Timestamp) ASC',
+          expected: '(toStartOfMinute(Timestamp), Timestamp) DESC',
         },
         {
           sortingKey: 'Timestamp',
           displayedTimestampValueExpression: 'Timestamp64',
-          expected: '(Timestamp, Timestamp64) ASC',
+          expected: '(Timestamp, Timestamp64) DESC',
         },
         {
           sortingKey: 'Timestamp',
           displayedTimestampValueExpression: 'Timestamp64 ',
-          expected: '(Timestamp, Timestamp64) ASC',
+          expected: '(Timestamp, Timestamp64) DESC',
         },
         {
           sortingKey: 'Timestamp',
-          expected: 'Timestamp ASC',
+          expected: 'Timestamp DESC',
         },
         {
           sortingKey: 'Timestamp',
           displayedTimestampValueExpression: '',
-          expected: 'Timestamp ASC',
+          expected: 'Timestamp DESC',
         },
         {
           sortingKey: 'Timestamp, ServiceName, Timestamp64',
           displayedTimestampValueExpression: 'Timestamp64',
-          expected: '(Timestamp, Timestamp64) ASC',
+          expected: '(Timestamp, Timestamp64) DESC',
         },
         {
           sortingKey:
             'toStartOfMinute(Timestamp), Timestamp, ServiceName, Timestamp64',
           displayedTimestampValueExpression: 'Timestamp64',
-          expected: '(toStartOfMinute(Timestamp), Timestamp, Timestamp64) ASC',
+          expected: '(toStartOfMinute(Timestamp), Timestamp, Timestamp64) DESC',
         },
         {
           sortingKey:
             'toStartOfMinute(Timestamp), Timestamp64, ServiceName, Timestamp',
           displayedTimestampValueExpression: 'Timestamp64',
-          expected: '(toStartOfMinute(Timestamp), Timestamp64, Timestamp) ASC',
+          expected: '(toStartOfMinute(Timestamp), Timestamp64, Timestamp) DESC',
         },
         {
           sortingKey: 'SomeOtherTimeColumn',
           displayedTimestampValueExpression: 'Timestamp64',
-          expected: '(Timestamp, Timestamp64) ASC',
+          expected: '(Timestamp, Timestamp64) DESC',
         },
         {
           sortingKey: '',
           displayedTimestampValueExpression: 'Timestamp64',
-          expected: '(Timestamp, Timestamp64) ASC',
+          expected: '(Timestamp, Timestamp64) DESC',
         },
         {
           sortingKey: 'ServiceName, TimestampTime, Timestamp',
           timestampValueExpression: 'TimestampTime, Timestamp',
-          expected: '(TimestampTime, Timestamp) ASC',
+          expected: '(TimestampTime, Timestamp) DESC',
         },
         {
           sortingKey: 'ServiceName, TimestampTime, Timestamp',
           timestampValueExpression: 'Timestamp, TimestampTime',
-          expected: '(TimestampTime, Timestamp) ASC',
+          expected: '(TimestampTime, Timestamp) DESC',
         },
         {
           sortingKey: 'ServiceName, TimestampTime, Timestamp',
-          expected: '(TimestampTime, Timestamp) ASC',
+          expected: '(TimestampTime, Timestamp) DESC',
         },
       ];
       for (const testCase of testCases) {
@@ -307,7 +312,7 @@ describe('useDefaultOrderBy', () => {
       const mockSource = {
         kind: SourceKind.Log,
         timestampValueExpression: 'Timestamp',
-        orderByExpression: 'Timestamp ASC',
+        orderByExpression: 'Timestamp DESC',
       };
 
       const mockTableMetadata = {
@@ -328,7 +333,7 @@ describe('useDefaultOrderBy', () => {
 
       const { result } = renderHook(() => useDefaultOrderBy('source-id'));
 
-      expect(result.current).toBe('Timestamp ASC');
+      expect(result.current).toBe('Timestamp DESC');
     });
 
     it('should fall back to optimized order when orderByExpression is empty', () => {
@@ -356,7 +361,7 @@ describe('useDefaultOrderBy', () => {
 
       const { result } = renderHook(() => useDefaultOrderBy('source-id'));
 
-      expect(result.current).toBe('(toStartOfHour(Timestamp), Timestamp) ASC');
+      expect(result.current).toBe('(toStartOfHour(Timestamp), Timestamp) DESC');
     });
 
     it('should fall back to optimized order when orderByExpression is undefined', () => {
@@ -383,7 +388,7 @@ describe('useDefaultOrderBy', () => {
 
       const { result } = renderHook(() => useDefaultOrderBy('source-id'));
 
-      expect(result.current).toBe('(toStartOfHour(Timestamp), Timestamp) ASC');
+      expect(result.current).toBe('(toStartOfHour(Timestamp), Timestamp) DESC');
     });
 
     it('should handle complex Timestamp expressions', () => {
@@ -412,7 +417,7 @@ describe('useDefaultOrderBy', () => {
       const { result } = renderHook(() => useDefaultOrderBy('source-id'));
 
       expect(result.current).toBe(
-        '(toStartOfHour(toDateTime(timestamp_ms / 1000)), toDateTime(timestamp_ms / 1000)) ASC',
+        '(toStartOfHour(toDateTime(timestamp_ms / 1000)), toDateTime(timestamp_ms / 1000)) DESC',
       );
     });
 
@@ -445,7 +450,7 @@ describe('useDefaultOrderBy', () => {
         useDefaultOrderBy('source-id'),
       );
 
-      expect(result.current).toBe('timestamp1 ASC');
+      expect(result.current).toBe('timestamp1 DESC');
 
       // Update the mock to return different data
       useSourceSpy.mockReturnValue({
@@ -456,7 +461,7 @@ describe('useDefaultOrderBy', () => {
 
       rerender();
 
-      expect(result.current).toBe('timestamp2 ASC');
+      expect(result.current).toBe('timestamp2 DESC');
     });
   });
 });
