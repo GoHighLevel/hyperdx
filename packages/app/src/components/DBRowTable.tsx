@@ -93,6 +93,7 @@ import { useCsvExport } from '@/hooks/useCsvExport';
 import { useLiveInspectionRows } from '@/hooks/useLiveInspectionRows';
 import useLiveLogQuery, {
   chronologicalLogConfig,
+  isDescendingLogConfig,
 } from '@/hooks/useLiveLogQuery';
 import useLogScrollLoad from '@/hooks/useLogScrollLoad';
 import { useColumns, useTableMetadata } from '@/hooks/useMetadata';
@@ -2351,7 +2352,8 @@ function DBSqlRowTableComponent({
         isLive={isLive}
         loadOnScroll={
           source?.kind === SourceKind.Log &&
-          isTimestampExpressionInFirstOrderBy(mergedConfigObj)
+          isTimestampExpressionInFirstOrderBy(mergedConfigObj) &&
+          !isDescendingLogConfig(mergedConfigObj)
         }
         loadingPaused={loadingPaused}
         refreshedUntil={refreshedUntil}
@@ -2385,17 +2387,9 @@ function DBSqlRowTableComponent({
         onExpandedRowsChange={onExpansionChange}
         collapseAllRows={collapseAllRows}
         showExpandButton={showExpandButton}
-        enableSorting={
-          source?.kind !== SourceKind.Log ||
-          !isTimestampExpressionInFirstOrderBy(mergedConfigObj)
-        }
+        enableSorting
         onSortingChange={_onSortingChange}
-        sortOrder={
-          source?.kind === SourceKind.Log &&
-          isTimestampExpressionInFirstOrderBy(mergedConfigObj)
-            ? orderByArray.map(order => ({ ...order, desc: false }))
-            : orderByArray
-        }
+        sortOrder={orderByArray}
         getRowWhere={getRowWhere}
         variant={variant}
         onRemoveColumn={toggleColumn ? onRemoveColumnFromTable : undefined}

@@ -73,10 +73,20 @@ function orderedConfig<
   return { ...config, orderBy };
 }
 
+export function isDescendingLogConfig(
+  config: ChartConfigWithOptTimestamp | ChartConfigWithOptDateRange,
+) {
+  if (!isBuilderChartConfig(config)) return false;
+  return typeof config.orderBy === 'string'
+    ? /\s+DESC\s*$/i.test(splitAndTrimWithBracket(config.orderBy)[0] ?? '')
+    : config.orderBy?.[0]?.ordering === 'DESC';
+}
+
 export function chronologicalLogConfig<
   T extends ChartConfigWithOptTimestamp | ChartConfigWithOptDateRange,
 >(config: T): T {
-  return orderedConfig(config, 'ASC');
+  // An explicit newest-first choice must survive search/default normalization.
+  return isDescendingLogConfig(config) ? config : orderedConfig(config, 'ASC');
 }
 
 function createSession(
@@ -145,8 +155,13 @@ export default function useLiveLogQuery(
       : createSession(scope, config, session.generation + 1);
   if (current !== session) setSession(current);
 
-  const usesSession = manualNavigation || isLive || hold;
-  const canRequest = (manualNavigation || isLive) && enabled && !paused;
+  // The manual session merges and navigates ascending rows. Newest-first
+  // searches use the existing offset-pagination and live-refresh path instead.
+  const chronologicalSession = !isDescendingLogConfig(config);
+  const usesSession =
+    chronologicalSession && (manualNavigation || isLive || hold);
+  const canRequest =
+    chronologicalSession && (manualNavigation || isLive) && enabled && !paused;
   const active = canRequest && current.batch.requested;
   const requestLockRef = useRef(false);
   const query = useOffsetPaginatedQuery(
