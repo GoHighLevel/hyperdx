@@ -1,0 +1,64 @@
+{
+  "version": "0.2.0",
+  "name": "Logging Dashboard - Default",
+  "description": "Full search view from Logging Dashboard - Default. Requires the full-search dashboard importer (2.38.0-custom.10 or later). Live Tail retains a rolling 15-minute window with 10-second refreshes.",
+  "tags": [],
+  "tiles": [],
+  "searchView": {
+    "version": 1,
+    "search": {
+      "source": "Staging-All-Clusters-Logs",
+      "select": "timestamp, deployment_name, log_level,log_message",
+      "where": "(log_level:*)",
+      "whereLanguage": "lucene",
+      "filters": [],
+      "orderBy": "timestamp ASC"
+    },
+    "time": {
+      "from": 1789273161410,
+      "to": 1789274061411,
+      "isLive": true,
+      "liveInterval": 900000,
+      "refreshFrequency": 10000
+    },
+    "analysisMode": "results",
+    "patternColumn": null,
+    "denoise": false,
+    "layout": {
+      "analysisMode": true,
+      "histogram": true,
+      "sharedFilters": true,
+      "filters": true,
+      "denoise": true,
+      "collapseFiltersByDefault": true,
+      "defaultPersonalFilterFields": [],
+      "hiddenPersonalFilterFields": []
+    },
+    "preferences": {
+      "isFilterSidebarCollapsed": false,
+      "hdx-shared-filters-visible": true,
+      "hdx-show-filter-counts": true,
+      "hdx-show-matching-log-counts": true,
+      "filters-expanded": false,
+      "shared-filters-expanded": false,
+      "hdx-show-all-filter-values": false,
+      "log-table-column-sizes": {},
+      "log-table-wrap-lines": false
+    },
+    "userPreferences": {
+      "isUTC": false,
+      "timeFormat": "12h",
+      "font": "IBM Plex Mono",
+      "logFontSize": 16
+    },
+    "sharedPins": {
+      "fields": ["deployment_name", "log_level", "labels['product']", "labels['repo']", "labels['team']", "labels['sub_team']", "labels['tier']"],
+      "filters": {}
+    },
+    "personalPins": {
+      "fields": ["json_payload['httpRequest.responseSize']", "json_payload['payload.params.locationId']", "log_level", "json_payload['httpRequest.requestMethod']", "json_payload['trace_id']", "deployment_name", "json_payload['extras.locationId']", "labels['team']", "labels['sub_team']", "labels['tier']", "labels['product']", "labels['repo']"],
+      "filters": {},
+      "dismissedFields": ["labels['type']"]
+    }
+  }
+}

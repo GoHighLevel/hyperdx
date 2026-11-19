@@ -37,6 +37,8 @@ import { getMetadata } from '@/metadata';
 import { useSource, useSources } from '@/source';
 import { toArray } from '@/utils';
 
+import { useProgressiveValueCounts } from './useProgressiveValueCounts';
+
 export type Facet = { key: string; value: string[] };
 
 // Hook to get metadata with proper settings applied
@@ -455,30 +457,33 @@ export function useGetValueCounts({
   key,
   values,
   enabled = true,
+  isLive = false,
 }: {
   chartConfig: BuilderChartConfigWithDateRange;
   key: string;
   values: string[];
   enabled?: boolean;
+  isLive?: boolean;
 }) {
   const metadata = useMetadataWithSettings();
   const { data: source, isLoading: isLoadingSource } = useSource({
     id: chartConfig.source,
   });
-  return useQuery({
-    queryKey: [
-      'useMetadata.useGetValueCounts',
-      chartConfig,
-      key,
-      values,
-      source?.querySettings,
-    ],
-    queryFn: ({ signal }) =>
-      metadata.getValueCounts({ chartConfig, key, values, source, signal }),
+  return useProgressiveValueCounts({
+    chartConfig,
+    field: key,
+    values,
+    source,
+    isLive,
+    fetchWindow: (windowConfig, signal) =>
+      metadata.getValueCounts({
+        chartConfig: windowConfig,
+        key,
+        values,
+        source,
+        signal,
+      }),
     enabled: enabled && !!key && values.length > 0 && !isLoadingSource,
-    staleTime: 30_000,
-    refetchOnWindowFocus: false,
-    retry: false,
   });
 }
 

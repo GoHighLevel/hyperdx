@@ -1,6 +1,12 @@
-import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import {
+  useCallback,
+  useId,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import cx from 'classnames';
-import Fuse from 'fuse.js';
 import {
   ActionIcon,
   Loader,
@@ -71,6 +77,7 @@ export default function AutocompleteInput({
   'data-testid'?: string;
 }) {
   const suggestionsLimit = 10;
+  const suggestionsId = useId();
 
   const [isSearchInputFocused, _setIsSearchInputFocused] = useState(false);
   const [isInputDropdownOpen, setIsInputDropdownOpen] = useState(false);
@@ -110,15 +117,9 @@ export default function AutocompleteInput({
     queryHistoryList.length > 0 &&
     queryHistoryType;
 
-  const fuse = useMemo(
-    () =>
-      new Fuse(autocompleteOptions ?? [], {
-        keys: ['value'],
-        threshold: 0,
-        ignoreLocation: true,
-      }),
-    [autocompleteOptions],
-  );
+  const tokenPrefix = tokenInfo?.prefix ?? '';
+  const colonIndex = tokenPrefix.indexOf(':');
+  const completingValue = colonIndex >= 0;
 
   /**
    * The `$var` fragment being typed at the end of the token, if any. A
@@ -126,8 +127,8 @@ export default function AutocompleteInput({
    * so `ServiceName:$sv` can become `ServiceName:$svc` instead of just `$svc`.
    */
   const variableFragment = useMemo(
-    () => tokenInfo?.token.match(/\$[A-Za-z0-9_]*$/)?.[0],
-    [tokenInfo],
+    () => tokenPrefix.match(/\$[A-Za-z0-9_]*$/)?.[0],
+    [tokenPrefix],
   );
 
   const suggestedVariables = useMemo(() => {
@@ -138,13 +139,46 @@ export default function AutocompleteInput({
   }, [variableFragment, variableOptions]);
 
   const suggestedProperties = useMemo(() => {
-    const token = tokenInfo?.token ?? '';
-
-    if (token.length === 0 && showSuggestionsOnEmpty) {
-      return autocompleteOptions ?? [];
+    if (!tokenPrefix && !showSuggestionsOnEmpty) return [];
+    if (completingValue) {
+      const field = tokenPrefix.slice(0, colonIndex);
+      // Match the value independently of its quoting: level:err and
+      // level:"err both suggest level:"error". Keep insertion text escaped.
+      const unquote = (text: string) =>
+        text
+          .replace(/^"/, '')
+          // A closing quote can follow pairs of escaped backslashes.
+          .replace(/(^|[^\\])((?:\\\\)*)"$/, '$1$2')
+          .replace(/\\(.)/gs, '$1');
+      const fragment = unquote(tokenPrefix.slice(colonIndex + 1)).toLowerCase();
+      return (autocompleteOptions ?? []).filter(option => {
+        const separator = option.value.indexOf(':');
+        return (
+          separator >= 0 &&
+          option.value.slice(0, separator) === field &&
+          unquote(option.value.slice(separator + 1))
+            .toLowerCase()
+            .includes(fragment)
+        );
+      });
     }
-    return fuse.search(token).map(result => result.item);
-  }, [tokenInfo, fuse, autocompleteOptions, showSuggestionsOnEmpty]);
+    const fragment = tokenPrefix.toLowerCase();
+    return (autocompleteOptions ?? [])
+      .filter(option => !option.value.includes(':'))
+      .filter(option => option.value.toLowerCase().includes(fragment))
+      .sort(
+        (a, b) =>
+          Number(b.value.toLowerCase().startsWith(fragment)) -
+          Number(a.value.toLowerCase().startsWith(fragment)),
+      )
+      .map(option => ({ ...option, isField: true }));
+  }, [
+    tokenPrefix,
+    completingValue,
+    colonIndex,
+    autocompleteOptions,
+    showSuggestionsOnEmpty,
+  ]);
 
   // While a `$var` fragment is being typed, variables are the only useful
   // suggestions, since no property name can match a token ending in `$…`.
@@ -153,10 +187,19 @@ export default function AutocompleteInput({
     label: string;
     description?: string;
     isVariable?: boolean;
+    isField?: boolean;
   }[] =
     suggestedVariables.length > 0
       ? suggestedVariables.map(option => ({ ...option, isVariable: true }))
       : suggestedProperties;
+
+  useLayoutEffect(() => {
+    if (isInputDropdownOpen && selectedAutocompleteIndex >= 0) {
+      document
+        .getElementById(`${suggestionsId}-${selectedAutocompleteIndex}`)
+        ?.scrollIntoView?.({ block: 'nearest' });
+    }
+  }, [isInputDropdownOpen, selectedAutocompleteIndex, suggestionsId]);
 
   const onSelectSearchHistory = (query: string) => {
     setSelectedQueryHistoryIndex(-1);
@@ -166,7 +209,11 @@ export default function AutocompleteInput({
     onSubmit?.(); // search
   };
 
-  const onAcceptSuggestion = (suggestion: string, isVariable = false) => {
+  const onAcceptSuggestion = (
+    suggestion: string,
+    isVariable = false,
+    isField = false,
+  ) => {
     setSelectedAutocompleteIndex(-1);
 
     if (value == null || !tokenInfo) {
@@ -182,22 +229,39 @@ export default function AutocompleteInput({
       value,
       inputRef.current?.selectionStart ?? value.length,
     );
-    const currentToken = current.token;
+    const existingColon = current.token.indexOf(':');
+    const variableStart =
+      current.prefix.length - (variableFragment?.length ?? 0);
+    const variableSuffix =
+      current.token.slice(current.prefix.length).match(/^[A-Za-z0-9_]*/)?.[0] ??
+      '';
     const replacement =
       isVariable && variableFragment != null
-        ? currentToken.slice(0, -variableFragment.length) + suggestion
-        : suggestion;
+        ? current.token.slice(0, variableStart) +
+          suggestion +
+          current.token.slice(current.prefix.length + variableSuffix.length)
+        : isField
+          ? suggestion +
+            (existingColon >= 0 ? current.token.slice(existingColon) : ':')
+          : suggestion;
     const newValue =
       value.slice(0, current.start) + replacement + value.slice(current.end);
 
     // Place cursor right after the inserted suggestion
-    const newCursorPos = current.start + replacement.length;
+    const newCursorPos =
+      current.start +
+      (isField
+        ? suggestion.length + 1
+        : isVariable
+          ? variableStart + suggestion.length
+          : replacement.length);
 
     onChange(newValue);
 
     requestAnimationFrame(() => {
       inputRef.current?.setSelectionRange(newCursorPos, newCursorPos);
       inputRef.current?.focus();
+      onCursorChange?.(newCursorPos);
     });
   };
 
@@ -235,6 +299,7 @@ export default function AutocompleteInput({
       data-expanded="true"
     >
       <Popover
+        withRoles={false}
         opened={isInputDropdownOpen}
         onChange={setIsInputDropdownOpen}
         position="bottom-start"
@@ -267,11 +332,24 @@ export default function AutocompleteInput({
               minRows={1}
               maxRows={8}
               data-testid={dataTestId}
+              aria-autocomplete="list"
+              aria-haspopup="listbox"
+              aria-controls={isInputDropdownOpen ? suggestionsId : undefined}
+              aria-activedescendant={
+                isInputDropdownOpen && selectedAutocompleteIndex >= 0
+                  ? `${suggestionsId}-${selectedAutocompleteIndex}`
+                  : undefined
+              }
               onChange={e => {
+                setSelectedAutocompleteIndex(-1);
+                setIsInputDropdownOpen(true);
                 onCursorChange?.(e.currentTarget.selectionStart);
                 onChange(e.target.value);
               }}
-              onSelect={e => onCursorChange?.(e.currentTarget.selectionStart)}
+              onSelect={e => {
+                setSelectedAutocompleteIndex(-1);
+                onCursorChange?.(e.currentTarget.selectionStart);
+              }}
               onScroll={e => {
                 if (commentOverlayRef.current != null) {
                   commentOverlayRef.current.scrollTop =
@@ -291,6 +369,12 @@ export default function AutocompleteInput({
                 setIsSearchInputFocused(false);
               }}
               onKeyDown={e => {
+                if (e.nativeEvent.isComposing) return;
+                if (e.key === ' ' && (e.ctrlKey || e.metaKey)) {
+                  e.preventDefault();
+                  setIsInputDropdownOpen(true);
+                  return;
+                }
                 if (
                   enableCommentToggle &&
                   e.key === '/' &&
@@ -307,8 +391,12 @@ export default function AutocompleteInput({
                 ) {
                   e.preventDefault();
                   setIsInputDropdownOpen(false);
-                  e.target.blur();
+                  setSelectedAutocompleteIndex(-1);
+                  return;
                 }
+
+                // A newline must never accept a highlighted suggestion.
+                if (e.key === 'Enter' && e.shiftKey) return;
 
                 // Autocomplete Navigation/Acceptance Keys
                 if (
@@ -316,13 +404,19 @@ export default function AutocompleteInput({
                   e.target instanceof HTMLTextAreaElement
                 ) {
                   if (
+                    isInputDropdownOpen &&
+                    !e.shiftKey &&
                     suggestions.length > 0 &&
                     selectedAutocompleteIndex < suggestions.length &&
                     selectedAutocompleteIndex >= 0
                   ) {
                     e.preventDefault();
                     const selected = suggestions[selectedAutocompleteIndex];
-                    onAcceptSuggestion(selected.value, selected.isVariable);
+                    onAcceptSuggestion(
+                      selected.value,
+                      selected.isVariable,
+                      selected.isField,
+                    );
                   }
                 }
                 if (
@@ -330,13 +424,18 @@ export default function AutocompleteInput({
                   e.target instanceof HTMLTextAreaElement
                 ) {
                   if (
+                    isInputDropdownOpen &&
                     suggestions.length > 0 &&
                     selectedAutocompleteIndex < suggestions.length &&
                     selectedAutocompleteIndex >= 0
                   ) {
                     e.preventDefault();
                     const selected = suggestions[selectedAutocompleteIndex];
-                    onAcceptSuggestion(selected.value, selected.isVariable);
+                    onAcceptSuggestion(
+                      selected.value,
+                      selected.isVariable,
+                      selected.isField,
+                    );
                   } else {
                     // Allow shift+enter to still create new lines
                     if (!e.shiftKey) {
@@ -345,6 +444,7 @@ export default function AutocompleteInput({
                         setQueryHistory(value);
                       }
                       onSubmit?.();
+                      setIsInputDropdownOpen(false);
                     }
                   }
                 }
@@ -352,7 +452,7 @@ export default function AutocompleteInput({
                   e.key === 'ArrowDown' &&
                   e.target instanceof HTMLTextAreaElement
                 ) {
-                  if (suggestions.length > 0) {
+                  if (isInputDropdownOpen && suggestions.length > 0) {
                     e.preventDefault();
                     setSelectedAutocompleteIndex(
                       Math.min(
@@ -367,7 +467,7 @@ export default function AutocompleteInput({
                   e.key === 'ArrowUp' &&
                   e.target instanceof HTMLTextAreaElement
                 ) {
-                  if (suggestions.length > 0) {
+                  if (isInputDropdownOpen && suggestions.length > 0) {
                     e.preventDefault();
                     setSelectedAutocompleteIndex(
                       Math.max(selectedAutocompleteIndex - 1, 0),
@@ -441,13 +541,15 @@ export default function AutocompleteInput({
             <div className={styles.aboveSuggestions}>{aboveSuggestions}</div>
           )}
           <div>
-            {suggestions.length > 0 && (
+            {(suggestions.length > 0 || isLoadingValues || completingValue) && (
               <div className={styles.suggestionsSection}>
                 <div className={styles.suggestionsHeaderRow}>
                   <div className={styles.suggestionsHeader}>
                     {suggestedVariables.length > 0
                       ? 'Dashboard variables'
-                      : suggestionsHeader}
+                      : completingValue
+                        ? 'Values'
+                        : suggestionsHeader}
                     {isLoadingValues && (
                       <Loader size={12} ml={6} color="var(--color-text)" />
                     )}
@@ -458,32 +560,60 @@ export default function AutocompleteInput({
                     </div>
                   )}
                 </div>
-                {suggestions
-                  .slice(0, suggestionsLimit)
-                  .map(({ value, label, description, isVariable }, i) => (
-                    <div
-                      className={cx(
-                        styles.suggestionItem,
-                        selectedAutocompleteIndex === i && styles.selected,
-                      )}
-                      role="button"
-                      data-testid="autocomplete-suggestion"
-                      key={value}
-                      onMouseOver={() => {
-                        setSelectedAutocompleteIndex(i);
-                      }}
-                      onClick={() => {
-                        onAcceptSuggestion(value, isVariable);
-                      }}
-                    >
-                      <span className={styles.suggestionLabel}>{label}</span>
-                      {description != null && (
-                        <div className={styles.suggestionDescription}>
-                          {description}
-                        </div>
-                      )}
+                <div
+                  role="listbox"
+                  id={suggestionsId}
+                  aria-label="Search suggestions"
+                  className={styles.suggestionsList}
+                >
+                  {suggestions.length === 0 && (
+                    <div className={styles.suggestionItem} role="status">
+                      {isLoadingValues
+                        ? 'Loading suggestions…'
+                        : 'No matching suggestions. You can still type any value.'}
                     </div>
-                  ))}
+                  )}
+                  {suggestions
+                    .slice(0, suggestionsLimit)
+                    .map(
+                      (
+                        { value, label, description, isVariable, isField },
+                        i,
+                      ) => (
+                        <div
+                          className={cx(
+                            styles.suggestionItem,
+                            selectedAutocompleteIndex === i && styles.selected,
+                          )}
+                          role="option"
+                          id={`${suggestionsId}-${i}`}
+                          aria-selected={selectedAutocompleteIndex === i}
+                          data-testid="autocomplete-suggestion"
+                          key={value}
+                          onMouseDown={e => e.preventDefault()}
+                          onMouseOver={() => {
+                            setSelectedAutocompleteIndex(i);
+                          }}
+                          onClick={() => {
+                            onAcceptSuggestion(value, isVariable, isField);
+                          }}
+                        >
+                          <span className={styles.suggestionLabel}>
+                            {label}
+                          </span>
+                          {description != null && (
+                            <div className={styles.suggestionDescription}>
+                              {description}
+                            </div>
+                          )}
+                        </div>
+                      ),
+                    )}
+                </div>
+                <div className={styles.keyboardHint}>
+                  ↑ ↓ choose · Tab / Enter insert · Shift+Enter new line ·
+                  Ctrl+Space suggestions
+                </div>
               </div>
             )}
           </div>

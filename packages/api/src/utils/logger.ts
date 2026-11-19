@@ -73,7 +73,9 @@ export const REDACTED_PATHS = [
 const TOKEN_PATH_RE = /\/(team\/setup)\/[^/?#]+/g;
 
 export const scrubUrlTokens = (url: string): string =>
-  url.replace(TOKEN_PATH_RE, '/$1/[REDACTED]');
+  url
+    .replace(TOKEN_PATH_RE, '/$1/[REDACTED]')
+    .replace(/(\/auth\/google\/callback)\?.*/, '$1?[REDACTED]');
 
 // pino-http wraps a user-supplied `req` serializer with
 // `wrapRequestSerializer` (its `wrapSerializers` option defaults to true), so

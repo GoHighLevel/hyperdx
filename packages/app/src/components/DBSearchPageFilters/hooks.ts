@@ -210,6 +210,92 @@ function useFacets({
     queriedFields,
   ]);
 
+  const isFacetValueQueryable = useMemo(() => {
+    const aliases = new Set(chartConfig.with?.map(clause => clause.name));
+    const discovered = new Set(
+      (allFields ?? [])
+        .filter(field => field.jsType && ['string'].includes(field.jsType))
+        .map(({ path }) =>
+          mergePath(path, jsonColumns ?? [], mapColumns ?? []),
+        ),
+    );
+    const queried = new Set(queriedFields ?? []);
+    const bare = /^[A-Za-z_][A-Za-z0-9_]*$/;
+    const quoted = /^`([^`]+)`$/;
+    const pathExpression = /^(?:`([^`]+)`|([A-Za-z_][A-Za-z0-9_]*))(?:\.|\[)/;
+    const normalize = (value: string) => {
+      const trimmed = value.trim();
+      return trimmed.match(quoted)?.[1] ?? trimmed;
+    };
+    const containers = new Set(
+      [
+        ...(columns
+          ?.filter(
+            column =>
+              column.type === 'JSON' ||
+              column.type.startsWith('JSON(') ||
+              column.type.startsWith('Map('),
+          )
+          .map(column => column.name) ?? []),
+        source && 'eventAttributesExpression' in source
+          ? source.eventAttributesExpression
+          : undefined,
+        source && 'resourceAttributesExpression' in source
+          ? source.resourceAttributesExpression
+          : undefined,
+      ]
+        .filter(
+          (value): value is string =>
+            typeof value === 'string' && value.length > 0,
+        )
+        .flatMap(value => {
+          const trimmed = value.trim();
+          return [trimmed, normalize(trimmed)];
+        }),
+    );
+    const canQuery = (value: string): boolean => {
+      const trimmed = value.trim();
+      const normalized = normalize(trimmed);
+      if (containers.has(trimmed) || containers.has(normalized)) return false;
+      if (
+        knownColumns.has(trimmed) ||
+        knownColumns.has(normalized) ||
+        aliases.has(trimmed) ||
+        aliases.has(normalized)
+      )
+        return true;
+      const toStringMatch = trimmed.match(/^toString\((.*)\)$/);
+      if (toStringMatch) return canQuery(toStringMatch[1]);
+      const castMatch = trimmed.match(/^CAST\((.*)\s+AS\s+[^)]+\)$/i);
+      if (castMatch) return canQuery(castMatch[1]);
+      if (bare.test(trimmed) || quoted.test(trimmed)) return false;
+      const pathMatch = trimmed.match(pathExpression);
+      if (pathMatch) {
+        const root = pathMatch[1] ?? pathMatch[2];
+        if (knownColumns.has(root) || aliases.has(root)) return true;
+      }
+      if (discovered.has(trimmed) || queried.has(trimmed)) return true;
+      const extractionMatch = trimmed.match(
+        /^(?:JSONExtract\w*|arrayElement|mapElement)\(\s*(?:`([^`]+)`|([A-Za-z_][A-Za-z0-9_]*))\s*,/,
+      );
+      if (extractionMatch) {
+        const root = extractionMatch[1] ?? extractionMatch[2];
+        return knownColumns.has(root) || aliases.has(root);
+      }
+      return false;
+    };
+    return canQuery;
+  }, [
+    chartConfig.with,
+    allFields,
+    jsonColumns,
+    mapColumns,
+    columns,
+    source,
+    knownColumns,
+    queriedFields,
+  ]);
+
   const { escapedKeysToFetch, sqlKeyToUiKey } = useMemo(() => {
     // Don't fetch any keys until the column list is loaded,
     // since we need the real column names to escape correctly.
@@ -218,13 +304,15 @@ function useFacets({
     }
 
     const sqlKeyToUiKey = new Map<string, string>();
-    const escapedKeysToFetch = keysToFetch.map(key => {
-      const sqlKey = toQuotedClickHouseKeyExpression(key, knownColumns);
-      sqlKeyToUiKey.set(sqlKey, key);
-      return sqlKey;
-    });
+    const escapedKeysToFetch = keysToFetch
+      .filter(isFacetValueQueryable)
+      .map(key => {
+        const sqlKey = toQuotedClickHouseKeyExpression(key, knownColumns);
+        sqlKeyToUiKey.set(sqlKey, key);
+        return sqlKey;
+      });
     return { escapedKeysToFetch, sqlKeyToUiKey };
-  }, [isColumnsLoading, keysToFetch, knownColumns]);
+  }, [isColumnsLoading, keysToFetch, knownColumns, isFacetValueQueryable]);
 
   const facetsChartConfig = useMemo(
     () =>
@@ -258,6 +346,7 @@ function useFacets({
   const metadata = useMetadataWithSettings();
   const loadMoreFacetsForKey = useCallback(
     async (key: string): Promise<Facet | undefined> => {
+      if (!isFacetValueQueryable(key)) return;
       try {
         const sqlKey = toQuotedClickHouseKeyExpression(key, knownColumns);
         if (mode === 'exact') {
@@ -328,6 +417,7 @@ function useFacets({
       source,
       filterState,
       dateTimeColumns,
+      isFacetValueQueryable,
     ],
   );
 
@@ -342,6 +432,8 @@ function useFacets({
     queriedFields,
     isLoading: isAllFieldsLoading || rest.isLoading,
     loadMoreFacetsForKey,
+    isFacetValueQueryable,
+    facetQueryGuardVersion: 'hyperdx-facet-query-guard-v1',
   };
 }
 

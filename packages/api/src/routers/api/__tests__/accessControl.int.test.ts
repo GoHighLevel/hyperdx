@@ -6,6 +6,8 @@ import app from '@/api-app';
 import { MONGO_URI } from '@/config';
 import { getTeamAdminIds } from '@/controllers/teamRoles';
 import Connection from '@/models/connection';
+import Dashboard from '@/models/dashboard';
+import DashboardFolder from '@/models/dashboardFolder';
 import PersonalPinnedFilter from '@/models/personalPinnedFilter';
 import { Source } from '@/models/source';
 import Team from '@/models/team';
@@ -34,7 +36,12 @@ describe('access control and personal filters over authenticated HTTP', () => {
     )
       throw new Error('Use hyperdx_rbac_test database');
     await mongoose.connect(MONGO_URI);
-    await Promise.all([Team.init(), User.init(), PersonalPinnedFilter.init()]);
+    await Promise.all([
+      Team.init(),
+      User.init(),
+      PersonalPinnedFilter.init(),
+      DashboardFolder.init(),
+    ]);
     await mongoose.connection.dropDatabase();
     await Promise.all([
       Team.createIndexes(),
@@ -93,13 +100,143 @@ describe('access control and personal filters over authenticated HTTP', () => {
   it.each([
     '/sources',
     '/connections',
-    '/dashboards',
     '/saved-search',
     '/alerts',
     '/webhooks',
     '/team/invitation',
   ])('blocks developer writes to %s', async path => {
     await alice.post(path).send({}).expect(403);
+  });
+
+  it('shares developer folders while protecting admin folders over authenticated HTTP', async () => {
+    const adminFolder = (
+      await admin
+        .post('/dashboard-folders')
+        .send({ name: 'Operations', access: 'team' })
+        .expect(201)
+    ).body;
+    const devFolder = (
+      await alice
+        .post('/dashboard-folders')
+        .send({
+          name: 'Experiments',
+          access: 'admin',
+          team: new Types.ObjectId().toString(),
+        })
+        .expect(201)
+    ).body;
+    expect(adminFolder.access).toBe('admin');
+    expect(devFolder.access).toBe('team');
+    for (const agent of [admin, alice, bob]) {
+      expect(
+        (await agent.get('/dashboard-folders').expect(200)).body.map(f => f.id),
+      ).toEqual(expect.arrayContaining([adminFolder.id, devFolder.id]));
+    }
+    await request(app).get('/dashboard-folders').expect(401);
+    await bob
+      .patch(`/dashboard-folders/${devFolder.id}`)
+      .send({ name: 'Team experiments', access: 'admin' })
+      .expect(200);
+    expect((await DashboardFolder.findById(devFolder.id))?.access).toBe('team');
+    await bob
+      .patch(`/dashboard-folders/${adminFolder.id}`)
+      .send({ name: 'Stolen folder' })
+      .expect(403);
+    await alice
+      .post('/dashboard-folders')
+      .send({ name: 'operations' })
+      .expect(409);
+
+    const body = { name: 'Dashboard', tiles: [], tags: [] };
+    await alice.post('/dashboards').send(body).expect(403);
+    await alice
+      .post('/dashboards')
+      .send({ ...body, folderId: adminFolder.id })
+      .expect(403);
+    const protectedDashboard = (
+      await admin
+        .post('/dashboards')
+        .send({ ...body, folderId: adminFolder.id })
+        .expect(200)
+    ).body;
+    await bob
+      .patch(`/dashboards/${protectedDashboard.id}`)
+      .send({ folderId: devFolder.id, name: 'Bypass' })
+      .expect(403);
+    await bob.delete(`/dashboards/${protectedDashboard.id}`).expect(403);
+
+    const shared = (
+      await alice
+        .post('/dashboards')
+        .send({ ...body, folderId: devFolder.id, provisioned: true })
+        .expect(200)
+    ).body;
+    expect(shared.provisioned).toBe(false);
+    await bob
+      .patch(`/dashboards/${shared.id}`)
+      .send({ name: 'Edited by another developer' })
+      .expect(200);
+    const visible = (await bob.get('/dashboards').expect(200)).body;
+    expect(visible.find(d => d.id === shared.id).canEdit).toBe(true);
+    expect(visible.find(d => d.id === protectedDashboard.id).canEdit).toBe(
+      false,
+    );
+    await bob
+      .patch(`/dashboards/${shared.id}`)
+      .send({ folderId: adminFolder.id })
+      .expect(403);
+    await bob
+      .patch(`/dashboards/${shared.id}`)
+      .send({ folderId: null })
+      .expect(403);
+
+    const foreign = await DashboardFolder.create({
+      name: 'Other team',
+      normalizedName: 'other team',
+      team: new Types.ObjectId(),
+      createdBy: new Types.ObjectId(),
+      access: 'team',
+    });
+    await alice
+      .post('/dashboards')
+      .send({ ...body, folderId: foreign.id })
+      .expect(403);
+    await bob
+      .patch(`/dashboards/${shared.id}`)
+      .send({ folderId: foreign.id })
+      .expect(403);
+    await bob
+      .patch(`/dashboard-folders/${foreign.id}`)
+      .send({ name: 'Cross-team' })
+      .expect(404);
+    expect(
+      (await alice.get('/dashboard-folders')).body.some(
+        f => f.id === foreign.id,
+      ),
+    ).toBe(false);
+
+    const legacy = await Dashboard.create({ ...body, team });
+    await bob
+      .patch(`/dashboards/${legacy.id}`)
+      .send({ name: 'Legacy bypass' })
+      .expect(403);
+    const deletable = (
+      await alice
+        .post('/dashboards')
+        .send({ ...body, folderId: devFolder.id })
+        .expect(200)
+    ).body;
+    await bob.delete(`/dashboards/${deletable.id}`).expect(204);
+    await admin
+      .patch(`/dashboards/${shared.id}`)
+      .send({ folderId: adminFolder.id })
+      .expect(200);
+    await bob
+      .patch(`/dashboards/${shared.id}`)
+      .send({ name: 'Protected after move' })
+      .expect(403);
+    await bob.delete(`/dashboards/${shared.id}`).expect(403);
+    await admin.delete(`/dashboards/${shared.id}`).expect(204);
   });
 
   it('enforces the same permissions for API keys', async () => {

@@ -30,6 +30,14 @@ export default async (req: NextApiRequest, res: NextApiResponse) => {
 
   const proxy = createProxyMiddleware({
     changeOrigin: true,
+    ...(process.env.FRONTEND_URL && {
+      headers: {
+        'X-Forwarded-Proto': new URL(process.env.FRONTEND_URL).protocol.slice(
+          0,
+          -1,
+        ),
+      },
+    }),
     // logger: console, // DEBUG
     pathRewrite: { '^/api': '' },
     target: process.env.SERVER_URL || DEFAULT_SERVER_URL,

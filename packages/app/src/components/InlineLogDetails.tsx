@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { SourceKind, TSource } from '@hyperdx/common-utils/dist/types';
 import { Button, Group } from '@mantine/core';
 
@@ -11,15 +11,13 @@ import {
   resolveRowTimestampAnchor,
 } from '@/utils/rowTimestamps';
 
-import DirectTraceSidePanel from './Search/DirectTraceSidePanel';
+import { TraceSidePanelSelection } from './Search/DirectTraceSidePanel';
 import ServiceMapSidePanel from './ServiceMap/ServiceMapSidePanel';
 import { RowDataPanel, useRowData } from './DBRowDataPanel';
-import { RowOverviewPanel } from './DBRowOverviewPanel';
 import { DBRowSidePanelErrorState } from './DBRowSidePanelErrorState';
 import EmptyState from './EmptyState';
 
 enum InlineTab {
-  Overview = 'overview',
   ColumnValues = 'columnValues',
   ServiceMap = 'serviceMap',
 }
@@ -29,11 +27,13 @@ export default function InlineLogDetails({
   rowId,
   aliasWith,
   onOpenDetails,
+  onOpenTrace,
 }: {
   source: TSource;
   rowId: string;
   aliasWith?: WithClause[];
   onOpenDetails: () => void;
+  onOpenTrace?: (selection: TraceSidePanelSelection) => void;
 }) {
   // Use localStorage to persist the selected tab
   const [activeTab, setActiveTab] = useLocalStorage<InlineTab>(
@@ -43,7 +43,7 @@ export default function InlineLogDetails({
 
   // Surface the same error state the row side panel shows (e.g. `SELECT *`
   // failures on Distributed/Merge tables) rather than silently rendering an
-  // empty expanded row. Both tabs load the same row data, so a failure here
+  // empty expanded row. All tabs load the same row data, so a failure here
   // affects the whole expanded row.
   const { data, isError, error } = useRowData({ source, rowId, aliasWith });
   const row = data?.data?.[0];
@@ -60,10 +60,6 @@ export default function InlineLogDetails({
     kinds: [SourceKind.Trace],
     traceForLogSourceId: source.kind === SourceKind.Log ? source.id : undefined,
   });
-  const [traceOpened, setTraceOpened] = useState(false);
-  const [selectedTraceSource, setSelectedTraceSource] = useState<string | null>(
-    null,
-  );
   const focusDate = useMemo(() => {
     const anchor = resolveRowTimestampAnchor({
       timestampValueExpression: source.timestampValueExpression,
@@ -81,9 +77,9 @@ export default function InlineLogDetails({
     [focusDate],
   );
   const displayedTab =
-    activeTab === InlineTab.ServiceMap && !traceId
-      ? InlineTab.ColumnValues
-      : activeTab;
+    activeTab === InlineTab.ServiceMap && traceId
+      ? InlineTab.ServiceMap
+      : InlineTab.ColumnValues;
 
   if (isError && error) {
     return (
@@ -102,11 +98,7 @@ export default function InlineLogDetails({
           className="fs-8"
           items={[
             {
-              text: 'Overview',
-              value: InlineTab.Overview,
-            },
-            {
-              text: 'Column Values',
+              text: 'Column values',
               value: InlineTab.ColumnValues,
             },
             ...(traceId
@@ -122,8 +114,13 @@ export default function InlineLogDetails({
               variant="link"
               size="xs"
               onClick={() =>
-                dateRange
-                  ? setTraceOpened(true)
+                dateRange && focusDate && onOpenTrace
+                  ? onOpenTrace({
+                      traceId,
+                      traceSourceId: traceSource?.id,
+                      dateRange,
+                      focusDate,
+                    })
                   : setActiveTab(InlineTab.ServiceMap)
               }
             >
@@ -136,15 +133,6 @@ export default function InlineLogDetails({
         </Group>
       </Group>
       <div>
-        {displayedTab === InlineTab.Overview && (
-          <div className="inline-overview-panel">
-            <RowOverviewPanel
-              source={source}
-              rowId={rowId}
-              aliasWith={aliasWith}
-            />
-          </div>
-        )}
         {displayedTab === InlineTab.ColumnValues && (
           <RowDataPanel source={source} rowId={rowId} aliasWith={aliasWith} />
         )}
@@ -167,18 +155,6 @@ export default function InlineLogDetails({
           </div>
         )}
       </div>
-      {traceOpened && traceId && dateRange && focusDate && (
-        <DirectTraceSidePanel
-          opened
-          traceId={traceId}
-          traceSourceId={selectedTraceSource ?? traceSource?.id}
-          dateRange={dateRange}
-          focusDate={focusDate}
-          onClose={() => setTraceOpened(false)}
-          onSourceChange={setSelectedTraceSource}
-          closeOnClickOutside={false}
-        />
-      )}
     </div>
   );
 }

@@ -23,10 +23,11 @@ import {
 } from '@mantine/core';
 import { DateInput, DateInputProps } from '@mantine/dates';
 import { useDisclosure } from '@mantine/hooks';
-import { IconBolt, IconCalendarFilled } from '@tabler/icons-react';
+import { IconBolt, IconCalendarFilled, IconSearch } from '@tabler/icons-react';
 
 import { useUserPreferences } from '@/useUserPreferences';
 
+import TimeRangePreview from './TimeRangePreview';
 import { TimePickerMode } from './types';
 import { useTimePickerForm } from './useTimePickerForm';
 import {
@@ -125,10 +126,15 @@ const TimePickerComponent = ({
   size?: 'xs' | 'sm';
 }) => {
   const {
-    userPreferences: { timeFormat },
+    userPreferences: { timeFormat, isUTC },
   } = useUserPreferences();
 
   const [opened, { close, toggle }] = useDisclosure(false);
+  const [presetSearch, setPresetSearch] = useState('');
+  const presetSearchRef = React.useRef<HTMLInputElement>(null);
+  React.useEffect(() => {
+    if (!opened) setPresetSearch('');
+  }, [opened]);
 
   useHotkeys('d', () => toggle(), { preventDefault: true }, [toggle]);
 
@@ -144,6 +150,14 @@ const TimePickerComponent = ({
       ...(monitoring ? MONITORING_RELATIVE_TIME_OPTIONS : []),
     ];
   }, [showLive, monitoring]);
+
+  const filteredTimeOptions = presetSearch.trim()
+    ? relativeTimeOptions.filter(
+        item =>
+          item !== 'divider' &&
+          item[0].toLowerCase().includes(presetSearch.trim().toLowerCase()),
+      )
+    : relativeTimeOptions;
 
   const [mode, setMode] = useAtom(modeAtom);
   const form = useTimePickerForm({ mode });
@@ -279,6 +293,7 @@ const TimePickerComponent = ({
       <Popover.Target>
         <TextInput
           data-testid="time-picker-input"
+          aria-label="Time range"
           leftSection={
             isLiveMode ? (
               <IconBolt size={16} className="text-brand" />
@@ -370,9 +385,45 @@ const TimePickerComponent = ({
         </Group>
         <Group gap={1} align="stretch">
           <Card w={180} p={0}>
+            <TextInput
+              aria-label="Search time presets"
+              ref={presetSearchRef}
+              placeholder="Search presets"
+              size="xs"
+              m="xs"
+              value={presetSearch}
+              onChange={event => setPresetSearch(event.currentTarget.value)}
+              onKeyDown={event => {
+                if (event.key === 'Enter') {
+                  event.preventDefault();
+                  event.stopPropagation();
+                }
+              }}
+              leftSection={<IconSearch size={14} />}
+              rightSection={
+                presetSearch && (
+                  <CloseButton
+                    size="xs"
+                    aria-label="Clear preset search"
+                    onKeyDown={event => {
+                      if (event.key === 'Enter') event.stopPropagation();
+                    }}
+                    onClick={() => {
+                      setPresetSearch('');
+                      presetSearchRef.current?.focus();
+                    }}
+                  />
+                )
+              }
+            />
             <ScrollArea h={300} scrollbarSize={5}>
               <Stack gap={0} p="xs">
-                {relativeTimeOptions.map((item, index) =>
+                {filteredTimeOptions.length === 0 && (
+                  <Text size="xs" c="dimmed" px="xs">
+                    No matching presets
+                  </Text>
+                )}
+                {filteredTimeOptions.map((item, index) =>
                   item === 'divider' ? (
                     <Divider key={index} my={4} />
                   ) : (
@@ -517,6 +568,9 @@ const TimePickerComponent = ({
             </Group>
           </Card>
         </Group>
+        {opened && (
+          <TimeRangePreview inputValue={value} isUTC={isUTC ?? false} />
+        )}
       </Popover.Dropdown>
     </Popover>
   );

@@ -20,6 +20,7 @@ let mockSources: any[] = [];
 // exercise what the page does before and after the source list arrives.
 let mockSourcesLoading = false;
 let latestDirectTracePanelProps: Record<string, any> | null = null;
+let latestRowTableProps: Record<string, any> | null = null;
 
 jest.mock('@/layout', () => ({
   withAppNav: (component: unknown) => component,
@@ -73,7 +74,19 @@ jest.mock('nuqs', () => ({
         return [null, jest.fn()];
     }
   },
-  useQueryStates: () => [mockSearchedConfig, mockSetSearchedConfig],
+  useQueryStates: () => {
+    const React = jest.requireActual('react');
+    const [, rerender] = React.useReducer((value: number) => value + 1, 0);
+    const setConfig = React.useCallback((change: Record<string, unknown>) => {
+      mockSetSearchedConfig(change);
+      const next = { ...mockSearchedConfig, ...change };
+      if (JSON.stringify(next) !== JSON.stringify(mockSearchedConfig)) {
+        mockSearchedConfig = next;
+        rerender();
+      }
+    }, []);
+    return [mockSearchedConfig, setConfig];
+  },
 }));
 
 jest.mock('@/source', () => ({
@@ -110,6 +123,23 @@ jest.mock('@/savedSearch', () => ({
   useDeleteSavedSearch: () => ({ mutate: jest.fn() }),
   useSavedSearch: () => ({ data: undefined }),
   useUpdateSavedSearch: () => ({ mutate: jest.fn() }),
+}));
+
+// Dashboard permissions/export are unrelated network boundaries for these
+// source-resolution and trace-navigation fixtures.
+jest.mock('@/dashboardFolders', () => ({
+  useCanEditDashboard: () => true,
+}));
+jest.mock('@/dashboard', () => ({
+  ...jest.requireActual('@/dashboard'),
+  useUpdateDashboard: () => ({ mutate: jest.fn(), mutateAsync: jest.fn() }),
+  useDeleteDashboard: () => ({ mutate: jest.fn(), mutateAsync: jest.fn() }),
+}));
+jest.mock('@/hooks/useSearchDashboardExport', () => ({
+  useSearchDashboardExport: () => ({
+    exportView: jest.fn(),
+    saveView: jest.fn(),
+  }),
 }));
 
 jest.mock('@/searchFilters', () => ({
@@ -211,7 +241,13 @@ jest.mock('@/components/TimePicker', () => ({
 jest.mock('../components/ChartSQLPreview', () => ({
   SQLPreview: () => <div />,
 }));
-jest.mock('../components/DBSqlRowTableWithSidebar', () => () => <div />);
+jest.mock(
+  '../components/DBSqlRowTableWithSidebar',
+  () => (props: Record<string, unknown>) => {
+    latestRowTableProps = props;
+    return <div />;
+  },
+);
 jest.mock('../components/PatternTable', () => () => <div />);
 jest.mock('../components/Search/DBSearchHeatmapChart', () => ({
   DBSearchHeatmapChart: () => <div />,
@@ -263,6 +299,7 @@ describe('DBSearchPage direct trace flow', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     latestDirectTracePanelProps = null;
+    latestRowTableProps = null;
     mockSourcesLoading = false;
     mockDirectTraceId = 'trace-123';
     mockSearchedConfig = {
@@ -339,17 +376,17 @@ describe('DBSearchPage direct trace flow', () => {
     });
   });
 
-  it('applies the default 14-day range only when from/to are absent', () => {
+  it('applies the default 14-day range only when from/to are absent', async () => {
     window.history.pushState({}, '', '/search?traceId=trace-123');
 
-    renderWithMantine(<DBSearchPage />);
+    await act(async () => renderWithMantine(<DBSearchPage />));
 
     expect(mockOnTimeRangeSelect).toHaveBeenCalled();
 
     jest.clearAllMocks();
     window.history.pushState({}, '', '/search?traceId=trace-123&from=1&to=2');
 
-    renderWithMantine(<DBSearchPage />);
+    await act(async () => renderWithMantine(<DBSearchPage />));
 
     expect(mockOnTimeRangeSelect).not.toHaveBeenCalled();
   });
@@ -363,7 +400,7 @@ describe('DBSearchPage direct trace flow', () => {
       expect(screen.getByTestId('direct-trace-panel')).toBeInTheDocument();
     });
 
-    screen.getByText('select-trace-source').click();
+    act(() => screen.getByText('select-trace-source').click());
 
     expect(mockSetSearchedConfig).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -384,7 +421,7 @@ describe('DBSearchPage direct trace flow', () => {
       expect(screen.getByTestId('direct-trace-panel')).toBeInTheDocument();
     });
 
-    screen.getByText('close-trace').click();
+    act(() => screen.getByText('close-trace').click());
 
     expect(mockSetDirectTraceId).toHaveBeenCalledWith(null);
   });
@@ -525,12 +562,10 @@ describe('DBSearchPage direct trace flow', () => {
     );
   });
 
-  it('submits on a saved search route without discarding the config the link carried', async () => {
+  it('retains a saved-search link configuration while normalizing log chronology', async () => {
     // On `/search/<savedSearchId>` the source is written to the URL by the
     // saved-search effect, so the form catches up to it on a cold load. The
-    // submit still has to run — that is how a freshly loaded page pushes its
-    // defaults into the search config — but it must not clear `select`, which a
-    // bookmarked or refreshed link may carry (e.g. an unsaved tweak).
+    // Order normalization must preserve the bookmarked SELECT and source.
     mockDirectTraceId = null;
     mockSourcesLoading = true;
     mockSearchedConfig = {
@@ -549,17 +584,54 @@ describe('DBSearchPage direct trace flow', () => {
 
     await renderThroughSourceLoad();
 
-    expect(mockSetSearchedConfig).toHaveBeenCalledWith(
+    expect(mockSearchedConfig).toEqual(
       expect.objectContaining({
         source: 'log-source',
         select: 'Timestamp, Body, lower(Body) as body_lower',
-        orderBy: 'Timestamp DESC',
+        orderBy: 'Timestamp ASC',
+      }),
+    );
+    expect(latestRowTableProps).toEqual(
+      expect.objectContaining({
+        sourceId: 'log-source',
+        enabled: true,
+        config: expect.objectContaining({
+          orderBy: 'Timestamp ASC',
+          select: 'Timestamp, Body, lower(Body) as body_lower',
+        }),
       }),
     );
     // Nothing may land that empties them.
     for (const [config] of mockSetSearchedConfig.mock.calls) {
       expect(config).not.toMatchObject({ select: '' });
       expect(config).not.toMatchObject({ orderBy: '' });
+    }
+  });
+
+  it('does not render a top refresh-interval dropdown in live log search', async () => {
+    mockDirectTraceId = null;
+    mockSearchedConfig = { ...mockSearchedConfig, source: 'log-source' };
+    window.history.pushState({}, '', '/search?source=log-source');
+    await act(async () => renderWithMantine(<DBSearchPage />));
+    // Source and time controls are fixture boundaries; the real page previously
+    // added its own Mantine Select here when Live was enabled.
+    expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
+  });
+
+  it('does not advance the log range on a background refresh timer', async () => {
+    jest.useFakeTimers();
+    try {
+      mockDirectTraceId = null;
+      mockSearchedConfig = { ...mockSearchedConfig, source: 'log-source' };
+      window.history.pushState({}, '', '/search?source=log-source');
+      await act(async () => renderWithMantine(<DBSearchPage />));
+      mockOnTimeRangeSelect.mockClear();
+      await act(async () => {
+        jest.advanceTimersByTime(60000);
+      });
+      expect(mockOnTimeRangeSelect).not.toHaveBeenCalled();
+    } finally {
+      jest.useRealTimers();
     }
   });
 });

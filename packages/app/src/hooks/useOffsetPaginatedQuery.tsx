@@ -36,6 +36,7 @@ import {
 import api from '@/api';
 import { getClickhouseClient } from '@/clickhouse';
 import { MAX_TABLE_ROWS } from '@/HDXMultiSeriesTableChart';
+import { useLastSuccessfulQueryTime } from '@/hooks/useLastSuccessfulQueryTime';
 import { useMetadataWithSettings } from '@/hooks/useMetadata';
 import { useMVOptimizationExplanation } from '@/hooks/useMVOptimizationExplanation';
 import { useSource } from '@/source';
@@ -447,11 +448,13 @@ export default function useOffsetPaginatedQuery(
     enabled = true,
     queryKeyPrefix = '',
     enableSmallFirstWindow,
+    gcTime,
   }: {
     isLive?: boolean;
     enabled?: boolean;
     queryKeyPrefix?: string;
     enableSmallFirstWindow?: boolean;
+    gcTime?: number;
   } = {},
 ) {
   const { data: meData, isLoading: isLoadingMe } = api.useMe();
@@ -489,6 +492,7 @@ export default function useOffsetPaginatedQuery(
     isError,
     error,
     isLoading,
+    isPlaceholderData,
   } = useInfiniteQuery<
     TQueryFnData,
     Error | ClickHouseQueryError,
@@ -522,15 +526,28 @@ export default function useOffsetPaginatedQuery(
       source,
     } satisfies QueryMeta,
     queryFn,
-    gcTime: isLive ? ms('30s') : ms('5m'), // more aggressive gc for live data, since it can end up holding lots of data
+    gcTime: gcTime ?? (isLive ? ms('30s') : ms('5m')), // more aggressive gc for live data, since it can end up holding lots of data
     retry: 1,
     refetchOnWindowFocus: false,
     maxPages: isLive ? 5 : undefined, // Limit number of pages kept in cache for live data
   });
 
   const flattenedData = useMemo(() => flattenData(data), [data]);
+  const refreshedUntil = useLastSuccessfulQueryTime({
+    queryIdentity: JSON.stringify([
+      queryKeyPrefix,
+      omit(config, ['dateRange']),
+    ]),
+    completedUntil: data?.pages.length
+      ? Math.max(...data.pages.map(page => page.window.endTime.getTime()))
+      : undefined,
+    isFetching,
+    isError,
+    isPlaceholderData,
+  });
 
   return {
+    refreshedUntil,
     isError,
     error,
     data: flattenedData,

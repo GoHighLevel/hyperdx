@@ -8,7 +8,7 @@ import React, {
 } from 'react';
 import cx from 'classnames';
 import { formatDistance } from 'date-fns';
-import { isString } from 'lodash';
+import { isString, omit } from 'lodash';
 import curry from 'lodash/curry';
 import ms from 'ms';
 import { useHotkeys } from 'react-hotkeys-hook';
@@ -29,7 +29,10 @@ import {
   isJSDataTypeJSONStringifiable,
   JSDataType,
 } from '@hyperdx/common-utils/dist/clickhouse';
-import { splitAndTrimWithBracket } from '@hyperdx/common-utils/dist/core/utils';
+import {
+  isTimestampExpressionInFirstOrderBy,
+  splitAndTrimWithBracket,
+} from '@hyperdx/common-utils/dist/core/utils';
 import {
   DENOISE_NOISE_THRESHOLD,
   DENOISE_SAMPLE_SIZE,
@@ -37,16 +40,20 @@ import {
 import {
   BuilderChartConfigWithDateRange,
   SelectList,
+  SourceKind,
   TSource,
 } from '@hyperdx/common-utils/dist/types';
 import {
   Box,
+  Button,
   Flex,
   Group,
   Modal,
+  Popover,
   Text,
   Tooltip as MantineTooltip,
   UnstyledButton,
+  VisuallyHidden,
 } from '@mantine/core';
 import {
   IconCode,
@@ -72,22 +79,36 @@ import { useVirtualizer } from '@tanstack/react-virtual';
 
 import api from '@/api';
 import { useChartSyncId } from '@/chartSync';
+import LatestDataRefresh from '@/components/LatestDataRefresh';
+import LogRangeFooter from '@/components/LogRangeFooter';
+import LogScrollButtons, {
+  LogEdgeNavigation,
+} from '@/components/LogScrollButtons';
 import { searchChartConfigDefaults } from '@/defaults';
 import {
   useAliasMapFromChartConfig,
   useRenderedSqlChartConfig,
 } from '@/hooks/useChartConfig';
 import { useCsvExport } from '@/hooks/useCsvExport';
+import { useLiveInspectionRows } from '@/hooks/useLiveInspectionRows';
+import useLiveLogQuery, {
+  chronologicalLogConfig,
+} from '@/hooks/useLiveLogQuery';
+import useLogScrollLoad from '@/hooks/useLogScrollLoad';
 import { useColumns, useTableMetadata } from '@/hooks/useMetadata';
-import useOffsetPaginatedQuery from '@/hooks/useOffsetPaginatedQuery';
 import { useGroupedPatterns } from '@/hooks/usePatterns';
 import useRowWhere, {
   INTERNAL_ROW_FIELDS,
   RowWhereResult,
   WithClause,
 } from '@/hooks/useRowWhere';
+import { useSearchViewPreference } from '@/hooks/useSearchViewPreference';
 import { useTableSearch } from '@/hooks/useTableSearch';
-import { getLevelExpression, useSource } from '@/source';
+import {
+  getDisplayedTimestampValueExpression,
+  getLevelExpression,
+  useSource,
+} from '@/source';
 import {
   MIN_COLUMN_WIDTH,
   MIN_LAST_COLUMN_WIDTH,
@@ -100,9 +121,9 @@ import {
   getChartColorInfo,
   getLogLevelClass,
   logLevelColor,
-  useLocalStorage,
   usePrevious,
 } from '@/utils';
+import { getTimestampValueSelects } from '@/utils/rowTimestamps';
 
 import ChartErrorState, {
   ChartErrorStateVariant,
@@ -115,6 +136,13 @@ import {
   TableSearchInput,
   TableSearchMatchIndicator,
 } from './DBTable/TableSearchInput';
+import LiveSummaryContent from './LogSummaryDemo/LiveSummaryContent';
+import LogRowTraceButton from './LogSummaryDemo/LogRowTraceButton';
+import { resolveSeverity } from './LogSummaryDemo/resolveSeverity';
+import SummaryFieldPicker from './LogSummaryDemo/SummaryFieldPicker';
+import { summaryProjection } from './LogSummaryDemo/summaryProjection';
+import { useSummaryFields } from './LogSummaryDemo/useSummaryFields';
+import { TraceSidePanelSelection } from './Search/DirectTraceSidePanel';
 import { SQLPreview } from './ChartSQLPreview';
 import { CsvExportButton } from './CsvExportButton';
 import { RowSidePanelContext } from './DBRowSidePanel';
@@ -125,6 +153,7 @@ import {
 } from './ExpandableRowTable';
 import LogLevel from './LogLevel';
 
+import summaryStyles from './LogSummaryDemo/LiveSummaryContent.module.scss';
 import styles from '@styles/LogTable.module.scss';
 
 type Row = Record<string, any> & { duration: number };
@@ -160,12 +189,12 @@ function getResolvedColumnSize(
     columnSizeStorage: Record<string, number>;
   },
 ): number {
+  if (column === opts.logLevelColumn) return 32;
   const columnId = opts.aliasMap?.[column] ? `"${column}"` : column;
   const stored = opts.columnSizeStorage[columnId];
   if (stored != null) return stored;
   const jsType = opts.columnTypeMap.get(column)?._type;
   if (jsType === JSDataType.Date) return 190;
-  if (column === opts.logLevelColumn) return 84;
   return 150;
 }
 
@@ -341,6 +370,13 @@ export const RawLogTable = memo(
     hasNextPage,
     highlightedLineId,
     isLive,
+    loadOnScroll = false,
+    loadingPaused = false,
+    refreshedUntil,
+    jumpToLatest,
+    jumpToStart,
+    edgeNavigation,
+    latestInRange,
     isLoading,
     rows,
     generateRowId,
@@ -359,6 +395,8 @@ export const RawLogTable = memo(
     config,
     onChildModalOpen,
     renderRowDetails,
+    onOpenTrace,
+    rowMeta,
     source,
     onExpandedRowsChange,
     collapseAllRows,
@@ -382,6 +420,13 @@ export const RawLogTable = memo(
     highlightedLineId?: string;
     onScroll?: (scrollTop: number) => void;
     isLive?: boolean;
+    loadOnScroll?: boolean;
+    loadingPaused?: boolean;
+    refreshedUntil?: number;
+    jumpToLatest?: () => void;
+    jumpToStart?: () => void;
+    edgeNavigation?: LogEdgeNavigation;
+    latestInRange?: boolean;
     tableId?: string;
     columnNameMap?: Record<string, string>;
     dedupRows?: boolean;
@@ -395,6 +440,8 @@ export const RawLogTable = memo(
     config?: BuilderChartConfigWithDateRange;
     onChildModalOpen?: (open: boolean) => void;
     source?: TSource;
+    onOpenTrace?: (selection: TraceSidePanelSelection) => void;
+    rowMeta?: ColumnMetaType[];
     onExpandedRowsChange?: (hasExpandedRows: boolean) => void;
     collapseAllRows?: boolean;
     showExpandButton?: boolean;
@@ -411,7 +458,19 @@ export const RawLogTable = memo(
     onRemoveColumn?: (column: string) => void;
   }) => {
     const { canManageShared } = usePermissions();
-    const dedupedRows = useMemo(() => {
+    const summaryMode = source?.kind === SourceKind.Log && showExpandButton;
+    const [
+      summaryFields,
+      setSummaryFields,
+      availableSummaryFields,
+      removeSummaryField,
+      resetSummaryFields,
+    ] = useSummaryFields(source?.id);
+    const summaryTimeColumn =
+      displayedColumns.find(
+        column => columnTypeMap.get(column)?._type === JSDataType.Date,
+      ) ?? displayedColumns.find(column => /^(timestamp|time)$/i.test(column));
+    const incomingRows = useMemo(() => {
       const lIds = new Set();
       const returnedRows = dedupRows
         ? rows.filter(l => {
@@ -434,6 +493,24 @@ export const RawLogTable = memo(
       });
     }, [rows, dedupRows, generateRowId]);
 
+    const inspectionScope = JSON.stringify([
+      source?.id,
+      tableId,
+      config && omit(config, ['dateRange']),
+    ]);
+    const {
+      rows: dedupedRows,
+      holdRow,
+      releaseRow,
+      clearRows,
+      hasHeldRows,
+    } = useLiveInspectionRows({
+      rows: incomingRows,
+      getRowId,
+      scope: inspectionScope,
+      enabled: isLive === true,
+    });
+
     const _onRowExpandClick = useCallback(
       (row: Record<string, any>) => {
         onRowDetailsClick?.(row);
@@ -442,12 +519,12 @@ export const RawLogTable = memo(
     );
 
     const {
-      userPreferences: { isUTC, logFontSize = 14 },
+      userPreferences: { isUTC, logFontSize = 10, timeFormat },
     } = useUserPreferences();
 
-    const [columnSizeStorage, setColumnSizeStorage] = useLocalStorage<
+    const [columnSizeStorage, setColumnSizeStorage] = useSearchViewPreference<
       Record<string, number>
-    >(`${tableId}-column-sizes`, {});
+    >(`${tableId}-column-sizes`, {}, true, 'log-table-column-sizes');
 
     //once the user has scrolled within 500px of the bottom of the table, fetch more data if there is any
     const FETCH_NEXT_PAGE_PX = 500;
@@ -483,17 +560,47 @@ export const RawLogTable = memo(
     // Get the alias map from the config so we resolve correct column ids
     const { data: aliasMap } = useAliasMapFromChartConfig(config);
 
-    // Reset scroll when live tail is enabled for the first time
+    // Chronological live logs follow the bottom; other tables retain their order.
     const prevIsLive = usePrevious(isLive);
     useEffect(() => {
-      if (isLive && prevIsLive === false && tableContainerRef != null) {
+      if (
+        !loadOnScroll &&
+        isLive &&
+        prevIsLive === false &&
+        tableContainerRef != null
+      ) {
         tableContainerRef.scrollTop = 0;
       }
-    }, [isLive, prevIsLive, tableContainerRef]);
+    }, [loadOnScroll, isLive, prevIsLive, tableContainerRef]);
+    const scrollScope = JSON.stringify([inspectionScope, dateRange]);
+    useEffect(() => {
+      if (loadOnScroll && tableContainerRef) tableContainerRef.scrollTop = 0;
+    }, [scrollScope, loadOnScroll, tableContainerRef]);
+    const scrollLoad = useLogScrollLoad({
+      enabled: loadOnScroll,
+      blocked: isLoading === true || loadingPaused,
+      canLoad: !!(hasNextPage || isLive || isError),
+      load: () => fetchNextPage?.({ cancelRefetch: false }),
+    });
 
     const logLevelColumn = useMemo(() => {
       return inferLogLevelColumn(dedupedRows);
     }, [dedupedRows]);
+
+    // Reorder presentation only; query fields and CSV values keep their original order.
+    const tableColumns = useMemo(() => {
+      if (!logLevelColumn || !displayedColumns.includes(logLevelColumn)) {
+        return displayedColumns;
+      }
+      const reordered = displayedColumns.filter(
+        column => column !== logLevelColumn,
+      );
+      const timestampIndex = reordered.findIndex(
+        column => columnTypeMap.get(column)?._type === JSDataType.Date,
+      );
+      reordered.splice(Math.max(timestampIndex, 0), 0, logLevelColumn);
+      return reordered;
+    }, [displayedColumns, logLevelColumn, columnTypeMap]);
 
     const { csvData, maxRows, isLimited } = useCsvExport(
       dedupedRows,
@@ -506,9 +613,30 @@ export const RawLogTable = memo(
     // Expandable rows functionality
     const {
       expandedRows,
-      toggleRowExpansion,
-      collapseAllRows: collapseRows,
+      toggleRowExpansion: toggleExpanded,
+      collapseAllRows: collapseExpanded,
     } = useExpandableRows(onExpandedRowsChange);
+    const toggleRowExpansion = useCallback(
+      (id: string) => {
+        if (expandedRows[id]) releaseRow(id);
+        else holdRow(id);
+        toggleExpanded(id);
+      },
+      [expandedRows, holdRow, releaseRow, toggleExpanded],
+    );
+    const collapseRows = useCallback(() => {
+      clearRows();
+      collapseExpanded();
+    }, [clearRows, collapseExpanded]);
+    const previousInspectionScope = usePrevious(inspectionScope);
+    useEffect(() => {
+      if (
+        previousInspectionScope != null &&
+        previousInspectionScope !== inspectionScope
+      ) {
+        collapseRows();
+      }
+    }, [previousInspectionScope, inspectionScope, collapseRows]);
 
     // Effect to collapse all rows when requested by parent
     useEffect(() => {
@@ -589,10 +717,13 @@ export const RawLogTable = memo(
       messageColumn,
     ]);
 
-    const [wrapLinesEnabled, setWrapLinesEnabled] = useLocalStorage<boolean>(
-      `${tableId}-wrap-lines`,
-      wrapLines ?? false,
-    );
+    const [wrapLinesEnabled, setWrapLinesEnabled] =
+      useSearchViewPreference<boolean>(
+        `${tableId}-wrap-lines`,
+        summaryMode || wrapLines,
+        true,
+        'log-table-wrap-lines',
+      );
 
     const columns = useMemo<ColumnDef<any>[]>(
       () => [
@@ -605,7 +736,7 @@ export const RawLogTable = memo(
               ),
             ]
           : []),
-        ...(displayedColumns.map(column => {
+        ...(tableColumns.map(column => {
           const jsColumnType = columnTypeMap.get(column)?._type;
           const isDate = jsColumnType === JSDataType.Date;
           return {
@@ -617,8 +748,14 @@ export const RawLogTable = memo(
             id: aliasMap?.[column] ? `"${column}"` : column,
             // TODO: add support for sorting on Dynamic JSON fields
             enableSorting: jsColumnType !== JSDataType.Dynamic,
+            ...(column === logLevelColumn
+              ? { enableResizing: false, minSize: 32, maxSize: 32 }
+              : {}),
             accessorFn: curry(retrieveColumnValue)(column), // Columns can contain '.' and will not work with accessorKey
-            header: `${columnNameMap?.[column] ?? column}${isDate ? (isUTC ? ' (UTC)' : ' (Local)') : ''}`,
+            header:
+              column === logLevelColumn
+                ? () => <VisuallyHidden>Severity</VisuallyHidden>
+                : `${columnNameMap?.[column] ?? column}${isDate ? (isUTC ? ' (UTC)' : ' (Local)') : ''}`,
             cell: info => {
               const value = info.getValue<any>(); // This can be any type realistically (numbers, strings, etc.)
 
@@ -649,6 +786,7 @@ export const RawLogTable = memo(
                 return (
                   <LogLevel
                     level={strValue}
+                    iconOnly
                     style={{
                       fontSize: 'inherit',
                       color: ['info', 'warn', 'error'].includes(
@@ -707,7 +845,7 @@ export const RawLogTable = memo(
       [
         isUTC,
         highlightedLineId,
-        displayedColumns,
+        tableColumns,
         columnSizeOpts,
         columnNameMap,
         columnTypeMap,
@@ -728,7 +866,7 @@ export const RawLogTable = memo(
     //called on scroll and possibly on mount to fetch more data as the user scrolls and reaches bottom of table
     const fetchMoreOnBottomReached = useCallback(
       (containerRefElement?: HTMLDivElement | null) => {
-        if (containerRefElement) {
+        if (containerRefElement && !loadOnScroll) {
           const { scrollHeight, scrollTop, clientHeight } = containerRefElement;
           if (
             scrollHeight - scrollTop - clientHeight < FETCH_NEXT_PAGE_PX &&
@@ -741,7 +879,7 @@ export const RawLogTable = memo(
           }
         }
       },
-      [fetchNextPage, isLoading, isError, hasNextPage],
+      [fetchNextPage, isLoading, isError, hasNextPage, loadOnScroll],
     );
 
     //a check on mount and after a fetch to see if the table is already scrolled to the bottom and immediately needs to fetch more data
@@ -838,8 +976,21 @@ export const RawLogTable = memo(
 
     const { rows: _rows } = table.getRowModel();
 
+    // Position-based keys remount expanded details when live logs arrive.
+    // An occurrence suffix also keeps genuinely identical rows distinct.
+    const virtualRowKeys = useMemo(() => {
+      const occurrences = new Map<string, number>();
+      return _rows.map(row => {
+        const id = getRowId(row.original);
+        const occurrence = occurrences.get(id) ?? 0;
+        occurrences.set(id, occurrence + 1);
+        return JSON.stringify([source?.id, id, occurrence]);
+      });
+    }, [_rows, source?.id]);
+
     const rowVirtualizer = useVirtualizer({
       count: _rows.length,
+      getItemKey: useCallback(index => virtualRowKeys[index], [virtualRowKeys]),
       // count: hasNextPage ? allRows.length + 1 : allRows.length,
       getScrollElement: useCallback(
         () => tableContainerRef,
@@ -850,7 +1001,7 @@ export const RawLogTable = memo(
         [logFontSize],
       ),
       overscan: 30,
-      paddingEnd: 20,
+      paddingEnd: loadOnScroll ? 0 : 20,
     });
 
     const items = rowVirtualizer.getVirtualItems();
@@ -950,6 +1101,7 @@ export const RawLogTable = memo(
       );
       if (rowIdx == -1 && highlightedLineId) {
         if (
+          !loadOnScroll &&
           dedupedRows.length < MAX_SCROLL_FETCH_LINES &&
           !isLoading &&
           !isError &&
@@ -976,6 +1128,7 @@ export const RawLogTable = memo(
       isLoading,
       isError,
       hasNextPage,
+      loadOnScroll,
     ]);
 
     const shiftHighlightedLineId = useCallback(
@@ -1018,6 +1171,13 @@ export const RawLogTable = memo(
 
     return (
       <Flex direction="column" h="100%">
+        {isLive && <LatestDataRefresh until={refreshedUntil} />}
+        {!loadOnScroll && hasHeldRows && (
+          <Text size="xs" c="dimmed" px="sm" py={4}>
+            Expanded logs stay in place until you close them. Live updates
+            continue.
+          </Text>
+        )}
         <Box pos="relative" style={{ flex: 1, minHeight: 0 }}>
           {/* Find within page search bar - floating on top right */}
           <TableSearchInput
@@ -1039,7 +1199,12 @@ export const RawLogTable = memo(
             className={cx(styles.tableWrapper, {
               [styles.muted]: variant === 'muted',
             })}
+            tabIndex={loadOnScroll ? 0 : undefined}
+            aria-label={loadOnScroll ? 'Chronological log results' : undefined}
+            {...scrollLoad.handlers}
             onScroll={e => {
+              if (e.target !== e.currentTarget) return;
+              scrollLoad.handlers.onScroll(e);
               fetchMoreOnBottomReached(e.target as HTMLDivElement);
 
               if (e.target != null) {
@@ -1060,11 +1225,103 @@ export const RawLogTable = memo(
             )}
             <table
               className={styles.table}
-              style={{ minWidth: tableMinWidth }}
+              style={{
+                minWidth: summaryMode ? 0 : tableMinWidth,
+                width: summaryMode ? '100%' : undefined,
+                ...(summaryMode && {
+                  '--log-summary-time-width':
+                    timeFormat === '24h' ? '19ch' : '22ch',
+                }),
+              }}
               id={tableId}
             >
+              {summaryMode && (
+                <colgroup>
+                  <col style={{ width: 24 }} />
+                  <col />
+                </colgroup>
+              )}
               <thead className={styles.tableHead}>
-                {displayedColumns.length > 0 &&
+                {summaryMode && (
+                  <tr>
+                    <th aria-label="Expand log" />
+                    <th style={{ paddingInline: 0 }}>
+                      <div
+                        className={cx(
+                          summaryStyles.content,
+                          summaryStyles.heading,
+                        )}
+                      >
+                        <span aria-hidden="true" />
+                        <span className={summaryStyles.headingLabel}>Time</span>
+                        <Group
+                          justify="space-between"
+                          gap="xs"
+                          className={summaryStyles.flow}
+                        >
+                          <span className={summaryStyles.headingLabel}>
+                            Summary
+                          </span>
+                          <Group gap="xs">
+                            {loadOnScroll && (
+                              <LogScrollButtons
+                                container={tableContainerRef}
+                                disabled={
+                                  jumpToLatest
+                                    ? loadingPaused || !!isLoading
+                                    : _rows.length === 0
+                                }
+                                beforeScroll={scrollLoad.cancelIntent}
+                                onJumpToStart={jumpToStart}
+                                onJumpToLatest={jumpToLatest}
+                                navigation={edgeNavigation}
+                              />
+                            )}
+                            <Button
+                              size="compact-xs"
+                              variant="subtle"
+                              onClick={() =>
+                                setWrapLinesEnabled(value => !value)
+                              }
+                            >
+                              {wrapLinesEnabled ? 'Single line' : 'Wrap lines'}
+                            </Button>
+                            <CsvExportButton
+                              data={csvData}
+                              filename={getCsvFilename}
+                            >
+                              <IconDownload size={16} />
+                            </CsvExportButton>
+                            <Popover
+                              position="bottom-end"
+                              width={340}
+                              withinPortal
+                            >
+                              <Popover.Target>
+                                <Button size="compact-xs" variant="secondary">
+                                  Add fields
+                                </Button>
+                              </Popover.Target>
+                              <Popover.Dropdown
+                                style={{ maxHeight: '75vh', overflowY: 'auto' }}
+                              >
+                                <SummaryFieldPicker
+                                  fields={summaryFields}
+                                  setFields={setSummaryFields}
+                                  availableFields={availableSummaryFields}
+                                  onRemoveField={removeSummaryField}
+                                  onReset={resetSummaryFields}
+                                />
+                              </Popover.Dropdown>
+                            </Popover>
+                          </Group>
+                        </Group>
+                      </div>
+                    </th>
+                  </tr>
+                )}
+                {!summaryMode &&
+                  displayedColumns.length > 0 &&
                   table.getHeaderGroups().map(headerGroup => (
                     <tr key={headerGroup.id}>
                       {headerGroup.headers.map(header => {
@@ -1171,7 +1428,10 @@ export const RawLogTable = memo(
               <tbody>
                 {paddingTop > 0 && (
                   <tr>
-                    <td colSpan={99999} style={{ height: `${paddingTop}px` }} />
+                    <td
+                      colSpan={summaryMode ? 2 : columns.length}
+                      style={{ height: `${paddingTop}px` }}
+                    />
                   </tr>
                 )}
                 {items.map(virtualRow => {
@@ -1183,14 +1443,17 @@ export const RawLogTable = memo(
                     <React.Fragment key={virtualRow.key}>
                       <tr
                         data-severity={getLogLevelClass(
-                          logLevelColumn
-                            ? String(
-                                retrieveColumnValue(
-                                  logLevelColumn,
-                                  row.original,
-                                ) ?? '',
-                              )
-                            : undefined,
+                          summaryMode
+                            ? resolveSeverity(row.original, logLevelColumn)
+                                .level
+                            : logLevelColumn
+                              ? String(
+                                  retrieveColumnValue(
+                                    logLevelColumn,
+                                    row.original,
+                                  ) ?? '',
+                                )
+                              : undefined,
                         )}
                         data-testid={`table-row-${rowId}`}
                         className={cx(styles.tableRow, {
@@ -1204,7 +1467,7 @@ export const RawLogTable = memo(
                         {showExpandButton && (
                           <td
                             className="align-top overflow-hidden"
-                            style={{ width: '40px' }}
+                            style={{ width: summaryMode ? '24px' : '40px' }}
                           >
                             {flexRender(
                               row.getVisibleCells()[0].column.columnDef.cell,
@@ -1216,7 +1479,12 @@ export const RawLogTable = memo(
                         {/* Content columns grouped back to preserve row hover/click */}
                         <td
                           className="align-top overflow-hidden p-0"
-                          colSpan={columns.length - (showExpandButton ? 1 : 0)}
+                          style={summaryMode ? { padding: 0 } : undefined}
+                          colSpan={
+                            summaryMode
+                              ? 1
+                              : columns.length - (showExpandButton ? 1 : 0)
+                          }
                         >
                           <div
                             role="button"
@@ -1257,62 +1525,87 @@ export const RawLogTable = memo(
                                 : 'View details for log entry'
                             }
                           >
-                            {row
-                              .getVisibleCells()
-                              .slice(showExpandButton ? 1 : 0) // Skip expand
-                              .map(cell => {
-                                const columnCustomClassName = (
-                                  cell.column.columnDef.meta as any
-                                )?.className;
-                                const columnSize = cell.column.getSize();
-                                const cellValue = cell.getValue<any>();
+                            {summaryMode ? (
+                              <LiveSummaryContent
+                                traceAction={
+                                  <LogRowTraceButton
+                                    row={row.original}
+                                    timestampValueExpression={
+                                      source?.timestampValueExpression
+                                    }
+                                    meta={rowMeta}
+                                    timeColumn={summaryTimeColumn}
+                                    onOpenTrace={onOpenTrace}
+                                  />
+                                }
+                                row={row.original}
+                                fields={summaryFields}
+                                timeColumn={summaryTimeColumn}
+                                levelColumn={logLevelColumn}
+                                messageColumn={messageColumn}
+                                container={tableContainerRef}
+                                wrap={wrapLinesEnabled}
+                              />
+                            ) : (
+                              row
+                                .getVisibleCells()
+                                .slice(showExpandButton ? 1 : 0) // Skip expand
+                                .map(cell => {
+                                  const columnCustomClassName = (
+                                    cell.column.columnDef.meta as any
+                                  )?.className;
+                                  const columnSize = cell.column.getSize();
+                                  const cellValue = cell.getValue<any>();
 
-                                return (
-                                  <div
-                                    key={cell.id}
-                                    className={cx(
-                                      'flex-shrink-0 overflow-hidden position-relative',
-                                      columnCustomClassName,
-                                    )}
-                                    style={{
-                                      width:
-                                        columnSize === UNDEFINED_WIDTH
-                                          ? 0
-                                          : `${columnSize}px`,
-                                      flex:
-                                        columnSize === UNDEFINED_WIDTH
-                                          ? '1 1 0'
-                                          : 'none',
-                                      minWidth:
-                                        columnSize === UNDEFINED_WIDTH
-                                          ? MIN_LAST_COLUMN_WIDTH
-                                          : undefined,
-                                    }}
-                                  >
-                                    <div className={styles.fieldTextContainer}>
-                                      <DBRowTableFieldWithPopover
-                                        key={cell.id}
-                                        cellValue={cellValue}
-                                        wrapLinesEnabled={wrapLinesEnabled}
-                                        tableContainerRef={tableContainerRef}
-                                        columnName={
-                                          (cell.column.columnDef.meta as any)
-                                            ?.column
-                                        }
-                                        isChart={
-                                          (cell.column.columnDef.meta as any)
-                                            ?.column === '__hdx_pattern_trend'
-                                        }
+                                  return (
+                                    <div
+                                      key={cell.id}
+                                      className={cx(
+                                        'flex-shrink-0 overflow-hidden position-relative',
+                                        columnCustomClassName,
+                                      )}
+                                      style={{
+                                        width:
+                                          columnSize === UNDEFINED_WIDTH
+                                            ? 0
+                                            : `${columnSize}px`,
+                                        flex:
+                                          columnSize === UNDEFINED_WIDTH
+                                            ? '1 1 0'
+                                            : 'none',
+                                        minWidth:
+                                          columnSize === UNDEFINED_WIDTH
+                                            ? MIN_LAST_COLUMN_WIDTH
+                                            : undefined,
+                                      }}
+                                    >
+                                      <div
+                                        className={styles.fieldTextContainer}
                                       >
-                                        {flexRender(
-                                          cell.column.columnDef.cell,
-                                          cell.getContext(),
-                                        )}
-                                      </DBRowTableFieldWithPopover>
+                                        <DBRowTableFieldWithPopover
+                                          key={cell.id}
+                                          cellValue={cellValue}
+                                          wrapLinesEnabled={wrapLinesEnabled}
+                                          tableContainerRef={tableContainerRef}
+                                          columnName={
+                                            (cell.column.columnDef.meta as any)
+                                              ?.column
+                                          }
+                                          isChart={
+                                            (cell.column.columnDef.meta as any)
+                                              ?.column === '__hdx_pattern_trend'
+                                          }
+                                        >
+                                          {flexRender(
+                                            cell.column.columnDef.cell,
+                                            cell.getContext(),
+                                          )}
+                                        </DBRowTableFieldWithPopover>
+                                      </div>
                                     </div>
-                                  </div>
-                                );
-                              })}
+                                  );
+                                })
+                            )}
                             {/* Row-level copy buttons */}
                             {getRowWhere && (
                               <DBRowTableRowButtons
@@ -1330,7 +1623,7 @@ export const RawLogTable = memo(
                       </tr>
                       {showExpandButton && isExpanded && (
                         <ExpandedLogRow
-                          columnsLength={columns.length}
+                          columnsLength={summaryMode ? 2 : columns.length}
                           virtualKey={virtualRow.key.toString()}
                           source={source}
                           rowId={rowId}
@@ -1348,100 +1641,132 @@ export const RawLogTable = memo(
                     </React.Fragment>
                   );
                 })}
-                <tr>
-                  <td colSpan={800}>
-                    <div
-                      className={cx(
-                        'rounded fs-7 d-flex align-items-center justify-content-center mt-3',
-                        // Errors render the shared ChartErrorState, which carries
-                        // its own styling/alignment; drop the muted background and
-                        // centered text so it matches the error state of other
-                        // chart types.
-                        { 'bg-muted text-center': !isError },
-                      )}
-                    >
-                      {isLoading ? (
-                        <div className="my-3">
-                          <div className="d-inline-block">
-                            <IconRefresh size={14} className="spin-animate" />
-                          </div>{' '}
-                          {loadingDate != null && (
-                            <>
-                              Searched <FormatTime value={loadingDate} />.{' '}
-                            </>
-                          )}
-                          Loading results
-                          {dateRange?.[0] != null && dateRange?.[1] != null ? (
-                            <>
-                              {' '}
-                              across{' '}
-                              {formatDistance(
-                                dateRange?.[1],
-                                dateRange?.[0],
-                              )}{' '}
-                              {'('}
-                              <FormatTime
-                                value={dateRange?.[0]}
-                                format="withYear"
-                              />{' '}
-                              to{' '}
-                              <FormatTime
-                                value={dateRange?.[1]}
-                                format="withYear"
-                              />
-                              {')'}
-                            </>
-                          ) : null}
-                          ...
-                        </div>
-                      ) : hasNextPage == false &&
-                        isLoading == false &&
-                        dedupedRows.length > 0 ? (
-                        <div className="my-3">End of Results</div>
-                      ) : isError && error ? (
-                        <ChartErrorState error={error} variant={errorVariant} />
-                      ) : hasNextPage == false &&
-                        isLoading == false &&
-                        dedupedRows.length === 0 ? (
-                        <div
-                          className="my-3"
-                          data-testid="db-row-table-no-results"
-                        >
-                          No results found.
-                          <Text mt="sm">
-                            Try checking the query explainer in the search bar
-                            if there are any search syntax issues.
-                          </Text>
-                          {dateRange?.[0] != null && dateRange?.[1] != null ? (
+                {(!loadOnScroll ||
+                  isError ||
+                  (dedupedRows.length === 0 && !isLoading)) && (
+                  <tr>
+                    <td colSpan={summaryMode ? 2 : columns.length}>
+                      <div
+                        className={cx(
+                          'rounded fs-7 d-flex align-items-center justify-content-center mt-3',
+                          // Errors render the shared ChartErrorState, which carries
+                          // its own styling/alignment; drop the muted background and
+                          // centered text so it matches the error state of other
+                          // chart types.
+                          { 'bg-muted text-center': !isError },
+                        )}
+                      >
+                        {isLoading ? (
+                          <div className="my-3">
+                            <div className="d-inline-block">
+                              <IconRefresh size={14} className="spin-animate" />
+                            </div>{' '}
+                            {loadingDate != null && (
+                              <>
+                                Searched <FormatTime value={loadingDate} />.{' '}
+                              </>
+                            )}
+                            Loading results
+                            {dateRange?.[0] != null &&
+                            dateRange?.[1] != null ? (
+                              <>
+                                {' '}
+                                across{' '}
+                                {formatDistance(
+                                  dateRange?.[1],
+                                  dateRange?.[0],
+                                )}{' '}
+                                {'('}
+                                <FormatTime
+                                  value={dateRange?.[0]}
+                                  format="withYear"
+                                />{' '}
+                                to{' '}
+                                <FormatTime
+                                  value={dateRange?.[1]}
+                                  format="withYear"
+                                />
+                                {')'}
+                              </>
+                            ) : null}
+                            ...
+                          </div>
+                        ) : isError && error ? (
+                          <ChartErrorState
+                            error={error}
+                            variant={errorVariant}
+                          />
+                        ) : hasNextPage == false &&
+                          isLoading == false &&
+                          dedupedRows.length > 0 ? (
+                          <div className="my-3">End of Results</div>
+                        ) : hasNextPage == false &&
+                          isLoading == false &&
+                          dedupedRows.length === 0 ? (
+                          <div
+                            className="my-3"
+                            data-testid="db-row-table-no-results"
+                          >
+                            No results found.
                             <Text mt="sm">
-                              Searched Time Range:{' '}
-                              {formatDistance(dateRange?.[1], dateRange?.[0])}{' '}
-                              {'('}
-                              <FormatTime
-                                value={dateRange?.[0]}
-                                format="withYear"
-                              />{' '}
-                              to{' '}
-                              <FormatTime
-                                value={dateRange?.[1]}
-                                format="withYear"
-                              />
-                              {')'}
+                              Try checking the query explainer in the search bar
+                              if there are any search syntax issues.
                             </Text>
-                          ) : null}
-                        </div>
-                      ) : (
-                        <div />
-                      )}
-                    </div>
-                  </td>
-                </tr>
+                            {dateRange?.[0] != null &&
+                            dateRange?.[1] != null ? (
+                              <Text mt="sm">
+                                Searched Time Range:{' '}
+                                {formatDistance(dateRange?.[1], dateRange?.[0])}{' '}
+                                {'('}
+                                <FormatTime
+                                  value={dateRange?.[0]}
+                                  format="withYear"
+                                />{' '}
+                                to{' '}
+                                <FormatTime
+                                  value={dateRange?.[1]}
+                                  format="withYear"
+                                />
+                                {')'}
+                              </Text>
+                            ) : null}
+                          </div>
+                        ) : (
+                          <div />
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                )}
                 {paddingBottom > 0 && (
                   <tr>
                     <td
-                      colSpan={99999}
+                      colSpan={summaryMode ? 2 : columns.length}
                       style={{ height: `${paddingBottom}px` }}
                     />
+                  </tr>
+                )}
+                {loadOnScroll && (
+                  <tr>
+                    <td
+                      colSpan={summaryMode ? 2 : columns.length}
+                      style={{ padding: 0 }}
+                    >
+                      <LogRangeFooter
+                        dateRange={dateRange}
+                        rows={rows}
+                        timestampColumn={summaryTimeColumn}
+                        latestInRange={latestInRange}
+                        navigation={edgeNavigation}
+                        checkedUntil={refreshedUntil}
+                        hasNextPage={hasNextPage}
+                        isLive={isLive}
+                        loading={isLoading}
+                        paused={loadingPaused}
+                        failed={isError}
+                        onLoad={scrollLoad.request}
+                      />
+                    </td>
                   </tr>
                 )}
               </tbody>
@@ -1512,6 +1837,8 @@ export function useConfigWithAdditionalSelect(
   config: BuilderChartConfigWithDateRange,
   sourceId?: string,
 ) {
+  const { data: summarySource } = useSource({ id: sourceId });
+  const [summaryFields] = useSummaryFields(sourceId);
   const { data: tableMetadata } = useTableMetadata({
     databaseName: config.from.databaseName,
     tableName: config.from.tableName,
@@ -1557,7 +1884,27 @@ export function useConfigWithAdditionalSelect(
       config.select,
       primaryKey,
       partitionKey,
-      extraKeys,
+      [
+        ...extraKeys,
+        ...(summarySource?.kind === SourceKind.Log
+          ? [
+              ...summaryProjection(
+                columns ?? [],
+                summaryFields.flatMap(field => field.paths),
+              ),
+              ...(summarySource.traceIdExpression?.trim()
+                ? [`${summarySource.traceIdExpression} AS __hdx_trace_id`]
+                : []),
+              `${getDisplayedTimestampValueExpression(summarySource)} AS __hdx_timestamp`,
+              ...getTimestampValueSelects(
+                summarySource.timestampValueExpression,
+              ).map(
+                ({ valueExpression, alias }) =>
+                  `${valueExpression} AS ${alias}`,
+              ),
+            ]
+          : []),
+      ],
     );
 
     // When block columns are available, the PK + partition + block columns
@@ -1581,7 +1928,16 @@ export function useConfigWithAdditionalSelect(
       : undefined;
 
     return { ...config, select, additionalKeysLength, rowKeyColumns };
-  }, [primaryKey, partitionKey, config, tableMetadata, columns, sourceId]);
+  }, [
+    primaryKey,
+    partitionKey,
+    config,
+    tableMetadata,
+    columns,
+    sourceId,
+    summarySource,
+    summaryFields,
+  ]);
 }
 
 function selectColumnMapWithoutAdditionalKeys(
@@ -1619,6 +1975,7 @@ function DBSqlRowTableComponent({
   highlightedLineId,
   enabled = true,
   isLive = false,
+  inspectionActive = false,
   queryKeyPrefix,
   onScroll,
   denoiseResults = false,
@@ -1627,6 +1984,7 @@ function DBSqlRowTableComponent({
   collapseAllRows,
   showExpandButton = true,
   renderRowDetails,
+  onOpenTrace,
   onSortingChange,
   initialSortBy,
   variant = 'default',
@@ -1645,6 +2003,8 @@ function DBSqlRowTableComponent({
   queryKeyPrefix?: string;
   enabled?: boolean;
   isLive?: boolean;
+  inspectionActive?: boolean;
+  onOpenTrace?: (selection: TraceSidePanelSelection) => void;
   renderRowDetails?: (r: {
     id: string;
     aliasWith?: WithClause[];
@@ -1666,6 +2026,16 @@ function DBSqlRowTableComponent({
   onResolvedColumnsChange?: (meta: ColumnMetaType[]) => void;
 }) {
   const { data: me } = api.useMe();
+  const { data: source } = useSource({ id: sourceId });
+  const [hasExpandedLogs, setHasExpandedLogs] = useState(false);
+  const loadingPaused = hasExpandedLogs || inspectionActive;
+  const onExpansionChange = useCallback(
+    (expanded: boolean) => {
+      setHasExpandedLogs(expanded);
+      onExpandedRowsChange?.(expanded);
+    },
+    [onExpandedRowsChange],
+  );
   const { toggleColumn, displayedColumns: contextDisplayedColumns } =
     use(RowSidePanelContext);
 
@@ -1718,19 +2088,42 @@ function DBSqlRowTableComponent({
         };
       });
     }
-    return base;
-  }, [me, config, orderByArray]);
+    return source?.kind === SourceKind.Log &&
+      isTimestampExpressionInFirstOrderBy(base)
+      ? (chronologicalLogConfig(base) as BuilderChartConfigWithDateRange)
+      : base;
+  }, [me, config, orderByArray, source?.kind]);
 
   const mergedConfig = useConfigWithAdditionalSelect(mergedConfigObj, sourceId);
 
-  const { data, fetchNextPage, hasNextPage, isFetching, isError, error } =
-    useOffsetPaginatedQuery(mergedConfig ?? config, {
-      enabled:
-        enabled && mergedConfig != null && getSelectLength(config.select) > 0,
-      isLive,
-      queryKeyPrefix,
-      enableSmallFirstWindow,
-    });
+  const {
+    data,
+    fetchNextPage,
+    hasNextPage,
+    isFetching,
+    isError,
+    error,
+    refreshedUntil,
+    retainedRowsDropped,
+    jumpToLatest,
+    jumpToStart,
+    edgeNavigation,
+    latestInRange,
+  } = useLiveLogQuery(mergedConfig ?? config, {
+    enabled:
+      enabled && mergedConfig != null && getSelectLength(config.select) > 0,
+    isLive:
+      isLive &&
+      source?.kind === SourceKind.Log &&
+      isTimestampExpressionInFirstOrderBy(mergedConfigObj),
+    paused: loadingPaused,
+    manualNavigation:
+      source?.kind === SourceKind.Log &&
+      isTimestampExpressionInFirstOrderBy(mergedConfigObj),
+    fallbackIsLive: isLive,
+    queryKeyPrefix,
+    enableSmallFirstWindow,
+  });
 
   // The first N columns are the select columns from the user
   // We can't use names as CH may rewrite the names
@@ -1842,7 +2235,6 @@ function DBSqlRowTableComponent({
     }
   }, [data?.meta, onResolvedColumnsChange]);
 
-  const { data: source } = useSource({ id: sourceId });
   const patternColumn = columns[columns.length - 1];
   const groupedPatterns = useGroupedPatterns({
     config,
@@ -1949,13 +2341,31 @@ function DBSqlRowTableComponent({
           </Box>
         </Box>
       )}
+      {retainedRowsDropped > 0 && (
+        <Text size="xs" c="dimmed" px="sm" py={4}>
+          Showing the most recent 5,000 loaded logs. Narrow the time range or
+          filters to inspect earlier entries.
+        </Text>
+      )}
       <RawLogTable
         isLive={isLive}
+        loadOnScroll={
+          source?.kind === SourceKind.Log &&
+          isTimestampExpressionInFirstOrderBy(mergedConfigObj)
+        }
+        loadingPaused={loadingPaused}
+        refreshedUntil={refreshedUntil}
+        jumpToLatest={jumpToLatest}
+        jumpToStart={jumpToStart}
+        edgeNavigation={edgeNavigation}
+        latestInRange={latestInRange}
         wrapLines={false}
         displayedColumns={columns}
         highlightedLineId={highlightedLineId}
         rows={denoiseResults ? (denoisedRows?.data ?? []) : processedRows}
         renderRowDetails={renderRowDetails}
+        onOpenTrace={onOpenTrace}
+        rowMeta={data?.meta}
         isLoading={isLoading}
         fetchNextPage={fetchNextPage}
         // onPropertySearchClick={onPropertySearchClick}
@@ -1972,12 +2382,20 @@ function DBSqlRowTableComponent({
         config={mergedConfigObj}
         onChildModalOpen={onChildModalOpen}
         source={source}
-        onExpandedRowsChange={onExpandedRowsChange}
+        onExpandedRowsChange={onExpansionChange}
         collapseAllRows={collapseAllRows}
         showExpandButton={showExpandButton}
-        enableSorting={true}
+        enableSorting={
+          source?.kind !== SourceKind.Log ||
+          !isTimestampExpressionInFirstOrderBy(mergedConfigObj)
+        }
         onSortingChange={_onSortingChange}
-        sortOrder={orderByArray}
+        sortOrder={
+          source?.kind === SourceKind.Log &&
+          isTimestampExpressionInFirstOrderBy(mergedConfigObj)
+            ? orderByArray.map(order => ({ ...order, desc: false }))
+            : orderByArray
+        }
         getRowWhere={getRowWhere}
         variant={variant}
         onRemoveColumn={toggleColumn ? onRemoveColumnFromTable : undefined}

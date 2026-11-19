@@ -1,4 +1,4 @@
-import React, { memo, useCallback, useState } from 'react';
+import React, { memo, useCallback, useEffect, useState } from 'react';
 import cx from 'classnames';
 import { useQueryState } from 'nuqs';
 import { TSource } from '@hyperdx/common-utils/dist/types';
@@ -89,30 +89,26 @@ export const useExpandableRows = (
   onExpandedRowsChange?: (hasExpandedRows: boolean) => void,
 ) => {
   const [expandedRows, setExpandedRows] = useState<Record<string, boolean>>({});
+  const hasExpandedRows = Object.values(expandedRows).some(Boolean);
+  useEffect(() => {
+    onExpandedRowsChange?.(hasExpandedRows);
+  }, [hasExpandedRows, onExpandedRowsChange]);
 
-  const toggleRowExpansion = useCallback(
-    (rowId: string) => {
-      setExpandedRows(prev => {
-        const newExpandedRows = {
-          ...prev,
-          [rowId]: !prev[rowId],
-        };
+  const toggleRowExpansion = useCallback((rowId: string) => {
+    setExpandedRows(prev => {
+      const newExpandedRows = {
+        ...prev,
+        [rowId]: !prev[rowId],
+      };
 
-        // Check if any rows are expanded and notify parent
-        const hasExpandedRows = Object.values(newExpandedRows).some(Boolean);
-        onExpandedRowsChange?.(hasExpandedRows);
-
-        return newExpandedRows;
-      });
-    },
-    [onExpandedRowsChange],
-  );
+      return newExpandedRows;
+    });
+  }, []);
 
   // Effect to collapse all rows when requested by parent
   const collapseAllRows = useCallback(() => {
     setExpandedRows({});
-    onExpandedRowsChange?.(false);
-  }, [onExpandedRowsChange]);
+  }, []);
 
   return {
     expandedRows,

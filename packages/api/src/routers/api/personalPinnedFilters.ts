@@ -13,6 +13,7 @@ const sourceSchema = z.object({ source: objectIdSchema });
 const bodySchema = sourceSchema
   .extend({
     fields: z.array(z.string().min(1).max(1024)).max(100),
+    dismissedFields: z.array(z.string().min(1).max(1024)).max(1000).optional(),
     filters: PinnedFiltersValueSchema,
   })
   .strict();
@@ -33,6 +34,7 @@ router.get(
       });
       return res.json({
         fields: doc?.fields ?? [],
+        dismissedFields: doc?.dismissedFields ?? [],
         filters: doc?.filters ?? {},
       });
     } catch (error) {
@@ -47,15 +49,23 @@ router.put(
   async (req, res, next) => {
     try {
       const { teamId, userId } = getNonNullUserWithTeam(req);
-      const { source, fields, filters } = req.body;
+      const { source, fields, filters, dismissedFields } = req.body;
       if (!(await getSource(teamId.toString(), source)))
         return res.sendStatus(404);
       await PersonalPinnedFilter.findOneAndUpdate(
         { team: teamId, user: userId, source },
-        { $set: { fields: [...new Set(fields)], filters } },
+        {
+          $set: {
+            fields: [...new Set(fields)],
+            filters,
+            ...(dismissedFields !== undefined && {
+              dismissedFields: [...new Set(dismissedFields)],
+            }),
+          },
+        },
         { upsert: true, new: true, runValidators: true },
       );
-      return res.json({ fields, filters });
+      return res.json({ fields, filters, dismissedFields });
     } catch (error) {
       next(error);
     }

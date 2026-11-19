@@ -1,0 +1,481 @@
+{
+  "version": "0.1.0",
+  "name": "Logging pipeline health — Production",
+  "description": "**Fluentd → ClickHouse.** Rolling last hour; refresh every 30 seconds. Rates use 5m; error/restart counts use rolling 15m. Cluster labels identify collectors. Blank panels mean unavailable telemetry, not zero.\n\nRecords entering output are counted before delivery acknowledgement. Errors count attempts, not proven lost records. Total buffers include staged and queued chunks. Network egress includes protocol overhead, retries and other pod traffic: it is not compressed ClickHouse storage or billed volume.\n\nProduction coverage currently includes platform, live, servers, web-users and workers. Beta and transcoding output metrics were absent at validation.\n\nReporting collectors means observed metric series, not an expected DaemonSet count. Disappeared targets may disappear from this count. Check rising queues, output errors and restarts together. CPU/memory panels describe Fluentd, not ClickHouse. No alert rules are installed.",
+  "tags": [
+    "production",
+    "observability-health",
+    "logging"
+  ],
+  "savedDateRange": {
+    "type": "relative",
+    "value": 3600
+  },
+  "savedRefreshInterval": 30,
+  "savedFilterValues": [],
+  "filters": [
+    {
+      "id": "cluster",
+      "name": "Cluster",
+      "variableName": "cluster",
+      "type": "PROMETHEUS_LABEL",
+      "source": "Production Metrics",
+      "label": "cluster",
+      "match": "fluentd_output_status_emit_records{job=\"fluentd\",plugin_id=\"out_clickhouse\"}",
+      "isBroadcastEnabled": false,
+      "isVariableEnabled": true
+    }
+  ],
+  "containers": [
+    {
+      "id": "overview",
+      "title": "Health now",
+      "collapsed": false
+    },
+    {
+      "id": "trends",
+      "title": "Throughput and pressure",
+      "collapsed": false
+    },
+    {
+      "id": "details",
+      "title": "Troubleshooting",
+      "collapsed": true
+    }
+  ],
+  "tiles": [
+    {
+      "id": "reading-guide",
+      "containerId": "details",
+      "x": 0,
+      "y": 0,
+      "w": 24,
+      "h": 7,
+      "config": {
+        "name": "How to read this dashboard",
+        "displayType": "markdown",
+        "source": "",
+        "select": [],
+        "where": "",
+        "whereLanguage": "sql",
+        "markdown": "**Fluentd → ClickHouse.** Rolling last hour; refresh every 30 seconds. Rates use 5m; error/restart counts use rolling 15m. Cluster labels identify collectors. Blank panels mean unavailable telemetry, not zero.\n\nRecords entering output are counted before delivery acknowledgement. Errors count attempts, not proven lost records. Total buffers include staged and queued chunks. Network egress includes protocol overhead, retries and other pod traffic: it is not compressed ClickHouse storage or billed volume.\n\nProduction coverage currently includes platform, live, servers, web-users and workers. Beta and transcoding output metrics were absent at validation.\n\nReporting collectors means observed metric series, not an expected DaemonSet count. Disappeared targets may disappear from this count. Check rising queues, output errors and restarts together. CPU/memory panels describe Fluentd, not ClickHouse. No alert rules are installed."
+      }
+    },
+    {
+      "id": "records-rate",
+      "containerId": "overview",
+      "x": 0,
+      "y": 0,
+      "w": 4,
+      "h": 6,
+      "config": {
+        "name": "Records entering output / sec",
+        "configType": "promql",
+        "displayType": "number",
+        "source": "Production Metrics",
+        "connection": "Production Metrics Querier",
+        "promqlExpression": "last_over_time((sum (max by (cluster,pod,plugin_id) (rate(fluentd_output_status_emit_records{cluster=~\"${cluster:regex}\",job=\"fluentd\",plugin_id=\"out_clickhouse\"}[5m]))))[30s:30s] @ end())",
+        "numberFormat": {
+          "output": "number",
+          "mantissa": 2,
+          "thousandSeparated": true,
+          "unit": "records/s"
+        },
+        "fillNulls": false,
+        "color": "chart-cyan"
+      }
+    },
+    {
+      "id": "egress",
+      "containerId": "overview",
+      "x": 4,
+      "y": 0,
+      "w": 4,
+      "h": 6,
+      "config": {
+        "name": "Fluentd network egress",
+        "configType": "promql",
+        "displayType": "number",
+        "source": "Production Metrics",
+        "connection": "Production Metrics Querier",
+        "promqlExpression": "last_over_time((sum (max by (cluster,namespace,pod,interface) (rate(container_network_transmit_bytes_total{cluster=~\"${cluster:regex}\",job=\"cadvisor\",pod=~\"fluentd-.*\"}[5m]))) / 1e6)[30s:30s] @ end())",
+        "numberFormat": {
+          "output": "number",
+          "mantissa": 2,
+          "thousandSeparated": true,
+          "unit": "MB/s"
+        },
+        "fillNulls": false,
+        "color": "chart-cyan"
+      }
+    },
+    {
+      "id": "buffer",
+      "containerId": "overview",
+      "x": 8,
+      "y": 0,
+      "w": 4,
+      "h": 6,
+      "config": {
+        "name": "Buffered data",
+        "configType": "promql",
+        "displayType": "number",
+        "source": "Production Metrics",
+        "connection": "Production Metrics Querier",
+        "promqlExpression": "last_over_time((sum (max by (cluster,pod,plugin_id) (fluentd_output_status_buffer_total_bytes{cluster=~\"${cluster:regex}\",job=\"fluentd\",plugin_id=\"out_clickhouse\"})) / 1073741824)[30s:30s] @ end())",
+        "numberFormat": {
+          "output": "number",
+          "mantissa": 2,
+          "thousandSeparated": true,
+          "unit": "GiB"
+        },
+        "fillNulls": false,
+        "color": "chart-cyan"
+      }
+    },
+    {
+      "id": "errors",
+      "containerId": "overview",
+      "x": 12,
+      "y": 0,
+      "w": 4,
+      "h": 6,
+      "config": {
+        "name": "Output errors · last 15m",
+        "configType": "promql",
+        "displayType": "number",
+        "source": "Production Metrics",
+        "connection": "Production Metrics Querier",
+        "promqlExpression": "last_over_time((sum (max by (cluster,pod,plugin_id) (increase(fluentd_output_status_num_errors{cluster=~\"${cluster:regex}\",job=\"fluentd\",plugin_id=\"out_clickhouse\"}[15m]))))[30s:30s] @ end())",
+        "numberFormat": {
+          "output": "number",
+          "mantissa": 0,
+          "thousandSeparated": true,
+          "unit": ""
+        },
+        "fillNulls": false,
+        "color": "chart-gray",
+        "colorRules": [
+          {
+            "operator": "eq",
+            "value": 0,
+            "color": "chart-success"
+          },
+          {
+            "operator": "gt",
+            "value": 0,
+            "color": "chart-error"
+          }
+        ]
+      }
+    },
+    {
+      "id": "reporters",
+      "containerId": "overview",
+      "x": 16,
+      "y": 0,
+      "w": 4,
+      "h": 6,
+      "config": {
+        "name": "Reporting collectors",
+        "configType": "promql",
+        "displayType": "number",
+        "source": "Production Metrics",
+        "connection": "Production Metrics Querier",
+        "promqlExpression": "last_over_time((count (count by(cluster,pod) (max by (cluster,pod,plugin_id) (fluentd_output_status_emit_records{cluster=~\"${cluster:regex}\",job=\"fluentd\",plugin_id=\"out_clickhouse\"}))))[30s:30s] @ end())",
+        "numberFormat": {
+          "output": "number",
+          "mantissa": 0,
+          "thousandSeparated": true,
+          "unit": ""
+        },
+        "fillNulls": false,
+        "color": "chart-cyan"
+      }
+    },
+    {
+      "id": "flushes",
+      "containerId": "overview",
+      "x": 20,
+      "y": 0,
+      "w": 4,
+      "h": 6,
+      "config": {
+        "name": "Flush attempts / sec",
+        "configType": "promql",
+        "displayType": "number",
+        "source": "Production Metrics",
+        "connection": "Production Metrics Querier",
+        "promqlExpression": "last_over_time((sum (max by (cluster,pod,plugin_id) (rate(fluentd_output_status_write_count{cluster=~\"${cluster:regex}\",job=\"fluentd\",plugin_id=\"out_clickhouse\"}[5m]))))[30s:30s] @ end())",
+        "numberFormat": {
+          "output": "number",
+          "mantissa": 2,
+          "thousandSeparated": true,
+          "unit": "attempts/s"
+        },
+        "fillNulls": false,
+        "color": "chart-cyan"
+      }
+    },
+    {
+      "id": "records-by-cluster",
+      "containerId": "trends",
+      "x": 0,
+      "y": 0,
+      "w": 12,
+      "h": 8,
+      "config": {
+        "name": "Records entering output by cluster",
+        "configType": "promql",
+        "displayType": "line",
+        "source": "Production Metrics",
+        "connection": "Production Metrics Querier",
+        "promqlExpression": "sum by(cluster) (max by (cluster,pod,plugin_id) (rate(fluentd_output_status_emit_records{cluster=~\"${cluster:regex}\",job=\"fluentd\",plugin_id=\"out_clickhouse\"}[5m])))",
+        "numberFormat": {
+          "output": "number",
+          "mantissa": 2,
+          "thousandSeparated": true,
+          "unit": "records/s"
+        },
+        "fillNulls": false,
+        "granularity": "1 minute",
+        "seriesLimit": 30,
+        "legendTemplate": "{{cluster}}"
+      }
+    },
+    {
+      "id": "egress-by-cluster",
+      "containerId": "trends",
+      "x": 12,
+      "y": 0,
+      "w": 12,
+      "h": 8,
+      "config": {
+        "name": "Fluentd network egress by cluster",
+        "configType": "promql",
+        "displayType": "line",
+        "source": "Production Metrics",
+        "connection": "Production Metrics Querier",
+        "promqlExpression": "sum by(cluster) (max by (cluster,namespace,pod,interface) (rate(container_network_transmit_bytes_total{cluster=~\"${cluster:regex}\",job=\"cadvisor\",pod=~\"fluentd-.*\"}[5m]))) / 1e6",
+        "numberFormat": {
+          "output": "number",
+          "mantissa": 2,
+          "thousandSeparated": true,
+          "unit": "MB/s"
+        },
+        "fillNulls": false,
+        "granularity": "1 minute",
+        "seriesLimit": 30,
+        "legendTemplate": "{{cluster}}"
+      }
+    },
+    {
+      "id": "buffer-trend",
+      "containerId": "trends",
+      "x": 0,
+      "y": 8,
+      "w": 12,
+      "h": 8,
+      "config": {
+        "name": "Total buffered data",
+        "configType": "promql",
+        "displayType": "line",
+        "source": "Production Metrics",
+        "connection": "Production Metrics Querier",
+        "promqlExpression": "sum by(cluster) (max by (cluster,pod,plugin_id) (fluentd_output_status_buffer_total_bytes{cluster=~\"${cluster:regex}\",job=\"fluentd\",plugin_id=\"out_clickhouse\"})) / 1073741824",
+        "numberFormat": {
+          "output": "number",
+          "mantissa": 2,
+          "thousandSeparated": true,
+          "unit": "GiB"
+        },
+        "fillNulls": false,
+        "granularity": "1 minute",
+        "seriesLimit": 30,
+        "legendTemplate": "{{cluster}}"
+      }
+    },
+    {
+      "id": "queue-trend",
+      "containerId": "trends",
+      "x": 12,
+      "y": 8,
+      "w": 12,
+      "h": 8,
+      "config": {
+        "name": "Queued data awaiting flush",
+        "configType": "promql",
+        "displayType": "line",
+        "source": "Production Metrics",
+        "connection": "Production Metrics Querier",
+        "promqlExpression": "sum by(cluster) (max by (cluster,pod,plugin_id) (fluentd_output_status_queue_byte_size{cluster=~\"${cluster:regex}\",job=\"fluentd\",plugin_id=\"out_clickhouse\"})) / 1073741824",
+        "numberFormat": {
+          "output": "number",
+          "mantissa": 2,
+          "thousandSeparated": true,
+          "unit": "GiB"
+        },
+        "fillNulls": false,
+        "granularity": "1 minute",
+        "seriesLimit": 30,
+        "legendTemplate": "{{cluster}}"
+      }
+    },
+    {
+      "id": "failure-trend",
+      "containerId": "trends",
+      "x": 0,
+      "y": 16,
+      "w": 12,
+      "h": 8,
+      "config": {
+        "name": "Output error attempts",
+        "configType": "promql",
+        "displayType": "line",
+        "source": "Production Metrics",
+        "connection": "Production Metrics Querier",
+        "promqlExpression": "sum by(cluster) (max by (cluster,pod,plugin_id) (rate(fluentd_output_status_num_errors{cluster=~\"${cluster:regex}\",job=\"fluentd\",plugin_id=\"out_clickhouse\"}[5m])))",
+        "numberFormat": {
+          "output": "number",
+          "mantissa": 2,
+          "thousandSeparated": true,
+          "unit": "errors/s"
+        },
+        "fillNulls": false,
+        "granularity": "1 minute",
+        "seriesLimit": 30,
+        "legendTemplate": "{{cluster}}"
+      }
+    },
+    {
+      "id": "reporters-trend",
+      "containerId": "trends",
+      "x": 12,
+      "y": 16,
+      "w": 12,
+      "h": 8,
+      "config": {
+        "name": "Reporting collectors by cluster",
+        "configType": "promql",
+        "displayType": "line",
+        "source": "Production Metrics",
+        "connection": "Production Metrics Querier",
+        "promqlExpression": "count by(cluster) (count by(cluster,pod) (max by (cluster,pod,plugin_id) (fluentd_output_status_emit_records{cluster=~\"${cluster:regex}\",job=\"fluentd\",plugin_id=\"out_clickhouse\"})))",
+        "numberFormat": {
+          "output": "number",
+          "mantissa": 2,
+          "thousandSeparated": true,
+          "unit": "collectors"
+        },
+        "fillNulls": false,
+        "granularity": "1 minute",
+        "seriesLimit": 30,
+        "legendTemplate": "{{cluster}}"
+      }
+    },
+    {
+      "id": "largest-buffers",
+      "containerId": "details",
+      "x": 0,
+      "y": 7,
+      "w": 12,
+      "h": 8,
+      "config": {
+        "name": "Largest collector buffers · top 10",
+        "configType": "promql",
+        "displayType": "line",
+        "source": "Production Metrics",
+        "connection": "Production Metrics Querier",
+        "promqlExpression": "topk(10,max by (cluster,pod,plugin_id) (fluentd_output_status_buffer_total_bytes{cluster=~\"${cluster:regex}\",job=\"fluentd\",plugin_id=\"out_clickhouse\"})) / 1073741824",
+        "numberFormat": {
+          "output": "number",
+          "mantissa": 2,
+          "thousandSeparated": true,
+          "unit": "GiB"
+        },
+        "fillNulls": false,
+        "granularity": "1 minute",
+        "seriesLimit": 30,
+        "legendTemplate": "{{cluster}} / {{pod}}"
+      }
+    },
+    {
+      "id": "restarts",
+      "containerId": "details",
+      "x": 12,
+      "y": 7,
+      "w": 12,
+      "h": 8,
+      "config": {
+        "name": "Fluentd restarts · last 15m",
+        "configType": "promql",
+        "displayType": "line",
+        "source": "Production Metrics",
+        "connection": "Production Metrics Querier",
+        "promqlExpression": "sum by(cluster) (max by (cluster,namespace,pod,container) (increase(kube_pod_container_status_restarts_total{cluster=~\"${cluster:regex}\",pod=~\"fluentd-.*\"}[15m])))",
+        "numberFormat": {
+          "output": "number",
+          "mantissa": 2,
+          "thousandSeparated": true,
+          "unit": "restarts"
+        },
+        "fillNulls": false,
+        "granularity": "1 minute",
+        "seriesLimit": 30,
+        "legendTemplate": "{{cluster}}"
+      }
+    },
+    {
+      "id": "cpu",
+      "containerId": "details",
+      "x": 0,
+      "y": 15,
+      "w": 12,
+      "h": 8,
+      "config": {
+        "name": "Fluentd CPU usage",
+        "configType": "promql",
+        "displayType": "line",
+        "source": "Production Metrics",
+        "connection": "Production Metrics Querier",
+        "promqlExpression": "sum by(cluster) (max by (cluster,namespace,pod,container) (rate(container_cpu_usage_seconds_total{cluster=~\"${cluster:regex}\",job=\"cadvisor\",pod=~\"fluentd-.*\",container!=\"\",container!=\"POD\"}[5m])))",
+        "numberFormat": {
+          "output": "number",
+          "mantissa": 2,
+          "thousandSeparated": true,
+          "unit": "cores"
+        },
+        "fillNulls": false,
+        "granularity": "1 minute",
+        "seriesLimit": 30,
+        "legendTemplate": "{{cluster}}"
+      }
+    },
+    {
+      "id": "memory",
+      "containerId": "details",
+      "x": 12,
+      "y": 15,
+      "w": 12,
+      "h": 8,
+      "config": {
+        "name": "Fluentd working memory",
+        "configType": "promql",
+        "displayType": "line",
+        "source": "Production Metrics",
+        "connection": "Production Metrics Querier",
+        "promqlExpression": "sum by(cluster) (max by (cluster,namespace,pod,container) (container_memory_working_set_bytes{cluster=~\"${cluster:regex}\",job=\"cadvisor\",pod=~\"fluentd-.*\",container!=\"\",container!=\"POD\"})) / 1073741824",
+        "numberFormat": {
+          "output": "number",
+          "mantissa": 2,
+          "thousandSeparated": true,
+          "unit": "GiB"
+        },
+        "fillNulls": false,
+        "granularity": "1 minute",
+        "seriesLimit": 30,
+        "legendTemplate": "{{cluster}}"
+      }
+    }
+  ]
+}

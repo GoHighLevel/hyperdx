@@ -56,6 +56,8 @@ export function deriveMapColumnsFromFields(
 export type TokenInfo = {
   /** The full token at the cursor position */
   token: string;
+  /** Only the text before the caret, used to narrow suggestions while editing. */
+  prefix: string;
   /** Index of the token in the tokens array */
   index: number;
   /** Tokens separated by unquoted whitespace, grouping, or unary prefixes. */
@@ -91,7 +93,8 @@ function findMatchingQuote(value: string, startIdx: number): number {
     }
     i++;
   }
-  return -1;
+  // An unfinished quoted value can include spaces while the user types it.
+  return value.length;
 }
 
 export function tokenizeAtCursor(value: string, cursorPos: number): TokenInfo {
@@ -129,7 +132,7 @@ export function tokenizeAtCursor(value: string, cursorPos: number): TokenInfo {
         inQuotes = false;
         continue;
       }
-      // Only enter a quoted region if there's a matching close ahead.
+      // Keep an unfinished quoted value together, unless a new field follows.
       if (findMatchingQuote(value, i) !== -1) {
         if (currentStart === -1) currentStart = i;
         current += ch;
@@ -163,7 +166,7 @@ export function tokenizeAtCursor(value: string, cursorPos: number): TokenInfo {
   starts.push(currentStart === -1 ? value.length : currentStart);
 
   // Locate token containing the cursor. The cursor sits *between* characters,
-  // so a token covers [start, start+len]; we pick the last token whose range
+  // so a token covers [start, start+len]; we pick the first token whose range
   // contains cursorPos.
   let idx = tokens.length - 1;
   for (let i = 0; i < tokens.length; i++) {
@@ -177,7 +180,14 @@ export function tokenizeAtCursor(value: string, cursorPos: number): TokenInfo {
 
   const token = tokens[idx] ?? '';
   const start = starts[idx] ?? value.length;
-  return { token, index: idx, tokens, start, end: start + token.length };
+  return {
+    token,
+    prefix: token.slice(0, Math.max(0, cursorPos - start)),
+    index: idx,
+    tokens,
+    start,
+    end: start + token.length,
+  };
 }
 
 export interface ILanguageFormatter {
@@ -229,6 +239,7 @@ export function useAutoCompleteOptions(
   const {
     data: fetchFacetsData,
     isLoading: isFacetsLoading,
+    areExtraFacetsLoading,
     loadMoreFacetsForKey,
   } = useFetchFacets({
     chartConfig,
@@ -271,9 +282,9 @@ export function useAutoCompleteOptions(
 
   // Extract the field name portion of the token (strip colon and value)
   const fieldNameAtCursor = useMemo(() => {
-    const colonIdx = tokenInfo.token.indexOf(':');
-    return colonIdx >= 0 ? tokenInfo.token.slice(0, colonIdx) : tokenInfo.token;
-  }, [tokenInfo.token]);
+    const colonIdx = tokenInfo.prefix.indexOf(':');
+    return colonIdx >= 0 ? tokenInfo.prefix.slice(0, colonIdx) : '';
+  }, [tokenInfo.prefix]);
   const debouncedFieldName = useDebounce(fieldNameAtCursor, 300);
 
   // Derive the active search field from the token at cursor
@@ -291,7 +302,7 @@ export function useAutoCompleteOptions(
   );
 
   useEffect(() => {
-    if (searchField && !searchField.type.startsWith('Map')) {
+    if (searchField && searchField.jsType !== JSDataType.Map) {
       loadMoreFacetsForKey(mergePath(searchField.path, [], mapColumns));
     }
   }, [searchField, loadMoreFacetsForKey, mapColumns]);
@@ -327,5 +338,9 @@ export function useAutoCompleteOptions(
     return deduplicate2dArray([fieldCompleteOptions, keyValCompleteOptions]);
   }, [fieldCompleteOptions, keyValCompleteOptions]);
 
-  return { options, isLoadingValues: isFacetsLoading, tokenInfo };
+  return {
+    options,
+    isLoadingValues: isFacetsLoading || areExtraFacetsLoading,
+    tokenInfo,
+  };
 }

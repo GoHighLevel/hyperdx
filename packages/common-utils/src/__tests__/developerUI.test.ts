@@ -8,6 +8,14 @@ describe('developer UI settings', () => {
       sharedFilters: true,
       filters: true,
       denoise: true,
+      collapseFiltersByDefault: true,
+      defaultPersonalFilterFields: [],
+      defaultSummaryFields: [
+        'deployment_name',
+        'httpRequest.requestMethod',
+        'httpRequest.status',
+      ],
+      hiddenPersonalFilterFields: [],
     });
   });
 
@@ -16,5 +24,17 @@ describe('developer UI settings', () => {
     expect(DeveloperUISchema.safeParse({ analysisMode: 'true' }).success).toBe(
       false,
     );
+  });
+
+  it('preserves admin summary order and allows an empty default list', () => {
+    expect(
+      DeveloperUISchema.parse({
+        defaultSummaryFields: [' cluster_name ', 'pod_name'],
+      }).defaultSummaryFields,
+    ).toEqual(['cluster_name', 'pod_name']);
+    expect(
+      DeveloperUISchema.parse({ defaultSummaryFields: [] })
+        .defaultSummaryFields,
+    ).toEqual([]);
   });
 });

@@ -76,6 +76,13 @@ describe('logger redaction', () => {
  * path segment.
  */
 describe('scrubUrlTokens', () => {
+  it('redacts Google OAuth callback credentials', () => {
+    expect(
+      scrubUrlTokens(
+        '/auth/google/callback?code=secret-code&state=secret-state',
+      ),
+    ).toBe('/auth/google/callback?[REDACTED]');
+  });
   it.each([
     ['/team/setup/tok-xyz', '/team/setup/[REDACTED]'],
     ['/api/team/setup/tok-xyz', '/api/team/setup/[REDACTED]'],

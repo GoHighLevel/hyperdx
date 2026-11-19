@@ -2,6 +2,17 @@
   container-type: inline-size;
 }
 
+.cardHeader {
+  :global(.cursor-grab) & {
+    cursor: grab;
+    user-select: none;
+
+    &:active {
+      cursor: grabbing;
+    }
+  }
+}
+
 /* Normal toolbar: visible by default, hidden when narrow */
 .toolbarNormal {
   display: flex;

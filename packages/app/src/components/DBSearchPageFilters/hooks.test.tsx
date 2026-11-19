@@ -155,6 +155,8 @@ function setupDefaultMocks({ withMVs }: { withMVs: boolean }) {
     data: [
       { name: 'Timestamp', type: 'DateTime' },
       { name: 'ServiceName', type: 'String' },
+      { name: 'log', type: 'String' },
+      { name: 'NewKey', type: 'String' },
     ],
     isLoading: false,
   } as any);
@@ -222,6 +224,70 @@ describe('useFetchFacets', () => {
     expect(options?.chartConfig?.where).toBe("container_name = 'api'");
   });
 
+  it('does not query values for unknown bare fields or JSON and Map containers', () => {
+    setupDefaultMocks({ withMVs: false });
+    useColumns.mockReturnValue({
+      data: [
+        { name: 'Timestamp', type: 'DateTime' },
+        { name: 'ServiceName', type: 'String' },
+        { name: 'json_payload', type: 'JSON' },
+        { name: 'labels', type: 'Map(String, String)' },
+      ],
+      isLoading: false,
+    } as ReturnType<typeof useMetadataModule.useColumns>);
+    usePinnedFilters.mockReturnValue({
+      ...usePinnedFilters('source1'),
+      getPinnedFields: () => [
+        'missing_field',
+        'json_payload',
+        'labels',
+        "JSONExtractString(json_payload, 'status')",
+        "labels['team']",
+      ],
+    });
+    const { wrapper } = makeWrapper();
+
+    renderHook(
+      () =>
+        useFetchFacets({
+          chartConfig: CHART_CONFIG,
+          sourceId: 'source1',
+          dateRange: DATE_RANGE,
+          mode: 'exact',
+        }),
+      { wrapper },
+    );
+
+    expect(useGetKeyValues.mock.calls.at(-1)?.[0]?.keys).toEqual([
+      "JSONExtractString(json_payload, 'status')",
+      "labels['team']",
+    ]);
+  });
+
+  it('does not load values for an unknown field on demand', async () => {
+    setupDefaultMocks({ withMVs: false });
+    const getKeyValuesWithMVs = jest.fn();
+    mockMetadata({ getKeyValuesWithMVs });
+    const { wrapper } = makeWrapper();
+    const { result } = renderHook(
+      () =>
+        useFetchFacets({
+          chartConfig: CHART_CONFIG,
+          sourceId: 'source1',
+          dateRange: DATE_RANGE,
+          mode: 'exact',
+        }),
+      { wrapper },
+    );
+
+    let loaded: Awaited<ReturnType<typeof result.current.loadMoreFacetsForKey>>;
+    await act(async () => {
+      loaded = await result.current.loadMoreFacetsForKey('missing_field');
+    });
+    expect(loaded!).toBeUndefined();
+    expect(getKeyValuesWithMVs).not.toHaveBeenCalled();
+  });
+
   it('keeps numeric JSON values consistent with selected filter values', () => {
     setupDefaultMocks({ withMVs: false });
     useGetKeyValues.mockReturnValue({
@@ -243,6 +309,19 @@ describe('useFetchFacets', () => {
 
   it('lists all fields while fetching values only for default and expanded fields', () => {
     setupDefaultMocks({ withMVs: false });
+    useColumns.mockReturnValue({
+      data: [
+        'Timestamp',
+        'log_level',
+        'namespace_name',
+        'host',
+        'label_team',
+      ].map(name => ({
+        name,
+        type: name === 'Timestamp' ? 'DateTime' : 'String',
+      })),
+      isLoading: false,
+    } as ReturnType<typeof useMetadataModule.useColumns>);
     useAllFields.mockReturnValue({
       data: ['log_level', 'namespace_name', 'host', 'label_team'].map(name => ({
         path: [name],
@@ -283,6 +362,19 @@ describe('useFetchFacets', () => {
 
   it('prioritizes the most recently expanded field before eager fields', () => {
     setupDefaultMocks({ withMVs: false });
+    useColumns.mockReturnValue({
+      data: [
+        'Timestamp',
+        'log_level',
+        'namespace_name',
+        'host',
+        'label_team',
+      ].map(name => ({
+        name,
+        type: name === 'Timestamp' ? 'DateTime' : 'String',
+      })),
+      isLoading: false,
+    } as ReturnType<typeof useMetadataModule.useColumns>);
     useAllFields.mockReturnValue({
       data: ['log_level', 'namespace_name', 'host', 'label_team'].map(name => ({
         path: [name],

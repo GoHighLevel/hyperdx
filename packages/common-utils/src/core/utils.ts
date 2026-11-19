@@ -640,11 +640,30 @@ export function convertToDashboardTemplate(
   dashboards: Pick<Dashboard, 'id' | 'name'>[] = [],
 ): DashboardTemplate {
   const output: DashboardTemplate = {
-    version: '0.1.0',
+    version: input.searchView ? '0.2.0' : '0.1.0',
     name: input.name,
     tags: input.tags.length > 0 ? input.tags : undefined,
     tiles: [],
   };
+
+  if (input.searchView) {
+    const sourceName = sources.find(
+      source => source.id === input.searchView!.search.source,
+    )?.name;
+    if (!sourceName) {
+      throw new Error(
+        'The search source is unavailable. Select a source before exporting.',
+      );
+    }
+    output.searchView = structuredClone(input.searchView);
+    output.searchView.search.source = sourceName;
+  }
+  if (input.savedDateRange) {
+    output.savedDateRange = structuredClone(input.savedDateRange);
+  }
+  if (input.savedRefreshInterval != null) {
+    output.savedRefreshInterval = input.savedRefreshInterval;
+  }
 
   // Replace onClick.target.id (a raw source or dashboard ID) with the
   // corresponding name so the exported template is portable across instances.
@@ -758,6 +777,13 @@ export function convertToDashboardDocument(
     tiles: [],
     tags: input.tags ?? [],
   };
+  if (input.searchView) output.searchView = structuredClone(input.searchView);
+  if (input.savedDateRange) {
+    output.savedDateRange = structuredClone(input.savedDateRange);
+  }
+  if (input.savedRefreshInterval != null) {
+    output.savedRefreshInterval = input.savedRefreshInterval;
+  }
 
   // expecting that input.tiles[0-n].config.source fields are already converted to ids
   const convertToTileDocument = (

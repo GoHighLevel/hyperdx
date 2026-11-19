@@ -20,13 +20,34 @@ const mockSources = [
 ];
 const mockConnections = [{ id: 'conn-default', name: 'Default' }];
 const mockMutateAsync = jest.fn().mockResolvedValue({ id: 'dash-new' });
+let mockCanManageShared = true;
+let mockFolderId: string | null = null;
+
+jest.mock('../usePermissions', () => ({
+  usePermissions: () => ({ canManageShared: mockCanManageShared }),
+}));
+jest.mock('../dashboardFolders', () => ({
+  useDashboardFolders: () => ({
+    data: [
+      { id: 'aaaaaaaaaaaaaaaaaaaaaaaa', name: 'Admin folder', access: 'admin' },
+      {
+        id: 'bbbbbbbbbbbbbbbbbbbbbbbb',
+        name: 'Developer folder',
+        access: 'team',
+      },
+    ],
+  }),
+}));
 
 jest.mock('next/router', () => ({
   useRouter: () => ({ push: jest.fn() }),
 }));
 jest.mock('nuqs', () => ({
   parseAsString: 'parseAsString',
-  useQueryState: () => [null, jest.fn()],
+  useQueryState: (key: string) => [
+    key === 'folder' ? mockFolderId : null,
+    jest.fn(),
+  ],
 }));
 jest.mock('../source', () => ({
   useSources: () => ({ data: mockSources }),
@@ -277,6 +298,43 @@ const markdownStaleSourceTemplate = DashboardTemplateSchema.parse({
 
 beforeEach(() => {
   mockMutateAsync.mockClear();
+  mockCanManageShared = true;
+  mockFolderId = null;
+});
+
+describe('Dashboard import - folder permissions', () => {
+  const template = DashboardTemplateSchema.parse({
+    version: '0.1.0',
+    name: 'Team notes',
+    tiles: [],
+  });
+
+  it('requires a developer folder and excludes admin folders from the picker', async () => {
+    mockCanManageShared = false;
+    renderWithMantine(<Mapping input={template} />);
+    expect(
+      screen.getByRole('button', { name: /finish import/i }),
+    ).toBeDisabled();
+    fireEvent.click(screen.getByPlaceholderText('Choose a developer folder'));
+    expect(
+      await screen.findByRole('option', { name: 'Developer folder' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole('option', { name: 'Admin folder' }),
+    ).not.toBeInTheDocument();
+    expect(mockMutateAsync).not.toHaveBeenCalled();
+  });
+
+  it('includes the selected developer folder in the import request', async () => {
+    mockCanManageShared = false;
+    mockFolderId = 'bbbbbbbbbbbbbbbbbbbbbbbb';
+    renderWithMantine(<Mapping input={template} />);
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /finish import/i }));
+    });
+    await waitFor(() => expect(mockMutateAsync).toHaveBeenCalledTimes(1));
+    expect(mockMutateAsync.mock.calls[0][0].folderId).toBe(mockFolderId);
+  });
 });
 
 describe('Dashboard import - all tile types', () => {

@@ -43,6 +43,7 @@ import OnboardingChecklist from '@/OnboardingChecklist';
 import { useSavedSearches } from '@/savedSearch';
 import { useLogomark, useWordmark } from '@/theme/ThemeProvider';
 import { useDeveloperPreview } from '@/useDeveloperPreview';
+import { usePermissions } from '@/usePermissions';
 import { UserPreferencesModal } from '@/UserPreferencesModal';
 import { useUserPreferences } from '@/useUserPreferences';
 import { useWindowSize } from '@/utils';
@@ -115,6 +116,7 @@ const NAV_LINKS: NavLinkConfig[] = [
 export default function AppNav({ fixed = false }: { fixed?: boolean }) {
   const { canPreviewDeveloper, isViewingAsDeveloper, setDeveloperPreview } =
     useDeveloperPreview();
+  const { canManageShared } = usePermissions();
   const wordmark = useWordmark();
   const logomark = useLogomark({ size: 22 });
 
@@ -367,7 +369,10 @@ export default function AppNav({ fixed = false }: { fixed?: boolean }) {
               [styles.headerCollapsed]: isCollapsed,
             })}
           >
-            <Link href="/search" className={styles.logoLink}>
+            <Link
+              href={canManageShared ? '/search' : '/dashboards/list'}
+              className={styles.logoLink}
+            >
               {isCollapsed ? (
                 <div className={styles.logoIconWrapper}>{logomark}</div>
               ) : (
@@ -408,52 +413,69 @@ export default function AppNav({ fixed = false }: { fixed?: boolean }) {
           className={styles.scrollContainer}
         >
           <div style={{ width: navWidth }} className={styles.navLinks}>
-            {/* Search */}
-            <AppNavLink
-              label="Search"
-              icon={<IconTable size={16} />}
-              href="/search"
-              isActive={pathname === '/search'}
-            />
-
-            {/* Saved Searches */}
-            <AppNavLink
-              label="Saved Searches"
-              href="/search/list"
-              icon={<IconDeviceFloppy size={16} />}
-              isActive={isSavedSearchActive}
-              isExpanded={isSavedSearchExpanded}
-              onToggle={() => setIsSavedSearchExpanded(!isSavedSearchExpanded)}
-            />
-
-            {!isCollapsed && (
-              <Collapse expanded={isSavedSearchExpanded}>
-                <div className={styles.subMenu}>
-                  {favoritedSavedSearches.length > 0 ? (
-                    favoritedSavedSearches.map(renderSavedSearchLink)
-                  ) : favorites != null && savedSearches != null ? (
-                    <Text size="xs" c="dimmed" pl="lg" pr="xs" py={4} lh={1.4}>
-                      No favorites. Star on{' '}
-                      <Anchor component={Link} href="/search/list" size="xs">
-                        Saved Searches
-                      </Anchor>
-                      .
-                    </Text>
-                  ) : null}
-                </div>
-              </Collapse>
-            )}
-            {/* Simple nav links from config */}
-            {NAV_LINKS.filter(link => !link.cloudOnly || !IS_LOCAL_MODE).map(
-              link => (
+            {canManageShared && (
+              <>
+                {/* Search */}
                 <AppNavLink
-                  key={link.id}
-                  label={link.label}
-                  href={link.href}
-                  icon={link.icon}
-                  isBeta={link.isBeta}
+                  label="Search"
+                  icon={<IconTable size={16} />}
+                  href="/search"
+                  isActive={pathname === '/search'}
                 />
-              ),
+
+                {/* Saved Searches */}
+                <AppNavLink
+                  label="Saved Searches"
+                  href="/search/list"
+                  icon={<IconDeviceFloppy size={16} />}
+                  isActive={isSavedSearchActive}
+                  isExpanded={isSavedSearchExpanded}
+                  onToggle={() =>
+                    setIsSavedSearchExpanded(!isSavedSearchExpanded)
+                  }
+                />
+
+                {!isCollapsed && (
+                  <Collapse expanded={isSavedSearchExpanded}>
+                    <div className={styles.subMenu}>
+                      {favoritedSavedSearches.length > 0 ? (
+                        favoritedSavedSearches.map(renderSavedSearchLink)
+                      ) : favorites != null && savedSearches != null ? (
+                        <Text
+                          size="xs"
+                          c="dimmed"
+                          pl="lg"
+                          pr="xs"
+                          py={4}
+                          lh={1.4}
+                        >
+                          No favorites. Star on{' '}
+                          <Anchor
+                            component={Link}
+                            href="/search/list"
+                            size="xs"
+                          >
+                            Saved Searches
+                          </Anchor>
+                          .
+                        </Text>
+                      ) : null}
+                    </div>
+                  </Collapse>
+                )}
+                {/* Simple nav links from config */}
+                {NAV_LINKS.filter(
+                  link => !link.cloudOnly || !IS_LOCAL_MODE,
+                ).map(link => (
+                  <AppNavLink
+                    key={link.id}
+                    label={link.label}
+                    href={link.href}
+                    icon={link.icon}
+                    isBeta={link.isBeta}
+                  />
+                ))}
+              </>
             )}
 
             {/* Dashboards */}
@@ -488,26 +510,30 @@ export default function AppNav({ fixed = false }: { fixed?: boolean }) {
               </Collapse>
             )}
 
-            {/* Help */}
-            <AppNavHelpMenu
-              version={APP_VERSION}
-              whatsNewVersion={WHATS_NEW_VERSION}
-            />
+            {canManageShared && (
+              <>
+                {/* Help */}
+                <AppNavHelpMenu
+                  version={APP_VERSION}
+                  whatsNewVersion={WHATS_NEW_VERSION}
+                />
 
-            {/* Feedback */}
-            <AppNavFeedback />
+                {/* Feedback */}
+                <AppNavFeedback />
 
-            {/* Team Settings (Cloud only) */}
-            {!IS_LOCAL_MODE && (
-              <AppNavLink
-                label="Team Settings"
-                href="/team"
-                icon={<IconSettings size={16} />}
-              />
+                {/* Team Settings (Cloud only) */}
+                {!IS_LOCAL_MODE && (
+                  <AppNavLink
+                    label="Team Settings"
+                    href="/team"
+                    icon={<IconSettings size={16} />}
+                  />
+                )}
+              </>
             )}
           </div>
 
-          {!isCollapsed && (
+          {canManageShared && !isCollapsed && (
             <div
               style={{ width: navWidth }}
               className={styles.onboardingSection}
@@ -563,13 +589,17 @@ export default function AppNav({ fixed = false }: { fixed?: boolean }) {
             </Link>
           )}
           <AppNavUserMenu
+            showTeamSettings={canManageShared}
             userName={meData?.name}
             teamName={meData?.team?.name}
             onClickUserPreferences={openUserPreferences}
             isViewingAsDeveloper={isViewingAsDeveloper}
             onToggleDeveloperView={
               canPreviewDeveloper
-                ? () => setDeveloperPreview(!isViewingAsDeveloper)
+                ? () => {
+                    setDeveloperPreview(!isViewingAsDeveloper);
+                    if (!isViewingAsDeveloper) router.push('/dashboards/list');
+                  }
                 : undefined
             }
             logoutUrl={IS_LOCAL_MODE ? null : `/api/logout`}

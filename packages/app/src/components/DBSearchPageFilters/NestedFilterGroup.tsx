@@ -34,6 +34,7 @@ type NestedFilterGroupProps = {
   showFilterCounts?: boolean;
   showLogCounts?: boolean;
   onColumnToggle?: (column: string) => void;
+  summarySourceId?: string;
   displayedColumns?: string[];
   onLoadMore: (key: string) => void;
   onFieldExpand?: (key: string) => void;
@@ -68,6 +69,7 @@ export const NestedFilterGroup = ({
   showFilterCounts,
   showLogCounts,
   onColumnToggle,
+  summarySourceId,
   displayedColumns,
   onLoadMore,
   onFieldExpand,
@@ -208,6 +210,7 @@ export const NestedFilterGroup = ({
                           }}
                         >
                           <FilterGroup
+                            summarySourceId={summarySourceId}
                             data-testid={`nested-filter-group-${child.key}`}
                             name={child.propertyPath}
                             distributionKey={child.sqlKey ?? child.key}

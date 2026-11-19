@@ -1,3 +1,4 @@
+import { MantineProvider } from '@mantine/core';
 import { UseQueryResult } from '@tanstack/react-query';
 import { screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -527,7 +528,52 @@ describe('FilterGroup', () => {
     expect(screen.queryByText('No options found')).not.toBeInTheDocument();
   });
 
-  it('should sort options alphabetically by default', () => {
+  it('keeps selected values first and reorders the remainder on count refresh', () => {
+    const counts = jest.mocked(useGetValueCounts);
+    counts.mockReturnValue({
+      data: new Map([
+        ['apple', '3'],
+        ['banana', '54'],
+        ['zebra', '173'],
+      ]),
+      isFetching: false,
+      error: null,
+    } as ReturnType<typeof useGetValueCounts>);
+    const props = {
+      ...defaultProps,
+      showLogCounts: true,
+      selectedValues: {
+        included: new Set<string | boolean>(['apple']),
+        excluded: new Set<string | boolean>(),
+      },
+    };
+    const { rerender } = renderWithMantine(<FilterGroup {...props} />);
+    const labels = () =>
+      screen.getAllByText(/^(apple|banana|zebra)$/).map(e => e.textContent);
+    expect(labels()).toEqual(['apple', 'zebra', 'banana']);
+    counts.mockReturnValue({
+      data: new Map([
+        ['apple', '9007199254740993'],
+        ['banana', '9007199254740992'],
+        ['zebra', '0'],
+      ]),
+      isFetching: false,
+      error: null,
+    } as ReturnType<typeof useGetValueCounts>);
+    rerender(
+      <MantineProvider>
+        <FilterGroup {...props} />
+      </MantineProvider>,
+    );
+    expect(labels()).toEqual(['apple', 'banana', 'zebra']);
+    counts.mockReturnValue({
+      data: undefined,
+      isFetching: false,
+      error: null,
+    } as ReturnType<typeof useGetValueCounts>);
+  });
+
+  it('falls back to alphabetical order when log counts are unavailable', () => {
     renderWithMantine(<FilterGroup {...defaultProps} />);
 
     const options = screen.getAllByTestId(/filter-checkbox-.+-input/);
@@ -608,7 +654,7 @@ describe('FilterGroup', () => {
     expect(labels[2]).toHaveTextContent('banana');
   });
 
-  it('shows unavailable on failure even if previous counts exist', () => {
+  it('retains previous counts with a refresh failure explanation', () => {
     jest.mocked(useGetValueCounts).mockReturnValueOnce({
       data: new Map([['apple', '12']]),
       isFetching: false,
@@ -617,7 +663,10 @@ describe('FilterGroup', () => {
     renderWithMantine(<FilterGroup {...defaultProps} />);
     expect(
       screen.getByTestId('filter-count-Test Filter-apple'),
-    ).toHaveTextContent('—');
+    ).toHaveTextContent('12');
+    expect(
+      screen.getByTestId('filter-count-Test Filter-apple'),
+    ).toHaveAttribute('aria-label', expect.stringContaining('Refresh failed'));
   });
 
   it('does not request counts for collapsed fields or when disabled', () => {
@@ -636,7 +685,7 @@ describe('FilterGroup', () => {
     ).not.toBeInTheDocument();
   });
 
-  it('shows loading instead of stale counts during refresh', () => {
+  it('keeps numbers visible during refresh without a per-value spinner', () => {
     jest.mocked(useGetValueCounts).mockReturnValueOnce({
       data: new Map([['apple', '12']]),
       isFetching: true,
@@ -645,10 +694,38 @@ describe('FilterGroup', () => {
     renderWithMantine(<FilterGroup {...defaultProps} />);
     expect(
       screen.getByTestId('filter-count-Test Filter-apple'),
-    ).toHaveAttribute('aria-label', 'Counting matching logs');
+    ).toHaveAttribute(
+      'aria-label',
+      expect.stringContaining('Updating; showing the previous completed count'),
+    );
     expect(
       screen.getByTestId('filter-count-Test Filter-apple'),
-    ).not.toHaveTextContent('12');
+    ).toHaveTextContent('12');
+    expect(
+      screen.getByTestId('filter-count-Test Filter-apple').querySelector('svg'),
+    ).toBeNull();
+  });
+
+  it('displays accumulating counts as lower bounds, including partial zero', () => {
+    jest.mocked(useGetValueCounts).mockReturnValueOnce({
+      data: new Map([
+        ['apple', '12'],
+        ['banana', '0'],
+      ]),
+      isFetching: true,
+      isPartial: true,
+      error: null,
+    } as any);
+    renderWithMantine(<FilterGroup {...defaultProps} />);
+    expect(
+      screen.getByTestId('filter-count-Test Filter-apple'),
+    ).toHaveTextContent('≥12');
+    expect(
+      screen.getByTestId('filter-count-Test Filter-banana'),
+    ).toHaveTextContent('≥0');
+    expect(
+      screen.getByText('Counts so far · counting older logs'),
+    ).toBeInTheDocument();
   });
 
   it('should show selected items first, then sort alphabetically', () => {

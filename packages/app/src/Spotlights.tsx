@@ -18,11 +18,13 @@ import { useBrandDisplayName, useLogomark } from './theme/ThemeProvider';
 import { IS_K8S_DASHBOARD_ENABLED } from './config';
 import { useDashboards } from './dashboard';
 import { useSavedSearches } from './savedSearch';
+import { usePermissions } from './usePermissions';
 
 import '@mantine/spotlight/styles.css';
 
 export const useSpotlightActions = () => {
   const router = useRouter();
+  const { canManageShared } = usePermissions();
   const brandName = useBrandDisplayName();
   const logomark = useLogomark({ size: 16 });
 
@@ -30,7 +32,7 @@ export const useSpotlightActions = () => {
   const { data: dashboardsData } = useDashboards();
 
   const actions = React.useMemo<SpotlightActionData[]>(() => {
-    const logViews = logViewsData ?? [];
+    const logViews = canManageShared ? (logViewsData ?? []) : [];
     const dashboards = dashboardsData ?? [];
 
     const logViewActions: SpotlightActionData[] = [];
@@ -62,6 +64,21 @@ export const useSpotlightActions = () => {
         },
       });
     });
+
+    if (!canManageShared) {
+      return [
+        ...logViewActions,
+        {
+          id: 'dashboards',
+          group: 'Menu',
+          leftSection: <IconGridDots size={16} />,
+          label: 'Dashboards',
+          onClick: () => {
+            router.push('/dashboards/list');
+          },
+        },
+      ];
+    }
 
     // Preset dashboards
     const presetDashboards = [
@@ -209,7 +226,14 @@ export const useSpotlightActions = () => {
     );
 
     return logViewActions;
-  }, [brandName, logomark, logViewsData, dashboardsData, router]);
+  }, [
+    brandName,
+    logomark,
+    logViewsData,
+    dashboardsData,
+    router,
+    canManageShared,
+  ]);
 
   return { actions };
 };

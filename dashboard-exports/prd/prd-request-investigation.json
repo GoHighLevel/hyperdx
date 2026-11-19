@@ -1,0 +1,558 @@
+{
+  "version": "0.1.0",
+  "savedRefreshInterval": 30,
+  "savedDateRange": {
+    "type": "relative",
+    "value": 900
+  },
+  "savedFilterValues": [
+    {
+      "type": "variable",
+      "name": "cluster",
+      "values": [
+        "servers-usc1-prd-cluster"
+      ]
+    },
+    {
+      "type": "variable",
+      "name": "namespace",
+      "values": [
+        "default"
+      ]
+    },
+    {
+      "type": "variable",
+      "name": "deployment",
+      "values": [
+        "store-api"
+      ]
+    }
+  ],
+  "name": "03 · Request investigation — Production",
+  "description": "Production request investigation: one log table for general/error/trace-ID searches, merged endpoint percentile and error-ratio charts, and gateway flags. Pod/severity/trace filters scope logs; API route scopes endpoint metrics. Stored spans remain unavailable. Rolling last 15m with 30s refresh.",
+  "tags": [
+    "production",
+    "incident-response",
+    "requests"
+  ],
+  "filters": [
+    {
+      "id": "filter-cluster",
+      "name": "Cluster",
+      "variableName": "cluster",
+      "type": "PROMETHEUS_LABEL",
+      "source": "Production Metrics",
+      "label": "cluster",
+      "match": "kube_deployment_created",
+      "isBroadcastEnabled": false,
+      "isVariableEnabled": true,
+      "minSelections": 1,
+      "isGlobalRequirement": true
+    },
+    {
+      "id": "filter-namespace",
+      "name": "Namespace",
+      "variableName": "namespace",
+      "type": "PROMETHEUS_LABEL",
+      "source": "Production Metrics",
+      "label": "namespace",
+      "match": "kube_deployment_created{cluster=~\"${cluster:regex}\"}",
+      "isBroadcastEnabled": false,
+      "isVariableEnabled": true,
+      "minSelections": 1,
+      "isGlobalRequirement": true
+    },
+    {
+      "id": "filter-deployment",
+      "name": "Deployment",
+      "variableName": "deployment",
+      "type": "PROMETHEUS_LABEL",
+      "source": "Production Metrics",
+      "label": "deployment",
+      "match": "kube_deployment_created{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\"}",
+      "isBroadcastEnabled": false,
+      "isVariableEnabled": true,
+      "minSelections": 1,
+      "isGlobalRequirement": true
+    },
+    {
+      "id": "filter-pod",
+      "name": "Pod",
+      "variableName": "pod",
+      "type": "PROMETHEUS_LABEL",
+      "source": "Production Metrics",
+      "label": "pod",
+      "match": "kube_pod_info{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",created_by_kind=\"ReplicaSet\",created_by_name=~\"${deployment:regex}-[a-z0-9]+\"}",
+      "isBroadcastEnabled": false,
+      "isVariableEnabled": true
+    },
+    {
+      "id": "filter-severity",
+      "name": "Log level",
+      "variableName": "severity",
+      "type": "STATIC_LIST",
+      "options": [
+        "trace",
+        "debug",
+        "info",
+        "warn",
+        "warning",
+        "error",
+        "fatal",
+        "critical"
+      ],
+      "isBroadcastEnabled": false,
+      "isVariableEnabled": true
+    },
+    {
+      "id": "filter-trace-id",
+      "name": "Trace ID",
+      "variableName": "trace_id",
+      "type": "QUERY_EXPRESSION",
+      "source": "Production All Clusters",
+      "expression": "coalesce(nullIf(trace_id, ''), nullIf(json_payload['trace_id'], ''), nullIf(extract(json_payload['logging.googleapis.com/trace'], '[^/]+$'), ''))",
+      "where": "$__filter(cluster_name, $cluster) AND $__filter(namespace_name, $namespace) AND $__filter(deployment_name, $deployment) AND $__filter(pod_name, $pod) AND coalesce(nullIf(trace_id, ''), nullIf(json_payload['trace_id'], ''), nullIf(extract(json_payload['logging.googleapis.com/trace'], '[^/]+$'), '')) != ''",
+      "whereLanguage": "sql",
+      "isBroadcastEnabled": false,
+      "isVariableEnabled": true
+    },
+    {
+      "id": "filter-route",
+      "name": "API route",
+      "variableName": "route",
+      "type": "PROMETHEUS_LABEL",
+      "source": "Production Metrics",
+      "label": "route",
+      "match": "http_requests_total{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",container=~\"${deployment:regex}\"}",
+      "isBroadcastEnabled": false,
+      "isVariableEnabled": true
+    }
+  ],
+  "containers": [
+    {
+      "id": "start",
+      "title": "Start here",
+      "collapsed": false
+    },
+    {
+      "id": "logs",
+      "title": "Logs and trace-ID correlation",
+      "collapsed": false
+    },
+    {
+      "id": "requests",
+      "title": "Endpoint traffic and latency",
+      "collapsed": true
+    },
+    {
+      "id": "gateway",
+      "title": "Gateway failure diagnosis",
+      "collapsed": true
+    }
+  ],
+  "tiles": [
+    {
+      "id": "suite-navigation",
+      "containerId": "start",
+      "x": 0,
+      "y": 0,
+      "w": 24,
+      "h": 6,
+      "config": {
+        "name": "Debugging workflow",
+        "displayType": "markdown",
+        "source": "",
+        "select": [],
+        "where": "",
+        "whereLanguage": "sql",
+        "markdown": "[01 · P0 overview](https://hyperdx.platform.prd.msgsndr.net/dashboards/6aa7af64466e0dad178178c4) · [02 · Capacity and startup](https://hyperdx.platform.prd.msgsndr.net/dashboards/e8ec27ebca8ec9510cc54010) · [03 · Request investigation](https://hyperdx.platform.prd.msgsndr.net/dashboards/8da8d7cbb9ebeb140a048e6f)\n\n**Follow the request:** narrow API route for endpoint metrics, then Pod / Log level / Trace ID for logs. Route does not filter the log table; log filters do not filter endpoint metrics. Select error severity for error logs, or a Trace ID for correlated logs in the same table. Production has no configured stored-span source; correlated logs are not a span waterfall. Keep timestamp order for live logs and narrow the range before sorting other columns.\n\nNavigation opens the saved view of the destination; it does not automatically carry unsaved filters or time. **Contacts incident · 12 September, 8:25–10:25 PM IST:** [Overview](https://hyperdx.platform.prd.msgsndr.net/dashboards/6aa7af64466e0dad178178c4?granularity=30+second&filters=%255B%257B%2522type%2522%253A%2522variable%2522%252C%2522name%2522%253A%2522cluster%2522%252C%2522values%2522%253A%255B%2522servers-usc1-prd-cluster%2522%255D%257D%252C%257B%2522type%2522%253A%2522variable%2522%252C%2522name%2522%253A%2522namespace%2522%252C%2522values%2522%253A%255B%2522default%2522%255D%257D%252C%257B%2522type%2522%253A%2522variable%2522%252C%2522name%2522%253A%2522deployment%2522%252C%2522values%2522%253A%255B%2522contacts-get-internal-api%2522%255D%257D%255D&from=1789224900000&to=1789232100000) · [Capacity](https://hyperdx.platform.prd.msgsndr.net/dashboards/e8ec27ebca8ec9510cc54010?granularity=30+second&filters=%255B%257B%2522type%2522%253A%2522variable%2522%252C%2522name%2522%253A%2522cluster%2522%252C%2522values%2522%253A%255B%2522servers-usc1-prd-cluster%2522%255D%257D%252C%257B%2522type%2522%253A%2522variable%2522%252C%2522name%2522%253A%2522namespace%2522%252C%2522values%2522%253A%255B%2522default%2522%255D%257D%252C%257B%2522type%2522%253A%2522variable%2522%252C%2522name%2522%253A%2522deployment%2522%252C%2522values%2522%253A%255B%2522contacts-get-internal-api%2522%255D%257D%255D&from=1789224900000&to=1789232100000) · [Requests](https://hyperdx.platform.prd.msgsndr.net/dashboards/8da8d7cbb9ebeb140a048e6f?granularity=30+second&filters=%255B%257B%2522type%2522%253A%2522variable%2522%252C%2522name%2522%253A%2522cluster%2522%252C%2522values%2522%253A%255B%2522servers-usc1-prd-cluster%2522%255D%257D%252C%257B%2522type%2522%253A%2522variable%2522%252C%2522name%2522%253A%2522namespace%2522%252C%2522values%2522%253A%255B%2522default%2522%255D%257D%252C%257B%2522type%2522%253A%2522variable%2522%252C%2522name%2522%253A%2522deployment%2522%252C%2522values%2522%253A%255B%2522contacts-get-internal-api%2522%255D%257D%255D&from=1789224900000&to=1789232100000). These replay links keep the same service and time window."
+      }
+    },
+    {
+      "id": "error-logs",
+      "containerId": "requests",
+      "x": 0,
+      "y": 0,
+      "w": 8,
+      "h": 5,
+      "config": {
+        "name": "Error logs · selected range",
+        "source": "Production All Clusters",
+        "displayType": "number",
+        "select": [
+          {
+            "aggFn": "count",
+            "valueExpression": "",
+            "alias": "Errors"
+          }
+        ],
+        "where": "$__filter(cluster_name, $cluster) AND $__filter(namespace_name, $namespace) AND $__filter(deployment_name, $deployment) AND $__filter(pod_name, $pod) AND lowerUTF8(log_level) IN ('error','fatal','critical')",
+        "whereLanguage": "sql",
+        "numberFormat": {
+          "output": "number",
+          "mantissa": 0,
+          "thousandSeparated": true,
+          "unit": ""
+        },
+        "color": "chart-gray",
+        "colorRules": [
+          {
+            "operator": "eq",
+            "value": 0,
+            "color": "chart-success"
+          },
+          {
+            "operator": "gt",
+            "value": 0,
+            "color": "chart-error"
+          }
+        ]
+      }
+    },
+    {
+      "id": "incident-gateway-count",
+      "containerId": "requests",
+      "x": 8,
+      "y": 0,
+      "w": 8,
+      "h": 5,
+      "config": {
+        "name": "Gateway 5xx count · last 15m",
+        "configType": "promql",
+        "displayType": "line",
+        "source": "Production Metrics",
+        "connection": "Production Metrics Querier",
+        "promqlExpression": "sum(increase(istio_requests_total{cluster=~\"${cluster:regex}\",reporter=\"source\",source_workload=~\"istio-ingress.*\",destination_service_namespace=~\"${namespace:regex}\",destination_service_name=~\"${deployment:regex}-service\",response_code=~\"5..\"}[15m])) or (sum(increase(istio_requests_total{cluster=~\"${cluster:regex}\",reporter=\"source\",source_workload=~\"istio-ingress.*\",destination_service_namespace=~\"${namespace:regex}\",destination_service_name=~\"${deployment:regex}-service\"}[15m])) * 0)",
+        "numberFormat": {
+          "output": "number",
+          "mantissa": 1,
+          "thousandSeparated": true,
+          "unit": ""
+        },
+        "fillNulls": false,
+        "color": "chart-gray",
+        "colorRules": [
+          {
+            "operator": "eq",
+            "value": 0,
+            "color": "chart-success"
+          },
+          {
+            "operator": "gt",
+            "value": 0,
+            "color": "chart-error"
+          }
+        ],
+        "granularity": "1 minute",
+        "legendTemplate": ""
+      }
+    },
+    {
+      "id": "incident-endpoints",
+      "containerId": "requests",
+      "x": 16,
+      "y": 0,
+      "w": 8,
+      "h": 5,
+      "config": {
+        "name": "Reporting endpoints · current",
+        "configType": "promql",
+        "displayType": "line",
+        "source": "Production Metrics",
+        "connection": "Production Metrics Querier",
+        "promqlExpression": "count(count by (cluster,namespace,team,sub_team,tier,container,route) (http_requests_total{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",container=~\"${deployment:regex}\",route=~\"${route:regex}\"}))",
+        "numberFormat": {
+          "output": "number",
+          "mantissa": 1,
+          "thousandSeparated": true,
+          "unit": ""
+        },
+        "fillNulls": false,
+        "color": "chart-gray",
+        "colorRules": [
+          {
+            "operator": "gte",
+            "value": 0,
+            "color": "chart-purple"
+          }
+        ],
+        "granularity": "1 minute",
+        "legendTemplate": ""
+      }
+    },
+    {
+      "id": "incident-endpoint-rpm",
+      "containerId": "requests",
+      "x": 0,
+      "y": 5,
+      "w": 12,
+      "h": 8,
+      "config": {
+        "name": "Endpoint requests / minute · 5m rate",
+        "configType": "promql",
+        "displayType": "line",
+        "source": "Production Metrics",
+        "connection": "Production Metrics Querier",
+        "promqlExpression": "sum by (cluster,namespace,team,sub_team,tier,container,route) (rate(http_requests_total{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",container=~\"${deployment:regex}\",route=~\"${route:regex}\"}[5m])) * 60",
+        "numberFormat": {
+          "output": "number",
+          "mantissa": 1,
+          "thousandSeparated": true,
+          "unit": "req/min"
+        },
+        "fillNulls": false,
+        "granularity": "1 minute",
+        "seriesLimit": 20,
+        "legendTemplate": "{{container}} · {{route}} · {{team}} / {{sub_team}} / {{tier}}"
+      }
+    },
+    {
+      "id": "incident-endpoint-error-rpm",
+      "containerId": "requests",
+      "x": 12,
+      "y": 5,
+      "w": 12,
+      "h": 8,
+      "config": {
+        "name": "Endpoint 5xx / minute · 5m rate",
+        "configType": "promql",
+        "displayType": "line",
+        "source": "Production Metrics",
+        "connection": "Production Metrics Querier",
+        "promqlExpression": "(sum by (cluster,namespace,team,sub_team,tier,container,route) (rate(http_requests_total{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",container=~\"${deployment:regex}\",route=~\"${route:regex}\",status=~\"5..|5XX|5xx\"}[5m])) or (sum by (cluster,namespace,team,sub_team,tier,container,route) (rate(http_requests_total{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",container=~\"${deployment:regex}\",route=~\"${route:regex}\"}[5m])) * 0)) * 60",
+        "numberFormat": {
+          "output": "number",
+          "mantissa": 1,
+          "thousandSeparated": true,
+          "unit": "req/min"
+        },
+        "fillNulls": false,
+        "granularity": "1 minute",
+        "seriesLimit": 20,
+        "legendTemplate": "{{container}} · {{route}} · {{team}} / {{sub_team}} / {{tier}}"
+      }
+    },
+    {
+      "id": "endpoint-error-percentiles",
+      "containerId": "requests",
+      "x": 0,
+      "y": 13,
+      "w": 12,
+      "h": 8,
+      "config": {
+        "name": "Endpoint error rates · 4xx / 5xx",
+        "configType": "promql",
+        "displayType": "line",
+        "source": "Production Metrics",
+        "connection": "Production Metrics Querier",
+        "promqlExpression": "label_replace((100 * (sum by (cluster,namespace,team,sub_team,tier,container,route) (rate(http_requests_total{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",container=~\"${deployment:regex}\",route=~\"${route:regex}\",status=~\"4..|4XX|4xx\"}[5m])) or (sum by (cluster,namespace,team,sub_team,tier,container,route) (rate(http_requests_total{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",container=~\"${deployment:regex}\",route=~\"${route:regex}\"}[5m])) * 0)) / (sum by (cluster,namespace,team,sub_team,tier,container,route) (rate(http_requests_total{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",container=~\"${deployment:regex}\",route=~\"${route:regex}\"}[5m])) > 0)), \"series\", \"4xx\", \"\", \"\") or label_replace((100 * (sum by (cluster,namespace,team,sub_team,tier,container,route) (rate(http_requests_total{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",container=~\"${deployment:regex}\",route=~\"${route:regex}\",status=~\"5..|5XX|5xx\"}[5m])) or (sum by (cluster,namespace,team,sub_team,tier,container,route) (rate(http_requests_total{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",container=~\"${deployment:regex}\",route=~\"${route:regex}\"}[5m])) * 0)) / (sum by (cluster,namespace,team,sub_team,tier,container,route) (rate(http_requests_total{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",container=~\"${deployment:regex}\",route=~\"${route:regex}\"}[5m])) > 0)), \"series\", \"5xx\", \"\", \"\")",
+        "numberFormat": {
+          "output": "number",
+          "mantissa": 1,
+          "thousandSeparated": true,
+          "unit": "%"
+        },
+        "fillNulls": false,
+        "granularity": "1 minute",
+        "seriesLimit": 40,
+        "legendTemplate": "{{container}} · {{route}} · {{series}}"
+      }
+    },
+    {
+      "id": "endpoint-latency-percentiles",
+      "containerId": "requests",
+      "x": 12,
+      "y": 13,
+      "w": 12,
+      "h": 8,
+      "config": {
+        "name": "Endpoint latency · P50 / P90 / P95 / P99",
+        "configType": "promql",
+        "displayType": "line",
+        "source": "Production Metrics",
+        "connection": "Production Metrics Querier",
+        "promqlExpression": "label_replace((histogram_quantile(0.50, sum by (le,cluster,namespace,team,sub_team,tier,container,route) (rate(http_request_duration_seconds_bucket{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",container=~\"${deployment:regex}\",route=~\"${route:regex}\"}[5m]))) * 1000), \"percentile\", \"P50\", \"\", \"\") or label_replace((histogram_quantile(0.90, sum by (le,cluster,namespace,team,sub_team,tier,container,route) (rate(http_request_duration_seconds_bucket{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",container=~\"${deployment:regex}\",route=~\"${route:regex}\"}[5m]))) * 1000), \"percentile\", \"P90\", \"\", \"\") or label_replace((histogram_quantile(0.95, sum by (le,cluster,namespace,team,sub_team,tier,container,route) (rate(http_request_duration_seconds_bucket{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",container=~\"${deployment:regex}\",route=~\"${route:regex}\"}[5m]))) * 1000), \"percentile\", \"P95\", \"\", \"\") or label_replace((histogram_quantile(0.99, sum by (le,cluster,namespace,team,sub_team,tier,container,route) (rate(http_request_duration_seconds_bucket{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",container=~\"${deployment:regex}\",route=~\"${route:regex}\"}[5m]))) * 1000), \"percentile\", \"P99\", \"\", \"\")",
+        "numberFormat": {
+          "output": "number",
+          "mantissa": 1,
+          "thousandSeparated": true,
+          "unit": "ms"
+        },
+        "fillNulls": false,
+        "granularity": "1 minute",
+        "seriesLimit": 40,
+        "legendTemplate": "{{container}} · {{route}} · {{percentile}}"
+      }
+    },
+    {
+      "id": "incident-active-endpoints",
+      "containerId": "requests",
+      "x": 0,
+      "y": 21,
+      "w": 12,
+      "h": 8,
+      "config": {
+        "name": "Endpoints with traffic · 5m rate > 0",
+        "configType": "promql",
+        "displayType": "line",
+        "source": "Production Metrics",
+        "connection": "Production Metrics Querier",
+        "promqlExpression": "count(sum by (cluster,namespace,team,sub_team,tier,container,route) (rate(http_requests_total{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",container=~\"${deployment:regex}\",route=~\"${route:regex}\"}[5m])) > 0) or (sum(sum by (cluster,namespace,team,sub_team,tier,container,route) (rate(http_requests_total{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",container=~\"${deployment:regex}\",route=~\"${route:regex}\"}[5m]))) * 0)",
+        "numberFormat": {
+          "output": "number",
+          "mantissa": 1,
+          "thousandSeparated": true,
+          "unit": ""
+        },
+        "fillNulls": false,
+        "granularity": "1 minute",
+        "seriesLimit": 20
+      }
+    },
+    {
+      "id": "error-timeline",
+      "containerId": "requests",
+      "x": 12,
+      "y": 21,
+      "w": 12,
+      "h": 8,
+      "config": {
+        "name": "Error logs over time",
+        "source": "Production All Clusters",
+        "displayType": "line",
+        "select": [
+          {
+            "aggFn": "count",
+            "valueExpression": "",
+            "alias": "Error logs"
+          }
+        ],
+        "where": "$__filter(cluster_name, $cluster) AND $__filter(namespace_name, $namespace) AND $__filter(deployment_name, $deployment) AND $__filter(pod_name, $pod) AND lowerUTF8(log_level) IN ('error','fatal','critical')",
+        "whereLanguage": "sql",
+        "granularity": "1 minute",
+        "fillNulls": 0
+      }
+    },
+    {
+      "id": "logs",
+      "containerId": "logs",
+      "x": 0,
+      "y": 0,
+      "w": 24,
+      "h": 15,
+      "config": {
+        "name": "Logs · expand a row for details",
+        "source": "Production All Clusters",
+        "displayType": "search",
+        "select": "timestamp, deployment_name, pod_name, log_level, log, coalesce(nullIf(trace_id, ''), nullIf(json_payload['trace_id'], ''), nullIf(extract(json_payload['logging.googleapis.com/trace'], '[^/]+$'), '')) AS correlated_trace_id",
+        "where": "$__filter(cluster_name, $cluster) AND $__filter(namespace_name, $namespace) AND $__filter(deployment_name, $deployment) AND $__filter(pod_name, $pod) AND $__filter(log_level, $severity) AND $__filter(coalesce(nullIf(trace_id, ''), nullIf(json_payload['trace_id'], ''), nullIf(extract(json_payload['logging.googleapis.com/trace'], '[^/]+$'), '')), $trace_id)",
+        "whereLanguage": "sql",
+        "limit": {
+          "limit": 200
+        },
+        "orderBy": [
+          {
+            "valueExpression": "timestamp",
+            "ordering": "DESC"
+          }
+        ]
+      }
+    },
+    {
+      "id": "incident-failure-rpm",
+      "containerId": "gateway",
+      "x": 0,
+      "y": 0,
+      "w": 12,
+      "h": 8,
+      "config": {
+        "name": "Gateway failures · HTTP 0 / 5xx by service and flag",
+        "configType": "promql",
+        "displayType": "line",
+        "source": "Production Metrics",
+        "connection": "Production Metrics Querier",
+        "promqlExpression": "sum by (cluster,destination_service_namespace,destination_service_name,response_code,response_flags) (rate(istio_requests_total{cluster=~\"${cluster:regex}\",reporter=\"source\",source_workload=~\"istio-ingress.*\",destination_service_namespace=~\"${namespace:regex}\",destination_service_name=~\"${deployment:regex}-service\",response_code=~\"5..|0\"}[5m])) * 60",
+        "numberFormat": {
+          "output": "number",
+          "mantissa": 1,
+          "thousandSeparated": true,
+          "unit": "req/min"
+        },
+        "fillNulls": false,
+        "granularity": "1 minute",
+        "seriesLimit": 20,
+        "legendTemplate": "HTTP {{response_code}} · {{response_flags}}"
+      }
+    },
+    {
+      "id": "incident-failure-totals",
+      "containerId": "gateway",
+      "x": 12,
+      "y": 0,
+      "w": 12,
+      "h": 8,
+      "config": {
+        "name": "Gateway 5xx by service / flag · rolling 15m",
+        "configType": "promql",
+        "displayType": "line",
+        "source": "Production Metrics",
+        "connection": "Production Metrics Querier",
+        "promqlExpression": "sum by (cluster,destination_service_namespace,destination_service_name,response_code,response_flags) (increase(istio_requests_total{cluster=~\"${cluster:regex}\",reporter=\"source\",source_workload=~\"istio-ingress.*\",destination_service_namespace=~\"${namespace:regex}\",destination_service_name=~\"${deployment:regex}-service\",response_code=~\"5..\"}[15m]))",
+        "numberFormat": {
+          "output": "number",
+          "mantissa": 1,
+          "thousandSeparated": true,
+          "unit": "requests"
+        },
+        "fillNulls": false,
+        "granularity": "1 minute",
+        "seriesLimit": 20,
+        "legendTemplate": "{{cluster}} / {{destination_service_namespace}} / {{destination_service_name}} · HTTP {{response_code}} · {{response_flags}}"
+      }
+    },
+    {
+      "id": "request-guide",
+      "containerId": "gateway",
+      "x": 0,
+      "y": 8,
+      "w": 24,
+      "h": 9,
+      "config": {
+        "name": "How to read request evidence",
+        "displayType": "markdown",
+        "source": "",
+        "select": [],
+        "where": "",
+        "whereLanguage": "sql",
+        "markdown": "Gateway and endpoint rates use rolling 5m; gateway error counts use rolling 15m. Error-log count uses the selected dashboard range. Gateway failure flags: **UH** = no healthy upstream; **UF** = connection failure; **URX** = retry/connection-attempt limit; **UT** = timeout; **UC** = terminated connection. HTTP 0 is shown separately from 5xx. Caller retries can amplify RPM; requests are not unique users. Select a narrow route to avoid truncating the combined percentile chart (40-series limit). Reporting endpoints counts instrumented route/ownership combinations, not Kubernetes ready endpoints.\n\nLogs use the selected cluster/namespace/deployment/pod/severity/trace ID. Stored-span and dependency-specific tracing remain a telemetry gap, not evidence of healthy dependencies. Caller RPM uses application sourceContainer labels and includes retries; it does not prove the originating campaign or unique business demand. Top callers can change during the time range; the chart displays at most 40 series.\n\n**Contacts incident:** email-related callers account for about 88% of the measured onset increase on `/contacts/:contactId` in the separate 2-minute-rate comparison (8:30 → 8:32:30 PM). This is a caller-attribution lead, not proof of retries or a caller defect. The top-callers chart uses 5-minute rates and the selected route; gateway and application counters measure different observation points."
+      }
+    },
+    {
+      "id": "request-callers",
+      "containerId": "requests",
+      "tabId": "traffic",
+      "x": 0,
+      "y": 29,
+      "w": 24,
+      "h": 8,
+      "config": {
+        "name": "Top 10 callers per sample · request RPM · 5m rate",
+        "configType": "promql",
+        "displayType": "line",
+        "source": "Production Metrics",
+        "connection": "Production Metrics Querier",
+        "promqlExpression": "topk(10, label_replace(label_replace(sum by (container,sourceContainer) (rate(http_requests_total{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",container=~\"${deployment:regex}\",route=~\"${route:regex}\"}[5m])) * 60, \"caller\", \"$1\", \"sourceContainer\", \"(.*)\"), \"caller\", \"Unattributed\", \"caller\", \"^$\"))",
+        "numberFormat": {
+          "output": "number",
+          "mantissa": 1,
+          "thousandSeparated": true,
+          "unit": "req/min"
+        },
+        "fillNulls": false,
+        "granularity": "1 minute",
+        "seriesLimit": 40,
+        "legendTemplate": "{{caller}}"
+      }
+    }
+  ]
+}

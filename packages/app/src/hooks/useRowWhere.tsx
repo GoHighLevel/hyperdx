@@ -5,6 +5,7 @@ import z from 'zod';
 import {
   ColumnMetaType,
   convertCHDataTypeToJSType,
+  isJSDataTypeJSONStringifiable,
   JSDataType,
 } from '@hyperdx/common-utils/dist/clickhouse';
 import { aliasMapToWithClauses } from '@hyperdx/common-utils/dist/core/utils';
@@ -37,7 +38,7 @@ export function processRowToWhereClause(
   columnMap: Map<string, ColumnWithMeta>,
 ): string {
   const res = Object.entries(row)
-    .map(([column, value]) => {
+    .map(([column, rawValue]) => {
       const cm = columnMap.get(column);
       const chType = cm?.type;
       const jsType = cm?.jsType;
@@ -56,9 +57,19 @@ export function processRowToWhereClause(
       }
 
       // Handle nullish values for all types uniformly
-      if (value == null) {
+      if (rawValue == null) {
         return SqlString.format(`isNull(?)`, [SqlString.raw(valueExpr)]);
       }
+
+      // Visible table cells may already be serialized; hidden summary/identity
+      // columns arrive as raw objects. SqlString treats objects as assignments
+      // and arrays as argument lists, so normalize them before escaping SQL.
+      const value =
+        isJSDataTypeJSONStringifiable(jsType) && typeof rawValue !== 'string'
+          ? jsType === JSDataType.JSON
+            ? JSON.stringify(rawValue).replace(/\//g, '\\/')
+            : JSON.stringify(rawValue)
+          : rawValue;
 
       switch (jsType) {
         case JSDataType.Date:

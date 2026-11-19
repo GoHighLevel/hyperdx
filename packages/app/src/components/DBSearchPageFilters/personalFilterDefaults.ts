@@ -8,3 +8,10 @@ const DEFAULT_VISIBLE_FILTERS = [
 export function isDefaultVisibleFilter(field: string) {
   return field === 'Level' || DEFAULT_VISIBLE_FILTERS.includes(field);
 }
+
+export function matchesPersonalFilterField(
+  field: string,
+  candidates: string[],
+) {
+  return candidates.includes(field);
+}

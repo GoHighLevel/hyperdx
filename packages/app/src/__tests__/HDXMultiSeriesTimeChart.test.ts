@@ -10,6 +10,7 @@ import type { LineData } from '@/ChartUtils';
 import type { ActiveClickSeries } from '@/HDXMultiSeriesTimeChart';
 import {
   buildActiveClickSeries,
+  calculateSeriesStatistics,
   collectMemoChartGradientHexes,
   formatAxisTick,
   getSelectedLineData,
@@ -19,6 +20,45 @@ import {
   sameActiveClickSeries,
 } from '@/HDXMultiSeriesTimeChart';
 import { COLORS } from '@/utils';
+
+describe('calculateSeriesStatistics', () => {
+  const series = [
+    { dataKey: 'requests' },
+    { dataKey: 'errors' },
+    { dataKey: 'empty' },
+  ];
+
+  it('calculates min, max and the last finite sample for every series', () => {
+    const statistics = calculateSeriesStatistics(
+      [
+        { requests: 12, errors: '4' },
+        { requests: 7, errors: null },
+        { requests: 18, errors: '6' },
+      ],
+      series,
+    );
+
+    expect(statistics.get('requests')).toEqual({ min: 7, max: 18, last: 18 });
+    expect(statistics.get('errors')).toEqual({ min: 4, max: 6, last: 6 });
+    expect(statistics.has('empty')).toBe(false);
+  });
+
+  it('ignores missing, blank and non-finite samples without losing last', () => {
+    const statistics = calculateSeriesStatistics(
+      [
+        { requests: 3 },
+        { requests: '' },
+        { requests: Number.NaN },
+        { requests: 'not-a-number' },
+        { requests: 9 },
+        { requests: Number.POSITIVE_INFINITY },
+      ],
+      series,
+    );
+
+    expect(statistics.get('requests')).toEqual({ min: 3, max: 9, last: 9 });
+  });
+});
 
 describe('formatAxisTick', () => {
   it('falls back to mantissa 0 when the format has none configured', () => {

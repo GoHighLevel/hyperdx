@@ -1,0 +1,18 @@
+.googleButton {
+  // Google identity colors stay consistent across application themes.
+  background-color: #fff;
+  color: #1f1f1f;
+  border: 1px solid #747775;
+  font-family: Arial, sans-serif;
+  font-weight: 500;
+
+  &:hover {
+    background-color: #f2f2f2;
+    color: #1f1f1f;
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--color-text-brand);
+    outline-offset: 4px;
+  }
+}

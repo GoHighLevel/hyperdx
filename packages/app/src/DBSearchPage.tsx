@@ -35,6 +35,7 @@ import { buildSearchChartConfig } from '@hyperdx/common-utils/dist/core/searchCh
 import {
   aliasMapToWithClauses,
   isBrowser,
+  isTimestampExpressionInFirstOrderBy,
   splitAndTrimWithBracket,
 } from '@hyperdx/common-utils/dist/core/utils';
 import {
@@ -59,7 +60,6 @@ import {
   Group,
   Modal,
   Paper,
-  Select,
   Stack,
   Text,
   Tooltip,
@@ -106,9 +106,17 @@ import { SQLInlineEditorControlled } from '@/components/SQLEditor/SQLInlineEdito
 import { Tags } from '@/components/Tags';
 import { TimePicker } from '@/components/TimePicker';
 import { IS_LOCAL_MODE } from '@/config';
+import {
+  type Dashboard,
+  useDeleteDashboard,
+  useUpdateDashboard,
+} from '@/dashboard';
 import { useAliasMapFromChartConfig } from '@/hooks/useChartConfig';
 import { useExplainQuery } from '@/hooks/useExplainQuery';
+import { chronologicalLogConfig } from '@/hooks/useLiveLogQuery';
 import { useResolvedSourceParam } from '@/hooks/useResolvedSourceParam';
+import { useSearchDashboardExport } from '@/hooks/useSearchDashboardExport';
+import { useSearchViewPreference } from '@/hooks/useSearchViewPreference';
 import { withAppNav } from '@/layout';
 import {
   useCreateSavedSearch,
@@ -133,11 +141,13 @@ import {
 import { readableLogColumns } from '@/utils/readableLogColumns';
 
 import ChartSQLPreview, { SQLPreview } from './components/ChartSQLPreview';
+import MoveDashboardButton from './components/Dashboards/MoveDashboardButton';
 import DBSqlRowTableWithSideBar from './components/DBSqlRowTableWithSidebar';
 import LogFontSizeControl from './components/LogFontSizeControl';
 import PatternTable from './components/PatternTable';
 import { DBSearchHeatmapChart } from './components/Search/DBSearchHeatmapChart';
 import DirectTraceSidePanel from './components/Search/DirectTraceSidePanel';
+import SearchViewProvider from './components/Search/SearchViewProvider';
 import SourceSchemaPreview, {
   isSourceSchemaPreviewEnabled,
 } from './components/SourceSchemaPreview';
@@ -162,6 +172,7 @@ import {
   parseAsStringEncoded,
 } from './utils/queryParsers';
 import { LOCAL_STORE_CONNECTIONS_KEY } from './connection';
+import { useCanEditDashboard } from './dashboardFolders';
 import { DBSearchPageAlertModal } from './DBSearchPageAlertModal';
 import { EditablePageName } from './EditablePageName';
 import { SearchConfig } from './types';
@@ -171,13 +182,21 @@ import { usePermissions } from './usePermissions';
 
 import searchPageStyles from '@styles/SearchPage.module.scss';
 
-const LIVE_TAIL_REFRESH_FREQUENCY_OPTIONS = [
-  { value: '1000', label: '1s' },
-  { value: '2000', label: '2s' },
-  { value: '4000', label: '4s' },
-  { value: '10000', label: '10s' },
-  { value: '30000', label: '30s' },
-];
+function chronologicalSearchOrder(
+  orderBy: string | null | undefined,
+  source: TSource | undefined,
+) {
+  if (!orderBy || source?.kind !== SourceKind.Log) return orderBy ?? undefined;
+  const config = buildSearchChartConfig(source, { orderBy, where: '' });
+  // The shared ordering check reads only orderBy/timestampValueExpression;
+  // search defaults do not have a time range yet.
+  return isTimestampExpressionInFirstOrderBy(
+    config as BuilderChartConfigWithDateRange,
+  )
+    ? (chronologicalLogConfig(config).orderBy as string)
+    : orderBy;
+}
+
 const DEFAULT_REFRESH_FREQUENCY = 10000;
 
 const ALLOWED_SOURCE_KINDS = [SourceKind.Log, SourceKind.Trace];
@@ -288,7 +307,7 @@ function ResumeLiveTailButton({
       onClick={handleResumeLiveTail}
       leftSection={<IconBolt size={14} />}
     >
-      Resume Live Tail
+      Resume live updates
     </Button>
   );
 }
@@ -738,12 +757,12 @@ function useLiveUpdate({
   // When the user comes back to the app after switching tabs, we immediately refresh the list.
   useEffect(() => {
     if (refreshOnVisible && isDocumentVisible) {
-      if (!pause) {
+      if (isLive && !pause) {
         refresh();
       }
       setRefreshOnVisible(false);
     }
-  }, [refreshOnVisible, isDocumentVisible, pause, refresh]);
+  }, [refreshOnVisible, isDocumentVisible, isLive, pause, refresh]);
 
   const intervalRef = useRef<number | null>(null);
   useEffect(() => {
@@ -798,8 +817,10 @@ function useSearchedConfigToChartConfig(
 
   return useMemo(() => {
     if (sourceObj != null) {
-      const resolvedOrderBy =
-        orderBy || defaultSearchConfig?.orderBy || defaultOrderBy;
+      const resolvedOrderBy = chronologicalSearchOrder(
+        orderBy || defaultSearchConfig?.orderBy || defaultOrderBy,
+        sourceObj,
+      );
 
       const chartConfig = buildSearchChartConfig(sourceObj, {
         where,
@@ -872,18 +893,18 @@ export function useDefaultOrderBy(sourceID: string | undefined | null) {
   });
   const { data: tableMetadata } = useTableMetadata(tcFromSource(source));
 
-  // When source changes, make sure select and orderby fields are set to default
-  return useMemo(() => {
-    // If no source, return undefined so that the orderBy is not set incorrectly
-    if (!source) return undefined;
-    const trimmedOrderBy = source.orderByExpression?.trim();
-    if (trimmedOrderBy) return trimmedOrderBy;
-    return optimizeDefaultOrderBy(
-      source?.timestampValueExpression ?? '',
+  // If no source, return undefined so that the orderBy is not set incorrectly.
+  if (!source) return undefined;
+  const trimmedOrderBy = source.orderByExpression?.trim();
+  if (trimmedOrderBy) return chronologicalSearchOrder(trimmedOrderBy, source);
+  return chronologicalSearchOrder(
+    optimizeDefaultOrderBy(
+      source.timestampValueExpression ?? '',
       source.displayedTimestampValueExpression,
       tableMetadata?.sorting_key,
-    );
-  }, [source, tableMetadata]);
+    ),
+    source,
+  );
 }
 
 function formatDroppedFiltersMessage(count: number): string {
@@ -1002,8 +1023,21 @@ export function useSearchTelemetry({
   return { searchElapsedMs: completedSearch?.latency_ms ?? null };
 }
 
-export function DBSearchPage() {
+export function DBSearchPage({ dashboard }: { dashboard?: Dashboard } = {}) {
+  return (
+    <SearchViewProvider
+      key={dashboard?.id ?? 'search'}
+      dashboardId={dashboard?.id}
+      view={dashboard?.searchView}
+    >
+      <SearchPageContents dashboard={dashboard} />
+    </SearchViewProvider>
+  );
+}
+
+function SearchPageContents({ dashboard }: { dashboard?: Dashboard }) {
   const { canManageShared } = usePermissions();
+  const canEditDashboard = useCanEditDashboard(dashboard);
   const developerUI = useDeveloperUI();
   const brandName = useBrandDisplayName();
   const defaultTimeRange = useDefaultTimeRange('Past 15m');
@@ -1011,7 +1045,9 @@ export function DBSearchPage() {
   // Next router is laggy behind window.location, which causes race
   // conditions with useQueryStates, so we'll parse it directly
   const paths = window.location.pathname.split('/');
-  const savedSearchId = paths.length === 3 ? paths[2] : null;
+  const savedSearchId =
+    dashboard?.id ??
+    (paths.length === 3 && paths[1] === 'search' ? paths[2] : null);
 
   const [rawSearchedConfig, setSearchedConfig] = useQueryStates(queryStateMap);
 
@@ -1033,12 +1069,29 @@ export function DBSearchPage() {
     parseAsStringEncoded,
   );
 
-  const { data: savedSearch } = useSavedSearch(
+  const { data: remoteSavedSearch } = useSavedSearch(
     { id: `${savedSearchId}` },
     {
-      enabled: savedSearchId != null,
+      enabled: savedSearchId != null && !dashboard,
     },
   );
+  const savedSearch = useMemo(
+    () =>
+      dashboard?.searchView
+        ? {
+            ...dashboard.searchView.search,
+            id: dashboard.id,
+            name: dashboard.name,
+            tags: dashboard.tags,
+            createdBy: dashboard.createdBy,
+            updatedBy: dashboard.updatedBy,
+            updatedAt: dashboard.updatedAt,
+          }
+        : remoteSavedSearch,
+    [dashboard, remoteSavedSearch],
+  );
+  const updateDashboard = useUpdateDashboard();
+  const deleteDashboard = useDeleteDashboard();
 
   const { data: sources } = useSources();
   const [lastSelectedSourceId, setLastSelectedSourceId] = useLocalStorage(
@@ -1090,7 +1143,7 @@ export function DBSearchPage() {
   }, [analysisMode, setIsLive]);
 
   const [isFilterSidebarCollapsed, setIsFilterSidebarCollapsed] =
-    useLocalStorage<boolean>('isFilterSidebarCollapsed', false);
+    useSearchViewPreference<boolean>('isFilterSidebarCollapsed', false);
 
   const [requestedDenoiseResults, _setDenoiseResults] = useQueryState(
     'denoise',
@@ -1161,9 +1214,22 @@ export function DBSearchPage() {
       whereLanguage: _savedSearch?.whereLanguage ?? 'lucene',
       source: _savedSearch?.source,
       filters: _savedSearch?.filters ?? [],
-      orderBy: _savedSearch?.orderBy || defaultOrderBy,
+      orderBy: chronologicalSearchOrder(
+        _savedSearch?.orderBy || defaultOrderBy,
+        searchedSource,
+      ),
     };
   }, [searchedSource, inputSource, savedSearch, defaultOrderBy, savedSearchId]);
+  useEffect(() => {
+    const normalized = chronologicalSearchOrder(
+      searchedConfig.orderBy,
+      searchedSource,
+    );
+    if (normalized && normalized !== searchedConfig.orderBy) {
+      setSearchedConfig({ orderBy: normalized });
+      setValue('orderBy', normalized);
+    }
+  }, [searchedConfig.orderBy, searchedSource, setSearchedConfig, setValue]);
 
   // const { data: inputSourceObj } = useSource({ id: inputSource });
   const { data: inputSourceObjs } = useSources();
@@ -1613,10 +1679,31 @@ export function DBSearchPage() {
     parseAsInteger.withDefault(LIVE_TAIL_DURATION_MS),
   );
 
-  const [refreshFrequency, setRefreshFrequency] = useQueryState(
+  const [refreshFrequency] = useQueryState(
     'refreshFrequency',
     parseAsInteger.withDefault(DEFAULT_REFRESH_FREQUENCY),
   );
+
+  const { exportView, saveView } = useSearchDashboardExport({
+    dashboard,
+    name: savedSearch?.name ?? 'Logging dashboard',
+    tags: savedSearch?.tags ?? [],
+    search: {
+      ...chartSearchConfig,
+      select: chartSearchConfig.select || defaultSearchConfig.select || '',
+      orderBy: chartSearchConfig.orderBy || defaultSearchConfig.orderBy,
+    },
+    time: {
+      from: searchedTimeRange[0].getTime(),
+      to: searchedTimeRange[1].getTime(),
+      isLive,
+      liveInterval: interval,
+      refreshFrequency,
+    },
+    analysisMode,
+    patternColumn,
+    denoise: denoiseResults,
+  });
 
   const updateRelativeTimeInputValue = useCallback((interval: number) => {
     const label = getRelativeTimeOptionLabel(interval);
@@ -1634,7 +1721,9 @@ export function DBSearchPage() {
   }, [updateRelativeTimeInputValue, searchedConfig.source, isReady]);
 
   useLiveUpdate({
-    isLive,
+    // Chronological logs load on downward intent. Updating the range on a
+    // timer also reruns histograms and facet counts while the reader is idle.
+    isLive: isLive && searchedSource?.kind !== SourceKind.Log,
     interval,
     refreshFrequency,
     onTimeRangeSelect,
@@ -2127,8 +2216,13 @@ export function DBSearchPage() {
         <Stack mt="lg" mx="xs">
           <Group justify="space-between">
             <Breadcrumbs fz="sm">
-              <Anchor component={Link} href="/search/list" fz="sm" c="dimmed">
-                Saved Searches
+              <Anchor
+                component={Link}
+                href={dashboard ? '/dashboards' : '/search/list'}
+                fz="sm"
+                c="dimmed"
+              >
+                {dashboard ? 'Dashboards' : 'Saved Searches'}
               </Anchor>
               <Text fz="sm" c="dimmed" maw={400} truncate="end">
                 {savedSearch.name}
@@ -2163,9 +2257,17 @@ export function DBSearchPage() {
           <Group justify="space-between" align="flex-end">
             <div data-testid="saved-search-name">
               <EditablePageName
+                canEdit={dashboard ? canEditDashboard : canManageShared}
                 key={savedSearch.id}
                 name={savedSearch?.name ?? 'Untitled Search'}
                 onSave={editedName => {
+                  if (dashboard) {
+                    updateDashboard.mutate({
+                      id: dashboard.id,
+                      name: editedName,
+                    });
+                    return;
+                  }
                   updateSavedSearch.mutate({
                     id: savedSearch.id,
                     name: editedName,
@@ -2175,14 +2277,29 @@ export function DBSearchPage() {
             </div>
 
             <Group gap="xs">
+              {dashboard && <MoveDashboardButton dashboard={dashboard} />}
+              {dashboard && canEditDashboard && !canManageShared && (
+                <Button
+                  variant="secondary"
+                  size="xs"
+                  onClick={() => void saveView()}
+                >
+                  Update dashboard
+                </Button>
+              )}
               <FavoriteButton
-                resourceType="savedSearch"
+                resourceType={dashboard ? 'dashboard' : 'savedSearch'}
                 resourceId={savedSearch.id}
               />
               <Tags
                 allowCreate
+                canEdit={dashboard ? canEditDashboard : canManageShared}
                 values={savedSearch.tags || []}
-                onChange={handleUpdateTags}
+                onChange={
+                  dashboard
+                    ? tags => updateDashboard.mutate({ id: dashboard.id, tags })
+                    : handleUpdateTags
+                }
               >
                 <Button
                   data-testid="tags-button"
@@ -2195,16 +2312,29 @@ export function DBSearchPage() {
                 </Button>
               </Tags>
 
-              <ResourceTerraformPopover
-                resource={{
-                  type: 'saved_search',
-                  id: savedSearch.id,
-                  name: savedSearch.name,
-                }}
-              />
+              {!dashboard && (
+                <ResourceTerraformPopover
+                  resource={{
+                    type: 'saved_search',
+                    id: savedSearch.id,
+                    name: savedSearch.name,
+                  }}
+                />
+              )}
 
               <SearchPageActionBar
+                isDashboard={!!dashboard}
+                canEdit={dashboard ? canEditDashboard : canManageShared}
+                onExport={exportView}
                 onClickDeleteSavedSearch={() => {
+                  if (dashboard) {
+                    deleteDashboard.mutate(dashboard.id, {
+                      onSuccess: () => {
+                        router.push('/dashboards');
+                      },
+                    });
+                    return;
+                  }
                   deleteSavedSearch.mutate(savedSearch?.id ?? '', {
                     onSuccess: () => {
                       router.push('/search/list');
@@ -2296,6 +2426,10 @@ export function DBSearchPage() {
                   variant="secondary"
                   size="xs"
                   onClick={() => {
+                    if (dashboard) {
+                      void saveView();
+                      return;
+                    }
                     setSaveSearchModalState('update');
                   }}
                   style={{ flexShrink: 0 }}
@@ -2303,7 +2437,7 @@ export function DBSearchPage() {
                   Update
                 </Button>
               )}
-              {!IS_LOCAL_MODE && (
+              {!IS_LOCAL_MODE && !dashboard && (
                 <Button
                   data-testid="alerts-button"
                   disabled={!canManageShared}
@@ -2369,26 +2503,6 @@ export function DBSearchPage() {
               width="100%"
               size="xs"
             />
-            {isLive && (
-              <Tooltip label="Live tail refresh interval">
-                <Box style={{ width: 80, minWidth: 80, flexShrink: 0 }}>
-                  <Select
-                    size="xs"
-                    w="100%"
-                    data={LIVE_TAIL_REFRESH_FREQUENCY_OPTIONS}
-                    value={String(refreshFrequency)}
-                    onChange={value =>
-                      setRefreshFrequency(value ? parseInt(value, 10) : null)
-                    }
-                    allowDeselect={false}
-                    comboboxProps={{
-                      withinPortal: true,
-                      zIndex: 1000,
-                    }}
-                  />
-                </Box>
-              </Tooltip>
-            )}
             <SearchSubmitButton isFormStateDirty={formState.isDirty} />
           </Flex>
         </Flex>

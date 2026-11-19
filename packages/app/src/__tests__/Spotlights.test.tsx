@@ -23,6 +23,10 @@ jest.mock('next/router', () => ({
 }));
 jest.mock('../savedSearch');
 jest.mock('../dashboard');
+let mockCanManageShared = true;
+jest.mock('../usePermissions', () => ({
+  usePermissions: () => ({ canManageShared: mockCanManageShared }),
+}));
 
 const mockUseSavedSearches = useSavedSearches as jest.Mock;
 const mockUseDashboards = useDashboards as jest.Mock;
@@ -90,8 +94,26 @@ describe('useSpotlightActions', () => {
   // Reset mocks before each test
   beforeEach(() => {
     jest.clearAllMocks();
+    mockCanManageShared = true;
     mockUseSavedSearches.mockReturnValue(mockSavedSearches);
     mockUseDashboards.mockReturnValue(mockSavedDashboard);
+  });
+  it('shows only dashboard navigation to developers and after a role-view change', () => {
+    const { result, rerender } = renderHook(() => useSpotlightActions());
+    expect(result.current.actions.some(action => action.id === 'search')).toBe(
+      true,
+    );
+    mockCanManageShared = false;
+    rerender();
+    expect(result.current.actions.map(action => action.id)).toEqual([
+      mockSavedDashboard.data[0].id,
+      'dashboards',
+    ]);
+    mockCanManageShared = true;
+    rerender();
+    expect(
+      result.current.actions.some(action => action.id === 'team-settings'),
+    ).toBe(true);
   });
   it('saved searches and dashboards should be loaded', () => {
     const { result } = renderHook(() => useSpotlightActions());

@@ -75,6 +75,7 @@ type AppNavUserMenuProps = {
   onClickUserPreferences?: () => void;
   isViewingAsDeveloper?: boolean;
   onToggleDeveloperView?: () => void;
+  showTeamSettings?: boolean;
 };
 
 const getUserInitials = (userName: string) => {
@@ -94,6 +95,7 @@ export const AppNavUserMenu = ({
   onClickUserPreferences,
   isViewingAsDeveloper,
   onToggleDeveloperView,
+  showTeamSettings = true,
 }: AppNavUserMenuProps) => {
   const { isCollapsed } = React.use(AppNavContext);
   const resolvedUserName = userName.trim() || 'User';
@@ -163,7 +165,7 @@ export const AppNavUserMenu = ({
         )}
         {IS_LOCAL_MODE ? (
           <Menu.Label fz="xs">Local mode</Menu.Label>
-        ) : (
+        ) : showTeamSettings ? (
           <Menu.Item
             data-testid="team-settings-menu-item"
             href="/team"
@@ -172,7 +174,7 @@ export const AppNavUserMenu = ({
           >
             Team Settings
           </Menu.Item>
-        )}
+        ) : null}
         <Menu.Item
           data-testid="user-preferences-menu-item"
           leftSection={<IconUserCog size={16} />}

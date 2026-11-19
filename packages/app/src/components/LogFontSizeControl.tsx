@@ -2,11 +2,11 @@ import { ActionIcon, Group, Text, Tooltip } from '@mantine/core';
 
 import { useUserPreferences } from '@/useUserPreferences';
 
-const FONT_SIZES = [12, 14, 16, 18] as const;
+const FONT_SIZES = [10, 12, 14, 16, 18] as const;
 
 export default function LogFontSizeControl() {
   const {
-    userPreferences: { logFontSize = 14 },
+    userPreferences: { logFontSize = 10 },
     setUserPreference,
   } = useUserPreferences();
   const index = FONT_SIZES.indexOf(logFontSize);

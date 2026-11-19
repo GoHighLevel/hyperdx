@@ -99,15 +99,15 @@ export const RELATIVE_TIME_OPTIONS: (
   ['Last 45 minutes', ms('45m'), true],
   'divider',
   ['Last 1 hour', ms('1h'), true],
-  ['Last 3 hours', ms('3h')],
-  ['Last 6 hours', ms('6h')],
-  ['Last 12 hours', ms('12h')],
+  ['Last 3 hours', ms('3h'), true],
+  ['Last 6 hours', ms('6h'), true],
+  ['Last 12 hours', ms('12h'), true],
   'divider',
-  ['Last 1 days', ms('1d')],
-  ['Last 2 days', ms('2d')],
-  ['Last 7 days', ms('7d')],
-  ['Last 14 days', ms('14d')],
-  ['Last 30 days', ms('30d')],
+  ['Last 1 day', ms('1d'), true],
+  ['Last 2 days', ms('2d'), true],
+  ['Last 7 days', ms('7d'), true],
+  ['Last 14 days', ms('14d'), true],
+  ['Last 30 days', ms('30d'), true],
 ];
 
 export const MONITORING_RELATIVE_TIME_OPTIONS: typeof RELATIVE_TIME_OPTIONS = [

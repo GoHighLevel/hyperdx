@@ -8,6 +8,7 @@ interface IPersonalPinnedFilter {
   user: ObjectId;
   source: ObjectId;
   fields: string[];
+  dismissedFields: string[];
   filters: PinnedFiltersValue;
 }
 
@@ -18,6 +19,7 @@ const schema = new Schema<IPersonalPinnedFilter>(
     user: { type: Schema.Types.ObjectId, ref: 'User', required: true },
     source: { type: Schema.Types.ObjectId, ref: 'Source', required: true },
     fields: { type: [String], default: [] },
+    dismissedFields: { type: [String], default: [] },
     filters: { type: Schema.Types.Mixed, default: {} },
   },
   { timestamps: true },

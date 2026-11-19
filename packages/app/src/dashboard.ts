@@ -33,14 +33,18 @@ export type Tile = {
 
 export type Dashboard = {
   id: string;
+  folderId?: string | null;
+  canEdit?: boolean;
   name: string;
   tiles: Tile[];
+  searchView?: DashboardWithoutId['searchView'];
   tags: string[];
   filters?: DashboardFilter[];
   savedQuery?: string | null;
   savedQueryLanguage?: SearchConditionLanguage | null;
   savedFilterValues?: DashboardFilterValue[];
   savedDateRange?: DashboardWithoutId['savedDateRange'];
+  savedRefreshInterval?: DashboardWithoutId['savedRefreshInterval'];
   containers?: DashboardContainer[];
   createdAt?: string;
   updatedAt?: string;

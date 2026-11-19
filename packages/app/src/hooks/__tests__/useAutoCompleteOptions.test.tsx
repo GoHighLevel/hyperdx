@@ -3,7 +3,7 @@ import { enableMapSet } from 'immer';
 import { JSDataType } from '@hyperdx/common-utils/dist/clickhouse';
 import { Field } from '@hyperdx/common-utils/dist/core/metadata';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { renderHook } from '@testing-library/react';
+import { renderHook, waitFor } from '@testing-library/react';
 
 import { LuceneLanguageFormatter } from '@/components/SearchInput/SearchInputV2';
 import {
@@ -11,7 +11,11 @@ import {
   tokenizeAtCursor,
   useAutoCompleteOptions,
 } from '@/hooks/useAutoCompleteOptions';
-import { useAllFields, useGetKeyValues } from '@/hooks/useMetadata';
+import {
+  useAllFields,
+  useGetKeyValues,
+  useMetadataWithSettings,
+} from '@/hooks/useMetadata';
 
 enableMapSet();
 
@@ -74,6 +78,12 @@ function makeWrapper() {
 }
 
 const luceneFormatter = new LuceneLanguageFormatter();
+
+it('escapes quotes and backslashes when inserting a Lucene value', () => {
+  expect(
+    luceneFormatter.formatKeyValPair('message', 'say "hello" at C:\\logs'),
+  ).toBe('message:"say \\"hello\\" at C:\\\\logs"');
+});
 
 const mockFields: Field[] = [
   {
@@ -142,6 +152,25 @@ describe('useAutoCompleteOptions', () => {
         label: 'TraceAttributes.trace.id (string)',
       },
     ]);
+  });
+
+  it('fetches values only after a field colon, not for each value keystroke', async () => {
+    const metadata = useMetadataWithSettings();
+    const { rerender, result } = renderHook(
+      ({ query }) =>
+        useAutoCompleteOptions(luceneFormatter, query, {
+          tableConnection: mockTableConnection,
+        }),
+      { wrapper, initialProps: { query: 'ResourceAttributes.service.name' } },
+    );
+    expect(metadata.getAllKeyValues).not.toHaveBeenCalled();
+    rerender({ query: 'ResourceAttributes.service.name:' });
+    await waitFor(() =>
+      expect(metadata.getAllKeyValues).toHaveBeenCalledTimes(1),
+    );
+    await waitFor(() => expect(result.current.isLoadingValues).toBe(false));
+    rerender({ query: 'ResourceAttributes.service.name:front' });
+    expect(metadata.getAllKeyValues).toHaveBeenCalledTimes(1);
   });
 
   it('should return key value options with correct lucene formatting', () => {
@@ -425,8 +454,8 @@ describe('tokenizeAtCursor', () => {
       // extend — but there's no closing quote anywhere, so it's unclosed.
       name: 'handles an unclosed quote followed by whitespace then bare text',
       input: 'Service:"hello world',
-      expectedToken: 'world',
-      expectedTokens: ['Service:"hello', 'world'],
+      expectedToken: 'Service:"hello world',
+      expectedTokens: ['Service:"hello world'],
     },
     {
       name: 'handles multiple unclosed quotes across fields',

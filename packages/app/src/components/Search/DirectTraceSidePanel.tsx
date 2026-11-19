@@ -22,6 +22,11 @@ interface DirectTraceSidePanelProps {
   keepOpenSelector?: string;
 }
 
+export type TraceSidePanelSelection = Pick<
+  DirectTraceSidePanelProps,
+  'traceId' | 'traceSourceId' | 'dateRange' | 'focusDate'
+>;
+
 export default function DirectTraceSidePanel({
   opened,
   traceId,

@@ -189,15 +189,21 @@ export const UserPreferencesModal = ({
         >
           <Select
             aria-label="Log font size"
-            value={String(userPreferences.logFontSize ?? 14)}
-            data={['12', '14', '16', '18'].map(value => ({
+            value={String(userPreferences.logFontSize ?? 10)}
+            data={['10', '12', '14', '16', '18'].map(value => ({
               value,
               label: `${value}px`,
             }))}
             allowDeselect={false}
             onChange={value => {
               const size = Number(value);
-              if (size === 12 || size === 14 || size === 16 || size === 18) {
+              if (
+                size === 10 ||
+                size === 12 ||
+                size === 14 ||
+                size === 16 ||
+                size === 18
+              ) {
                 setUserPreference({ logFontSize: size });
               }
             }}

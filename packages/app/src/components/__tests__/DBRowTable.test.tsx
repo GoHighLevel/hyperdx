@@ -1,3 +1,4 @@
+import { JSDataType } from '@hyperdx/common-utils/dist/clickhouse';
 import { MantineProvider } from '@mantine/core';
 import { fireEvent, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -15,6 +16,10 @@ jest.mock('@/usePermissions', () => ({
 }));
 
 const mockRowWhereResult: RowWhereResult = { where: '', aliasWith: [] };
+jest.mock('@/api', () => ({
+  __esModule: true,
+  default: { useMe: () => ({ data: { email: 'test@example.com' } }) },
+}));
 
 jest.mock('nuqs', () => ({
   ...jest.requireActual('nuqs'),
@@ -221,6 +226,42 @@ describe('RawLogTable', () => {
 
     beforeEach(() => {
       window.localStorage.clear();
+    });
+
+    it('places compact severity before time despite saved widths and preserves its sort field', async () => {
+      window.localStorage.setItem(
+        'severity-column-sizes',
+        JSON.stringify({ log_level: 180 }),
+      );
+      const onSortingChange = jest.fn();
+      const { container } = renderWithMantine(
+        <RawLogTable
+          {...baseProps}
+          tableId="severity"
+          displayedColumns={['timestamp', 'log', 'log_level']}
+          rows={[
+            {
+              timestamp: '2026-09-15T12:00:00Z',
+              log: 'Request completed',
+              log_level: 'error',
+            },
+          ]}
+          columnTypeMap={new Map([['timestamp', { _type: JSDataType.Date }]])}
+          enableSorting
+          onSortingChange={onSortingChange}
+        />,
+      );
+      const headers = container.querySelectorAll('th');
+      expect(headers[0]).toHaveTextContent('Severity');
+      expect(headers[0].style.width).toBe('32px');
+      expect(headers[0].querySelector('.resizer')).toBeNull();
+      expect(headers[1]).toHaveTextContent('timestamp');
+      await userEvent.click(
+        screen.getAllByTestId('raw-log-table-sort-button')[0],
+      );
+      expect(onSortingChange).toHaveBeenCalledWith([
+        { id: 'log_level', desc: false },
+      ]);
     });
 
     it('applies stored column width when tableId is provided', () => {

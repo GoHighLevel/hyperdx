@@ -865,8 +865,7 @@ export function DBTraceWaterfallChartContainer({
 
     for (const result of rows ?? []) {
       const { type, SpanId, ParentSpanId } = result;
-      // ignore everything without spanId
-      if (!SpanId) continue;
+      if (type === SourceKind.Trace && !SpanId) continue;
 
       // log have duplicate span id, tag it with -log
       const nodeSpanId = type === SourceKind.Log ? `${SpanId}-log` : SpanId; // prevent log spanId overwrite trace spanId
@@ -898,10 +897,8 @@ export function DBTraceWaterfallChartContainer({
         nodesMap.set(result.id, curNode);
       }
 
-      // root if: is trace event, and (has no parent or parent id is not valid)
       const isRootNode =
-        type === SourceKind.Trace &&
-        (!nodeParentSpanId || !validSpanIDs.has(nodeParentSpanId));
+        !nodeParentSpanId || !validSpanIDs.has(nodeParentSpanId);
 
       if (isRootNode) {
         rootNodes.push(curNode);
@@ -1485,6 +1482,12 @@ export function DBTraceWaterfallChartContainer({
           </span>
         </Group>
       </Group>
+      {!isFetching && !error && traceRowsData.length === 0 && logCount > 0 && (
+        <Text size="xs" c="dimmed" mb="xs" role="status">
+          No stored spans found in this source and time range. Showing
+          correlated logs; a trace ID alone does not guarantee stored spans.
+        </Text>
+      )}
       {!isFetching && !error && highlightedAttributeValues?.length > 0 && (
         <DBHighlightedAttributesList attributes={highlightedAttributeValues} />
       )}

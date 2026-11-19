@@ -1,5 +1,14 @@
 const env = process.env;
 
+// Disabled until an operator configures an internal Google Workspace OAuth client.
+export const GOOGLE_CLIENT_ID = env.GOOGLE_CLIENT_ID ?? '';
+export const GOOGLE_CLIENT_SECRET = env.GOOGLE_CLIENT_SECRET ?? '';
+export const GOOGLE_REDIRECT_URI = env.GOOGLE_REDIRECT_URI ?? '';
+export const GOOGLE_WORKSPACE_TEAM_ID = env.GOOGLE_WORKSPACE_TEAM_ID ?? '';
+export const GOOGLE_WORKSPACE_DOMAIN = (env.GOOGLE_WORKSPACE_DOMAIN ?? '')
+  .trim()
+  .toLowerCase();
+
 // Legacy bootstrap only: imported into MongoDB once per existing team.
 // Runtime role changes are managed in Team settings.
 export const HYPERDX_ADMIN_EMAILS = (env.HYPERDX_ADMIN_EMAILS ?? '')

@@ -1,0 +1,116 @@
+.content {
+  display: grid;
+  grid-template-columns: 20px var(--log-summary-time-width, 22ch) minmax(0, 1fr);
+  align-items: start;
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+  padding: 4px 8px 4px 0;
+  color: var(--color-text);
+  font-size: var(--log-font-size, 10px);
+  font-family: var(--font-roboto-mono, var(--font-ibm-plex-mono)), monospace;
+  line-height: 1.7;
+}
+
+.heading {
+  align-items: center;
+  text-align: left;
+  font-weight: 500;
+}
+
+.headingLabel {
+  font-family: var(--font-roboto, var(--font-inter)), sans-serif;
+  color: var(--color-text-muted);
+}
+
+.time {
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+.flow {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+.flow[data-wrap='false'] {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.chip {
+  display: inline-flex;
+  vertical-align: baseline;
+  max-width: 100%;
+  margin-right: 7px;
+  padding: 0 8px;
+  border-radius: 12px;
+  background: var(--color-bg-muted);
+  color: var(--color-text);
+  white-space: inherit;
+}
+
+.chip[data-kind='deployment_name'] {
+  background: var(--color-bg-info-subtle);
+  color: var(--color-text-info);
+}
+
+.message {
+  white-space: inherit;
+}
+
+.rangeFooter {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: max(39px, calc(var(--log-font-size, 10px) * 1.7 + 8px));
+  padding: 4px 8px;
+  background: var(--color-bg-info-subtle);
+  color: var(--color-text-info);
+  font-family: var(--font-roboto, var(--font-inter)), sans-serif;
+  font-size: var(--log-font-size, 10px);
+  line-height: 1.7;
+  white-space: nowrap;
+
+  svg {
+    flex-shrink: 0;
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--color-text-info);
+    outline-offset: -2px;
+  }
+}
+
+.rangeLabel {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.traceAction.traceAction {
+  display: inline-flex;
+  vertical-align: middle;
+  width: 28px;
+  height: 24px;
+  min-height: 24px;
+  min-width: 28px;
+  margin-right: 7px;
+  border-radius: 12px;
+  background: var(--color-bg-info-subtle);
+  color: var(--color-text-info);
+}
+
+@media (width <= 600px) {
+  .content {
+    grid-template-columns: 20px minmax(0, 1fr);
+  }
+
+  .flow {
+    grid-column: 2;
+  }
+}

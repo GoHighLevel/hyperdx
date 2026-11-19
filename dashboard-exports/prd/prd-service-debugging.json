@@ -1,0 +1,324 @@
+{
+  "version": "0.1.0",
+  "savedRefreshInterval": 30,
+  "savedDateRange": {
+    "type": "relative",
+    "value": 900
+  },
+  "savedFilterValues": [
+    {
+      "type": "variable",
+      "name": "cluster",
+      "values": [
+        "servers-usc1-prd-cluster"
+      ]
+    },
+    {
+      "type": "variable",
+      "name": "namespace",
+      "values": [
+        "default"
+      ]
+    },
+    {
+      "type": "variable",
+      "name": "deployment",
+      "values": [
+        "store-api"
+      ]
+    }
+  ],
+  "name": "01 · P0 overview — Production",
+  "description": "P0 first-response view: six aligned trends for traffic, errors, latency, serving capacity, restarts and CPU throttling. Metrics only, no log-table scans. Rolling last 15m with 30s refresh. Capacity and request investigation are separate linked dashboards.",
+  "tags": [
+    "production",
+    "incident-response",
+    "overview"
+  ],
+  "filters": [
+    {
+      "id": "filter-cluster",
+      "name": "Cluster",
+      "variableName": "cluster",
+      "type": "PROMETHEUS_LABEL",
+      "source": "Production Metrics",
+      "label": "cluster",
+      "match": "kube_deployment_created",
+      "isBroadcastEnabled": false,
+      "isVariableEnabled": true,
+      "minSelections": 1,
+      "isGlobalRequirement": true
+    },
+    {
+      "id": "filter-namespace",
+      "name": "Namespace",
+      "variableName": "namespace",
+      "type": "PROMETHEUS_LABEL",
+      "source": "Production Metrics",
+      "label": "namespace",
+      "match": "kube_deployment_created{cluster=~\"${cluster:regex}\"}",
+      "isBroadcastEnabled": false,
+      "isVariableEnabled": true,
+      "minSelections": 1,
+      "isGlobalRequirement": true
+    },
+    {
+      "id": "filter-deployment",
+      "name": "Deployment",
+      "variableName": "deployment",
+      "type": "PROMETHEUS_LABEL",
+      "source": "Production Metrics",
+      "label": "deployment",
+      "match": "kube_deployment_created{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\"}",
+      "isBroadcastEnabled": false,
+      "isVariableEnabled": true,
+      "minSelections": 1,
+      "isGlobalRequirement": true
+    }
+  ],
+  "containers": [
+    {
+      "id": "start",
+      "title": "Start here",
+      "collapsed": false
+    },
+    {
+      "id": "impact",
+      "title": "Impact and serving capacity",
+      "collapsed": false
+    }
+  ],
+  "tiles": [
+    {
+      "id": "suite-navigation",
+      "containerId": "start",
+      "x": 0,
+      "y": 0,
+      "w": 24,
+      "h": 6,
+      "config": {
+        "name": "Debugging workflow",
+        "displayType": "markdown",
+        "source": "",
+        "select": [],
+        "where": "",
+        "whereLanguage": "sql",
+        "markdown": "[01 · P0 overview](https://hyperdx.platform.prd.msgsndr.net/dashboards/6aa7af64466e0dad178178c4) · [02 · Capacity and startup](https://hyperdx.platform.prd.msgsndr.net/dashboards/e8ec27ebca8ec9510cc54010) · [03 · Request investigation](https://hyperdx.platform.prd.msgsndr.net/dashboards/8da8d7cbb9ebeb140a048e6f)\n\n**Start here:** assess request volume, error rate, latency and serving capacity. Use Capacity for scheduling/startup/saturation; use Request investigation for routes, logs and trace-ID correlation. Gateway rates and histogram windows are 5m; restarts use a rolling 15m window. Use the shared time axis to compare changes. Ready means readiness checks pass; Available also satisfies the deployment’s minimum ready duration. Neither guarantees request success. Pod lifecycle and application-container states are in Capacity. Missing telemetry is not zero.\n\nNavigation opens the saved view of the destination; it does not automatically carry unsaved filters or time. **Contacts incident · 12 September, 8:25–10:25 PM IST:** [Overview](https://hyperdx.platform.prd.msgsndr.net/dashboards/6aa7af64466e0dad178178c4?granularity=30+second&filters=%255B%257B%2522type%2522%253A%2522variable%2522%252C%2522name%2522%253A%2522cluster%2522%252C%2522values%2522%253A%255B%2522servers-usc1-prd-cluster%2522%255D%257D%252C%257B%2522type%2522%253A%2522variable%2522%252C%2522name%2522%253A%2522namespace%2522%252C%2522values%2522%253A%255B%2522default%2522%255D%257D%252C%257B%2522type%2522%253A%2522variable%2522%252C%2522name%2522%253A%2522deployment%2522%252C%2522values%2522%253A%255B%2522contacts-get-internal-api%2522%255D%257D%255D&from=1789224900000&to=1789232100000) · [Capacity](https://hyperdx.platform.prd.msgsndr.net/dashboards/e8ec27ebca8ec9510cc54010?granularity=30+second&filters=%255B%257B%2522type%2522%253A%2522variable%2522%252C%2522name%2522%253A%2522cluster%2522%252C%2522values%2522%253A%255B%2522servers-usc1-prd-cluster%2522%255D%257D%252C%257B%2522type%2522%253A%2522variable%2522%252C%2522name%2522%253A%2522namespace%2522%252C%2522values%2522%253A%255B%2522default%2522%255D%257D%252C%257B%2522type%2522%253A%2522variable%2522%252C%2522name%2522%253A%2522deployment%2522%252C%2522values%2522%253A%255B%2522contacts-get-internal-api%2522%255D%257D%255D&from=1789224900000&to=1789232100000) · [Requests](https://hyperdx.platform.prd.msgsndr.net/dashboards/8da8d7cbb9ebeb140a048e6f?granularity=30+second&filters=%255B%257B%2522type%2522%253A%2522variable%2522%252C%2522name%2522%253A%2522cluster%2522%252C%2522values%2522%253A%255B%2522servers-usc1-prd-cluster%2522%255D%257D%252C%257B%2522type%2522%253A%2522variable%2522%252C%2522name%2522%253A%2522namespace%2522%252C%2522values%2522%253A%255B%2522default%2522%255D%257D%252C%257B%2522type%2522%253A%2522variable%2522%252C%2522name%2522%253A%2522deployment%2522%252C%2522values%2522%253A%255B%2522contacts-get-internal-api%2522%255D%257D%255D&from=1789224900000&to=1789232100000). These replay links keep the same service and time window."
+      }
+    },
+    {
+      "id": "overview-traffic",
+      "containerId": "impact",
+      "x": 0,
+      "y": 0,
+      "w": 12,
+      "h": 8,
+      "config": {
+        "name": "Gateway RPM · total / 2xx / 5xx · 5m rate",
+        "configType": "promql",
+        "displayType": "line",
+        "source": "Production Metrics",
+        "connection": "Production Metrics Querier",
+        "promqlExpression": "label_replace((sum(rate(istio_requests_total{cluster=~\"${cluster:regex}\",reporter=\"source\",source_workload=~\"istio-ingress.*\",destination_service_namespace=~\"${namespace:regex}\",destination_service_name=~\"${deployment:regex}-service\"}[5m])) * 60), \"series\", \"All requests\", \"\", \"\") or label_replace((sum(rate(istio_requests_total{cluster=~\"${cluster:regex}\",reporter=\"source\",source_workload=~\"istio-ingress.*\",destination_service_namespace=~\"${namespace:regex}\",destination_service_name=~\"${deployment:regex}-service\",response_code=~\"2..\"}[5m])) * 60), \"series\", \"HTTP 2xx\", \"\", \"\") or label_replace((sum(rate(istio_requests_total{cluster=~\"${cluster:regex}\",reporter=\"source\",source_workload=~\"istio-ingress.*\",destination_service_namespace=~\"${namespace:regex}\",destination_service_name=~\"${deployment:regex}-service\",response_code=~\"5..\"}[5m])) * 60), \"series\", \"HTTP 5xx\", \"\", \"\")",
+        "fillNulls": false,
+        "numberFormat": {
+          "output": "number",
+          "mantissa": 1,
+          "thousandSeparated": true,
+          "unit": "req/min"
+        },
+        "granularity": "1 minute",
+        "seriesLimit": 20,
+        "legendTemplate": "{{series}}"
+      }
+    },
+    {
+      "id": "pod-replica-trend",
+      "containerId": "impact",
+      "x": 12,
+      "y": 0,
+      "w": 12,
+      "h": 8,
+      "config": {
+        "name": "Serving readiness · desired / ready / available",
+        "configType": "promql",
+        "displayType": "line",
+        "source": "Production Metrics",
+        "connection": "Production Metrics Querier",
+        "promqlExpression": "label_replace((sum(max by (cluster,namespace,deployment) (kube_deployment_spec_replicas{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",deployment=~\"${deployment:regex}\"}))), \"series\", \"Desired\", \"\", \"\") or label_replace((sum(max by (cluster,namespace,deployment) (kube_deployment_status_replicas_ready{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",deployment=~\"${deployment:regex}\"}))), \"series\", \"Ready\", \"\", \"\") or label_replace((sum(max by (cluster,namespace,deployment) (kube_deployment_status_replicas_available{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",deployment=~\"${deployment:regex}\"}))), \"series\", \"Available\", \"\", \"\")",
+        "fillNulls": false,
+        "numberFormat": {
+          "output": "number",
+          "mantissa": 0,
+          "thousandSeparated": true
+        },
+        "granularity": "1 minute",
+        "seriesLimit": 40,
+        "legendTemplate": "{{series}}"
+      }
+    },
+    {
+      "id": "incident-error-trend",
+      "containerId": "impact",
+      "x": 0,
+      "y": 8,
+      "w": 12,
+      "h": 8,
+      "config": {
+        "name": "Gateway 4xx / 5xx · traffic weighted",
+        "configType": "promql",
+        "displayType": "line",
+        "source": "Production Metrics",
+        "connection": "Production Metrics Querier",
+        "promqlExpression": "label_replace((100 * (sum(rate(istio_requests_total{cluster=~\"${cluster:regex}\",reporter=\"source\",source_workload=~\"istio-ingress.*\",destination_service_namespace=~\"${namespace:regex}\",destination_service_name=~\"${deployment:regex}-service\",response_code=~\"4..\"}[5m])) or (sum(rate(istio_requests_total{cluster=~\"${cluster:regex}\",reporter=\"source\",source_workload=~\"istio-ingress.*\",destination_service_namespace=~\"${namespace:regex}\",destination_service_name=~\"${deployment:regex}-service\"}[5m])) * 0)) / (sum(rate(istio_requests_total{cluster=~\"${cluster:regex}\",reporter=\"source\",source_workload=~\"istio-ingress.*\",destination_service_namespace=~\"${namespace:regex}\",destination_service_name=~\"${deployment:regex}-service\"}[5m])) > 0)), \"series\", \"4xx\", \"\", \"\") or label_replace((100 * (sum(rate(istio_requests_total{cluster=~\"${cluster:regex}\",reporter=\"source\",source_workload=~\"istio-ingress.*\",destination_service_namespace=~\"${namespace:regex}\",destination_service_name=~\"${deployment:regex}-service\",response_code=~\"5..\"}[5m])) or (sum(rate(istio_requests_total{cluster=~\"${cluster:regex}\",reporter=\"source\",source_workload=~\"istio-ingress.*\",destination_service_namespace=~\"${namespace:regex}\",destination_service_name=~\"${deployment:regex}-service\"}[5m])) * 0)) / (sum(rate(istio_requests_total{cluster=~\"${cluster:regex}\",reporter=\"source\",source_workload=~\"istio-ingress.*\",destination_service_namespace=~\"${namespace:regex}\",destination_service_name=~\"${deployment:regex}-service\"}[5m])) > 0)), \"series\", \"5xx\", \"\", \"\")",
+        "numberFormat": {
+          "output": "number",
+          "mantissa": 1,
+          "thousandSeparated": true,
+          "unit": ""
+        },
+        "fillNulls": false,
+        "color": "chart-gray",
+        "colorRules": [
+          {
+            "operator": "eq",
+            "value": 0,
+            "color": "chart-success"
+          },
+          {
+            "operator": "gt",
+            "value": 0,
+            "color": "chart-warning"
+          },
+          {
+            "operator": "gte",
+            "value": 3,
+            "color": "chart-error"
+          }
+        ],
+        "granularity": "1 minute"
+      }
+    },
+    {
+      "id": "incident-latency-trend",
+      "containerId": "impact",
+      "x": 12,
+      "y": 8,
+      "w": 12,
+      "h": 8,
+      "config": {
+        "name": "App worst route P95 / P99 · 5m histogram",
+        "configType": "promql",
+        "displayType": "line",
+        "source": "Production Metrics",
+        "connection": "Production Metrics Querier",
+        "promqlExpression": "label_replace((max(histogram_quantile(0.95, sum by (le,cluster,namespace,team,sub_team,tier,container,route) (rate(http_request_duration_seconds_bucket{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",container=~\"${deployment:regex}\",route=~\".*\"}[5m])))) * 1000), \"series\", \"P95\", \"\", \"\") or label_replace((max(histogram_quantile(0.99, sum by (le,cluster,namespace,team,sub_team,tier,container,route) (rate(http_request_duration_seconds_bucket{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",container=~\"${deployment:regex}\",route=~\".*\"}[5m])))) * 1000), \"series\", \"P99\", \"\", \"\")",
+        "numberFormat": {
+          "output": "number",
+          "mantissa": 1,
+          "thousandSeparated": true,
+          "unit": "ms"
+        },
+        "fillNulls": false,
+        "granularity": "1 minute",
+        "seriesLimit": 20,
+        "legendTemplate": "{{series}}"
+      }
+    },
+    {
+      "id": "overview-restarts",
+      "containerId": "impact",
+      "x": 0,
+      "y": 16,
+      "w": 12,
+      "h": 8,
+      "config": {
+        "name": "Application pod restarts · rolling 15m",
+        "configType": "promql",
+        "displayType": "line",
+        "source": "Production Metrics",
+        "connection": "Production Metrics Querier",
+        "promqlExpression": "sum(max by (cluster, namespace, pod, container) (increase(kube_pod_container_status_restarts_total{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",pod=~\"${deployment:regex}-[a-z0-9]+-[a-z0-9]+\",pod=~\".*\"}[15m])))",
+        "numberFormat": {
+          "output": "number",
+          "mantissa": 1,
+          "thousandSeparated": true,
+          "unit": ""
+        },
+        "granularity": "1 minute",
+        "seriesLimit": 20,
+        "legendTemplate": "{{series}}"
+      }
+    },
+    {
+      "id": "overview-throttling",
+      "containerId": "impact",
+      "x": 12,
+      "y": 16,
+      "w": 12,
+      "h": 8,
+      "config": {
+        "name": "CPU scheduling periods throttled · workload",
+        "configType": "promql",
+        "displayType": "line",
+        "source": "Production Metrics",
+        "connection": "Production Metrics Querier",
+        "promqlExpression": "100 * sum (max by (cluster,namespace,pod,container) (rate(container_cpu_cfs_throttled_periods_total{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",pod=~\"${deployment:regex}-[a-z0-9]+-[a-z0-9]+\",pod=~\".*\",container!=\"\",container!=\"POD\"}[5m]))) / (sum (max by (cluster,namespace,pod,container) (rate(container_cpu_cfs_periods_total{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",pod=~\"${deployment:regex}-[a-z0-9]+-[a-z0-9]+\",pod=~\".*\",container!=\"\",container!=\"POD\"}[5m]))) > 0)",
+        "numberFormat": {
+          "output": "number",
+          "mantissa": 1,
+          "thousandSeparated": true,
+          "unit": "%"
+        },
+        "fillNulls": false,
+        "granularity": "1 minute",
+        "seriesLimit": 20,
+        "legendTemplate": ""
+      }
+    },
+    {
+      "id": "capacity-restarts",
+      "containerId": "capacity-delivery",
+      "x": 12,
+      "y": 25,
+      "w": 12,
+      "h": 8,
+      "config": {
+        "name": "Application restarts · rolling 5m",
+        "configType": "promql",
+        "displayType": "line",
+        "source": "Production Metrics",
+        "connection": "Production Metrics Querier",
+        "promqlExpression": "sum(max by (cluster,namespace,pod,container) (increase(kube_pod_container_status_restarts_total{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",pod=~\"${deployment:regex}-[a-z0-9]+-[a-z0-9]+\",container=~\"${deployment:regex}\"}[5m])))",
+        "fillNulls": false,
+        "numberFormat": {
+          "output": "number",
+          "mantissa": 1,
+          "thousandSeparated": true,
+          "unit": "%"
+        },
+        "fillNulls": false,
+        "granularity": "1 minute",
+        "seriesLimit": 20,
+        "legendTemplate": ""
+      }
+    },
+    {
+      "id": "capacity-guide",
+      "containerId": "capacity-delivery",
+      "x": 0,
+      "y": 33,
+      "w": 24,
+      "h": 14,
+      "config": {
+        "name": "Capacity diagnosis and incident evidence",
+        "displayType": "markdown",
+        "source": "",
+        "select": [],
+        "where": "",
+        "whereLanguage": "sql",
+        "markdown": "**Scope:** All charts in this section use the selected Cluster / Namespace / Deployment. Pod, API route, severity and trace filters do not narrow this section. Application-container charts match the container name to the deployment name. Nodes are those hosting the selected workload, not the entire cluster.\n\n**Read the gaps:** Desired > Created: controller/pod creation. Created > Scheduled: scheduling. Scheduled > Running: initialization/startup. Running pods > Running app containers: containers stopped or restarting. Running > Ready: health-check failure or startup. Pending includes both unscheduled and already scheduled pods; use the waiting-reason chart and events to distinguish them. Oldest pending age includes all time since creation, not measured scheduler or image-download latency.\n\n**Counting:** Pod states use ReplicaSet ownership and exclude terminating/terminal pods; duplicate scrape series are deduplicated. Deployment Created/Ready/Available use controller status. Rollout surge can exceed Desired. Restart estimates include recently removed pods, use a rolling 5m window and may be fractional. Sparse waiting/error series stay unavailable rather than being fabricated as zeros. A Running pod is not necessarily healthy.\n\n**Timing:** RPM uses a trailing 2m window, while replica counts are sampled states. Do not divide rolling RPM by an instantaneous ready count as measured per-pod throughput. Metric collection can lag events and miss short scheduling failures. Newly registered nodes prove node registration, not that the cloud autoscaler was the cause of creation; confirm the event log.\n\n**Incident evidence · 12 September 2026 (IST):** At 8:33 PM: 57 desired/created/scheduled, 35 Running, 2 Ready. At 8:40: 63 Running, 15 Ready. At 10:08: 100 Running, 8 Ready. First 22 added pods were scheduled in 12–52 seconds on newly registered nodes. Pod 6vj9z's pull step took 4m45.39s including waiting; only 269ms was reported as pull execution. This exact duration comes from GKE events, not these metrics.\n\n[Replay incident in HyperDX](https://hyperdx.platform.prd.msgsndr.net/dashboards/6aa7a14a466e0dad1781775b?granularity=1+minute&filters=%255B%257B%2522type%2522%253A%2522variable%2522%252C%2522name%2522%253A%2522cluster%2522%252C%2522values%2522%253A%255B%2522servers-usc1-prd-cluster%2522%255D%257D%252C%257B%2522type%2522%253A%2522variable%2522%252C%2522name%2522%253A%2522namespace%2522%252C%2522values%2522%253A%255B%2522default%2522%255D%257D%252C%257B%2522type%2522%253A%2522variable%2522%252C%2522name%2522%253A%2522deployment%2522%252C%2522values%2522%253A%255B%2522contacts-get-internal-api%2522%255D%257D%255D&from=1789224900000&to=1789231800000&expanded=capacity-delivery&collapsed=health%2Cautoscaling%2Cincident%2Clogs%2Ctraces%2Cinfrastructure%2Cgateway-triage%2Cendpoint-detail)\n\nGKE event evidence is in Cloud Logging; no event-log ingestion into HyperDX is asserted:\n\n[Scheduling and node scale-up](https://console.cloud.google.com/logs/query;query=log_id%28%22events%22%29%0Aresource.labels.cluster_name%3D%22servers-usc1-prd-cluster%22%0AjsonPayload.involvedObject.name%3D~%22%5Econtacts-get-internal-api-%22%0AjsonPayload.reason%3D%28%22FailedScheduling%22%20OR%20%22Scheduled%22%20OR%20%22TriggeredScaleUp%22%29;startTime=2026-09-12T15:00:00Z;endTime=2026-09-12T15:11:00Z?project=highlevel-backend) · [Image-pull delay · pod 6vj9z](https://console.cloud.google.com/logs/query;query=log_id%28%22events%22%29%0Aresource.labels.cluster_name%3D%22servers-usc1-prd-cluster%22%0AjsonPayload.involvedObject.name%3D~%22%5Econtacts-get-internal-api-%22%0AjsonPayload.involvedObject.name%3D%22contacts-get-internal-api-85db944fb-6vj9z%22%0AjsonPayload.reason%3D%28%22Pulling%22%20OR%20%22Pulled%22%20OR%20%22Started%22%29;startTime=2026-09-12T15:00:00Z;endTime=2026-09-12T15:11:00Z?project=highlevel-backend) · [Liveness-triggered restart](https://console.cloud.google.com/logs/query;query=log_id%28%22events%22%29%0Aresource.labels.cluster_name%3D%22servers-usc1-prd-cluster%22%0AjsonPayload.involvedObject.name%3D~%22%5Econtacts-get-internal-api-%22%0AjsonPayload.involvedObject.name%3D%22contacts-get-internal-api-85db944fb-488q5%22%0AjsonPayload.reason%3D%22Killing%22;startTime=2026-09-12T15:00:00Z;endTime=2026-09-12T15:11:00Z?project=highlevel-backend)"
+      }
+    }
+  ]
+}

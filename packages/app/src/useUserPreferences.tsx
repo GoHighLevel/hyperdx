@@ -12,7 +12,7 @@ export type UserPreferences = {
   colorMode: ColorModePreference;
   font: 'IBM Plex Mono' | 'Roboto Mono' | 'Inter' | 'Roboto';
   expandSidebarHeader?: boolean;
-  logFontSize?: 12 | 14 | 16 | 18;
+  logFontSize?: 10 | 12 | 14 | 16 | 18;
 };
 
 // Legacy type for migration

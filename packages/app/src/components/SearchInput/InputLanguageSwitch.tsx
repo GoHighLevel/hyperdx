@@ -1,6 +1,8 @@
 import { Select } from '@mantine/core';
 import { IconChevronDown } from '@tabler/icons-react';
 
+import { usePermissions } from '@/usePermissions';
+
 type Language = 'sql' | 'lucene';
 
 const DATA: { value: Language; label: string }[] = [
@@ -15,6 +17,9 @@ export default function InputLanguageSwitch({
   language: Language;
   onLanguageChange: (language: Language) => void;
 }) {
+  const { canManageShared } = usePermissions();
+  if (!canManageShared) return null;
+
   return (
     <Select
       size="xs"

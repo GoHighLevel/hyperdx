@@ -1,0 +1,172 @@
+{
+  "version": "0.1.0",
+  "name": "HyperDX adoption and usage — Production",
+  "description": "Usage reporting from authenticated HyperDX API logs. Counts query requests, including automatic refreshes; search/filter text is recovered from the originating page URL. Registered-user totals are omitted until a live data source is available. Production namespace: hyperdx-platform-prd. Uses authenticated API logs from prod_logs.fluentLogsPlatformCluster, which contains the platform cluster hosting HyperDX. The all-clusters view excludes this cluster. Empty input returns no metric rather than a zero-adoption claim. Counts cover ClickHouse requests; PromQL requests are not counted.",
+  "tags": [
+    "hyperdx",
+    "management",
+    "production"
+  ],
+  "savedDateRange": {
+    "type": "relative",
+    "value": 86400
+  },
+  "tiles": [
+    {
+      "id": "active-users",
+      "x": 0,
+      "y": 0,
+      "w": 6,
+      "h": 6,
+      "config": {
+        "name": "Users with activity",
+        "displayType": "number",
+        "configType": "sql",
+        "connection": "ClickHouse Cloud",
+        "sqlTemplate": "WITH\n  substring(log, position(log, '{')) AS event,\n  lowerUTF8(JSONExtractString(event, 'userEmail')) AS user_email,\n  JSONExtractString(event, 'req', 'headers', 'referer') AS page_url,\n  JSONExtractString(event, 'req', 'url') AS request_url,\n  JSONExtractString(event, 'req', 'headers', 'x-request-id') AS request_id,\n  if(request_id != '', request_id, concat(JSONExtractString(event, 'hostname'), ':', toString(JSONExtractUInt(event, 'time')), ':', toString(JSONExtractUInt(event, 'req', 'id')))) AS event_id,\n  startsWith(request_url, '/clickhouse-proxy') AS is_query,\n  decodeURLComponent(decodeURLComponent(extractURLParameter(page_url, 'where'))) AS search_text,\n  decodeURLComponent(decodeURLComponent(extractURLParameter(page_url, 'source'))) AS source_id,\n  decodeURLComponent(extractURLParameter(page_url, 'whereLanguage')) AS query_language,\n  decodeURLComponent(decodeURLComponent(extractURLParameter(page_url, 'filters'))) AS structured_filters\nSELECT uniqExact(user_email) AS Users\nFROM prod_logs.fluentLogsPlatformCluster\nWHERE timestamp >= fromUnixTimestamp64Milli({startDateMilliseconds:Int64})\n  AND timestamp <= fromUnixTimestamp64Milli({endDateMilliseconds:Int64})\n  AND namespace_name = 'hyperdx-platform-prd'\n  AND container_name = 'app'\n  AND startsWith(log, '[API] ')\n  AND user_email != ''\n  AND startsWith(JSONExtractString(event, 'msg'), 'HTTP ')\nHAVING count() > 0"
+      }
+    },
+    {
+      "id": "query-requests",
+      "x": 6,
+      "y": 0,
+      "w": 6,
+      "h": 6,
+      "config": {
+        "name": "Query requests",
+        "displayType": "number",
+        "configType": "sql",
+        "connection": "ClickHouse Cloud",
+        "sqlTemplate": "WITH\n  substring(log, position(log, '{')) AS event,\n  lowerUTF8(JSONExtractString(event, 'userEmail')) AS user_email,\n  JSONExtractString(event, 'req', 'headers', 'referer') AS page_url,\n  JSONExtractString(event, 'req', 'url') AS request_url,\n  JSONExtractString(event, 'req', 'headers', 'x-request-id') AS request_id,\n  if(request_id != '', request_id, concat(JSONExtractString(event, 'hostname'), ':', toString(JSONExtractUInt(event, 'time')), ':', toString(JSONExtractUInt(event, 'req', 'id')))) AS event_id,\n  startsWith(request_url, '/clickhouse-proxy') AS is_query,\n  decodeURLComponent(decodeURLComponent(extractURLParameter(page_url, 'where'))) AS search_text,\n  decodeURLComponent(decodeURLComponent(extractURLParameter(page_url, 'source'))) AS source_id,\n  decodeURLComponent(extractURLParameter(page_url, 'whereLanguage')) AS query_language,\n  decodeURLComponent(decodeURLComponent(extractURLParameter(page_url, 'filters'))) AS structured_filters\nSELECT uniqExactIf(event_id, is_query) AS Requests\nFROM prod_logs.fluentLogsPlatformCluster\nWHERE timestamp >= fromUnixTimestamp64Milli({startDateMilliseconds:Int64})\n  AND timestamp <= fromUnixTimestamp64Milli({endDateMilliseconds:Int64})\n  AND namespace_name = 'hyperdx-platform-prd'\n  AND container_name = 'app'\n  AND startsWith(log, '[API] ')\n  AND user_email != ''\n  AND startsWith(JSONExtractString(event, 'msg'), 'HTTP ')\nHAVING count() > 0"
+      }
+    },
+    {
+      "id": "unique-searches",
+      "x": 12,
+      "y": 0,
+      "w": 6,
+      "h": 6,
+      "config": {
+        "name": "Unique search patterns",
+        "displayType": "number",
+        "configType": "sql",
+        "connection": "ClickHouse Cloud",
+        "sqlTemplate": "WITH\n  substring(log, position(log, '{')) AS event,\n  lowerUTF8(JSONExtractString(event, 'userEmail')) AS user_email,\n  JSONExtractString(event, 'req', 'headers', 'referer') AS page_url,\n  JSONExtractString(event, 'req', 'url') AS request_url,\n  JSONExtractString(event, 'req', 'headers', 'x-request-id') AS request_id,\n  if(request_id != '', request_id, concat(JSONExtractString(event, 'hostname'), ':', toString(JSONExtractUInt(event, 'time')), ':', toString(JSONExtractUInt(event, 'req', 'id')))) AS event_id,\n  startsWith(request_url, '/clickhouse-proxy') AS is_query,\n  decodeURLComponent(decodeURLComponent(extractURLParameter(page_url, 'where'))) AS search_text,\n  decodeURLComponent(decodeURLComponent(extractURLParameter(page_url, 'source'))) AS source_id,\n  decodeURLComponent(extractURLParameter(page_url, 'whereLanguage')) AS query_language,\n  decodeURLComponent(decodeURLComponent(extractURLParameter(page_url, 'filters'))) AS structured_filters\nSELECT uniqExactIf(tuple(query_language, search_text, structured_filters, source_id), is_query AND search_text != '') AS Searches\nFROM prod_logs.fluentLogsPlatformCluster\nWHERE timestamp >= fromUnixTimestamp64Milli({startDateMilliseconds:Int64})\n  AND timestamp <= fromUnixTimestamp64Milli({endDateMilliseconds:Int64})\n  AND namespace_name = 'hyperdx-platform-prd'\n  AND container_name = 'app'\n  AND startsWith(log, '[API] ')\n  AND user_email != ''\n  AND startsWith(JSONExtractString(event, 'msg'), 'HTTP ')\nHAVING count() > 0"
+      }
+    },
+    {
+      "id": "failed-queries",
+      "x": 18,
+      "y": 0,
+      "w": 6,
+      "h": 6,
+      "config": {
+        "name": "Failed query requests",
+        "displayType": "number",
+        "configType": "sql",
+        "connection": "ClickHouse Cloud",
+        "sqlTemplate": "WITH\n  substring(log, position(log, '{')) AS event,\n  lowerUTF8(JSONExtractString(event, 'userEmail')) AS user_email,\n  JSONExtractString(event, 'req', 'headers', 'referer') AS page_url,\n  JSONExtractString(event, 'req', 'url') AS request_url,\n  JSONExtractString(event, 'req', 'headers', 'x-request-id') AS request_id,\n  if(request_id != '', request_id, concat(JSONExtractString(event, 'hostname'), ':', toString(JSONExtractUInt(event, 'time')), ':', toString(JSONExtractUInt(event, 'req', 'id')))) AS event_id,\n  startsWith(request_url, '/clickhouse-proxy') AS is_query,\n  decodeURLComponent(decodeURLComponent(extractURLParameter(page_url, 'where'))) AS search_text,\n  decodeURLComponent(decodeURLComponent(extractURLParameter(page_url, 'source'))) AS source_id,\n  decodeURLComponent(extractURLParameter(page_url, 'whereLanguage')) AS query_language,\n  decodeURLComponent(decodeURLComponent(extractURLParameter(page_url, 'filters'))) AS structured_filters\nSELECT uniqExactIf(event_id, is_query AND JSONExtractUInt(event, 'res', 'statusCode') >= 400) AS Failures\nFROM prod_logs.fluentLogsPlatformCluster\nWHERE timestamp >= fromUnixTimestamp64Milli({startDateMilliseconds:Int64})\n  AND timestamp <= fromUnixTimestamp64Milli({endDateMilliseconds:Int64})\n  AND namespace_name = 'hyperdx-platform-prd'\n  AND container_name = 'app'\n  AND startsWith(log, '[API] ')\n  AND user_email != ''\n  AND startsWith(JSONExtractString(event, 'msg'), 'HTTP ')\nHAVING count() > 0"
+      }
+    },
+    {
+      "id": "users-trend",
+      "x": 0,
+      "y": 6,
+      "w": 12,
+      "h": 10,
+      "config": {
+        "name": "Users over time",
+        "displayType": "line",
+        "configType": "sql",
+        "connection": "ClickHouse Cloud",
+        "sqlTemplate": "WITH\n  substring(log, position(log, '{')) AS event,\n  lowerUTF8(JSONExtractString(event, 'userEmail')) AS user_email,\n  JSONExtractString(event, 'req', 'headers', 'referer') AS page_url,\n  JSONExtractString(event, 'req', 'url') AS request_url,\n  JSONExtractString(event, 'req', 'headers', 'x-request-id') AS request_id,\n  if(request_id != '', request_id, concat(JSONExtractString(event, 'hostname'), ':', toString(JSONExtractUInt(event, 'time')), ':', toString(JSONExtractUInt(event, 'req', 'id')))) AS event_id,\n  startsWith(request_url, '/clickhouse-proxy') AS is_query,\n  decodeURLComponent(decodeURLComponent(extractURLParameter(page_url, 'where'))) AS search_text,\n  decodeURLComponent(decodeURLComponent(extractURLParameter(page_url, 'source'))) AS source_id,\n  decodeURLComponent(extractURLParameter(page_url, 'whereLanguage')) AS query_language,\n  decodeURLComponent(decodeURLComponent(extractURLParameter(page_url, 'filters'))) AS structured_filters\nSELECT toStartOfInterval(timestamp, INTERVAL {intervalSeconds:Int64} SECOND) AS ts, uniqExact(user_email) AS Users\nFROM prod_logs.fluentLogsPlatformCluster\nWHERE timestamp >= fromUnixTimestamp64Milli({startDateMilliseconds:Int64})\n  AND timestamp <= fromUnixTimestamp64Milli({endDateMilliseconds:Int64})\n  AND namespace_name = 'hyperdx-platform-prd'\n  AND container_name = 'app'\n  AND startsWith(log, '[API] ')\n  AND user_email != ''\n  AND startsWith(JSONExtractString(event, 'msg'), 'HTTP ')\nGROUP BY ts ORDER BY ts"
+      }
+    },
+    {
+      "id": "queries-trend",
+      "x": 12,
+      "y": 6,
+      "w": 12,
+      "h": 10,
+      "config": {
+        "name": "Query requests over time",
+        "displayType": "line",
+        "configType": "sql",
+        "connection": "ClickHouse Cloud",
+        "sqlTemplate": "WITH\n  substring(log, position(log, '{')) AS event,\n  lowerUTF8(JSONExtractString(event, 'userEmail')) AS user_email,\n  JSONExtractString(event, 'req', 'headers', 'referer') AS page_url,\n  JSONExtractString(event, 'req', 'url') AS request_url,\n  JSONExtractString(event, 'req', 'headers', 'x-request-id') AS request_id,\n  if(request_id != '', request_id, concat(JSONExtractString(event, 'hostname'), ':', toString(JSONExtractUInt(event, 'time')), ':', toString(JSONExtractUInt(event, 'req', 'id')))) AS event_id,\n  startsWith(request_url, '/clickhouse-proxy') AS is_query,\n  decodeURLComponent(decodeURLComponent(extractURLParameter(page_url, 'where'))) AS search_text,\n  decodeURLComponent(decodeURLComponent(extractURLParameter(page_url, 'source'))) AS source_id,\n  decodeURLComponent(extractURLParameter(page_url, 'whereLanguage')) AS query_language,\n  decodeURLComponent(decodeURLComponent(extractURLParameter(page_url, 'filters'))) AS structured_filters\nSELECT toStartOfInterval(timestamp, INTERVAL {intervalSeconds:Int64} SECOND) AS ts, uniqExact(event_id) AS Requests\nFROM prod_logs.fluentLogsPlatformCluster\nWHERE timestamp >= fromUnixTimestamp64Milli({startDateMilliseconds:Int64})\n  AND timestamp <= fromUnixTimestamp64Milli({endDateMilliseconds:Int64})\n  AND namespace_name = 'hyperdx-platform-prd'\n  AND container_name = 'app'\n  AND startsWith(log, '[API] ')\n  AND user_email != ''\n  AND startsWith(JSONExtractString(event, 'msg'), 'HTTP ') AND is_query\nGROUP BY ts ORDER BY ts"
+      }
+    },
+    {
+      "id": "users-table",
+      "x": 0,
+      "y": 16,
+      "w": 11,
+      "h": 12,
+      "config": {
+        "name": "Usage by user",
+        "displayType": "table",
+        "configType": "sql",
+        "connection": "ClickHouse Cloud",
+        "sqlTemplate": "WITH\n  substring(log, position(log, '{')) AS event,\n  lowerUTF8(JSONExtractString(event, 'userEmail')) AS user_email,\n  JSONExtractString(event, 'req', 'headers', 'referer') AS page_url,\n  JSONExtractString(event, 'req', 'url') AS request_url,\n  JSONExtractString(event, 'req', 'headers', 'x-request-id') AS request_id,\n  if(request_id != '', request_id, concat(JSONExtractString(event, 'hostname'), ':', toString(JSONExtractUInt(event, 'time')), ':', toString(JSONExtractUInt(event, 'req', 'id')))) AS event_id,\n  startsWith(request_url, '/clickhouse-proxy') AS is_query,\n  decodeURLComponent(decodeURLComponent(extractURLParameter(page_url, 'where'))) AS search_text,\n  decodeURLComponent(decodeURLComponent(extractURLParameter(page_url, 'source'))) AS source_id,\n  decodeURLComponent(extractURLParameter(page_url, 'whereLanguage')) AS query_language,\n  decodeURLComponent(decodeURLComponent(extractURLParameter(page_url, 'filters'))) AS structured_filters\nSELECT user_email AS User, uniqExactIf(event_id, is_query) AS Queries, uniqExactIf(tuple(query_language, search_text, structured_filters, source_id), is_query AND search_text != '') AS Search_patterns, max(timestamp) AS Last_activity\nFROM prod_logs.fluentLogsPlatformCluster\nWHERE timestamp >= fromUnixTimestamp64Milli({startDateMilliseconds:Int64})\n  AND timestamp <= fromUnixTimestamp64Milli({endDateMilliseconds:Int64})\n  AND namespace_name = 'hyperdx-platform-prd'\n  AND container_name = 'app'\n  AND startsWith(log, '[API] ')\n  AND user_email != ''\n  AND startsWith(JSONExtractString(event, 'msg'), 'HTTP ')\nGROUP BY user_email ORDER BY Queries DESC LIMIT 500"
+      }
+    },
+    {
+      "id": "popular-searches",
+      "x": 11,
+      "y": 16,
+      "w": 13,
+      "h": 12,
+      "config": {
+        "name": "Most-used search text",
+        "displayType": "table",
+        "configType": "sql",
+        "connection": "ClickHouse Cloud",
+        "sqlTemplate": "WITH\n  substring(log, position(log, '{')) AS event,\n  lowerUTF8(JSONExtractString(event, 'userEmail')) AS user_email,\n  JSONExtractString(event, 'req', 'headers', 'referer') AS page_url,\n  JSONExtractString(event, 'req', 'url') AS request_url,\n  JSONExtractString(event, 'req', 'headers', 'x-request-id') AS request_id,\n  if(request_id != '', request_id, concat(JSONExtractString(event, 'hostname'), ':', toString(JSONExtractUInt(event, 'time')), ':', toString(JSONExtractUInt(event, 'req', 'id')))) AS event_id,\n  startsWith(request_url, '/clickhouse-proxy') AS is_query,\n  decodeURLComponent(decodeURLComponent(extractURLParameter(page_url, 'where'))) AS search_text,\n  decodeURLComponent(decodeURLComponent(extractURLParameter(page_url, 'source'))) AS source_id,\n  decodeURLComponent(extractURLParameter(page_url, 'whereLanguage')) AS query_language,\n  decodeURLComponent(decodeURLComponent(extractURLParameter(page_url, 'filters'))) AS structured_filters\nSELECT search_text AS Query, if(query_language = '', 'Unspecified', query_language) AS Language, uniqExact(user_email) AS Users, uniqExact(event_id) AS Requests\nFROM prod_logs.fluentLogsPlatformCluster\nWHERE timestamp >= fromUnixTimestamp64Milli({startDateMilliseconds:Int64})\n  AND timestamp <= fromUnixTimestamp64Milli({endDateMilliseconds:Int64})\n  AND namespace_name = 'hyperdx-platform-prd'\n  AND container_name = 'app'\n  AND startsWith(log, '[API] ')\n  AND user_email != ''\n  AND startsWith(JSONExtractString(event, 'msg'), 'HTTP ') AND is_query AND search_text != ''\nGROUP BY search_text, query_language ORDER BY Requests DESC LIMIT 20"
+      }
+    },
+    {
+      "id": "recent-searches",
+      "x": 0,
+      "y": 28,
+      "w": 24,
+      "h": 13,
+      "config": {
+        "name": "Recent searches by user",
+        "displayType": "table",
+        "configType": "sql",
+        "connection": "ClickHouse Cloud",
+        "sqlTemplate": "WITH\n  substring(log, position(log, '{')) AS event,\n  lowerUTF8(JSONExtractString(event, 'userEmail')) AS user_email,\n  JSONExtractString(event, 'req', 'headers', 'referer') AS page_url,\n  JSONExtractString(event, 'req', 'url') AS request_url,\n  JSONExtractString(event, 'req', 'headers', 'x-request-id') AS request_id,\n  if(request_id != '', request_id, concat(JSONExtractString(event, 'hostname'), ':', toString(JSONExtractUInt(event, 'time')), ':', toString(JSONExtractUInt(event, 'req', 'id')))) AS event_id,\n  startsWith(request_url, '/clickhouse-proxy') AS is_query,\n  decodeURLComponent(decodeURLComponent(extractURLParameter(page_url, 'where'))) AS search_text,\n  decodeURLComponent(decodeURLComponent(extractURLParameter(page_url, 'source'))) AS source_id,\n  decodeURLComponent(extractURLParameter(page_url, 'whereLanguage')) AS query_language,\n  decodeURLComponent(decodeURLComponent(extractURLParameter(page_url, 'filters'))) AS structured_filters\nSELECT max(timestamp) AS Last_used, user_email AS User, search_text AS Query, if(query_language = '', 'Unspecified', query_language) AS Language, if(structured_filters IN ('', '[]'), '', structured_filters) AS Additional_filters, uniqExact(event_id) AS Requests\nFROM prod_logs.fluentLogsPlatformCluster\nWHERE timestamp >= fromUnixTimestamp64Milli({startDateMilliseconds:Int64})\n  AND timestamp <= fromUnixTimestamp64Milli({endDateMilliseconds:Int64})\n  AND namespace_name = 'hyperdx-platform-prd'\n  AND container_name = 'app'\n  AND startsWith(log, '[API] ')\n  AND user_email != ''\n  AND startsWith(JSONExtractString(event, 'msg'), 'HTTP ') AND is_query AND search_text != ''\nGROUP BY user_email, search_text, query_language, structured_filters, source_id ORDER BY Last_used DESC LIMIT 50"
+      }
+    },
+    {
+      "id": "data-coverage",
+      "x": 0,
+      "y": 41,
+      "w": 24,
+      "h": 5,
+      "config": {
+        "name": "Data freshness",
+        "displayType": "table",
+        "configType": "sql",
+        "connection": "ClickHouse Cloud",
+        "sqlTemplate": "WITH\n  substring(log, position(log, '{')) AS event,\n  lowerUTF8(JSONExtractString(event, 'userEmail')) AS user_email,\n  JSONExtractString(event, 'req', 'headers', 'referer') AS page_url,\n  JSONExtractString(event, 'req', 'url') AS request_url,\n  JSONExtractString(event, 'req', 'headers', 'x-request-id') AS request_id,\n  if(request_id != '', request_id, concat(JSONExtractString(event, 'hostname'), ':', toString(JSONExtractUInt(event, 'time')), ':', toString(JSONExtractUInt(event, 'req', 'id')))) AS event_id,\n  startsWith(request_url, '/clickhouse-proxy') AS is_query,\n  decodeURLComponent(decodeURLComponent(extractURLParameter(page_url, 'where'))) AS search_text,\n  decodeURLComponent(decodeURLComponent(extractURLParameter(page_url, 'source'))) AS source_id,\n  decodeURLComponent(extractURLParameter(page_url, 'whereLanguage')) AS query_language,\n  decodeURLComponent(decodeURLComponent(extractURLParameter(page_url, 'filters'))) AS structured_filters\nSELECT min(timestamp) AS First_event_in_period, max(timestamp) AS Latest_event, dateDiff('second', max(timestamp), now()) AS Latest_event_age_seconds, uniqExactIf(event_id,is_query AND search_text != '') AS Requests_with_search_text, uniqExactIf(event_id,is_query AND search_text = '') AS Requests_without_search_text\nFROM prod_logs.fluentLogsPlatformCluster\nWHERE timestamp >= fromUnixTimestamp64Milli({startDateMilliseconds:Int64})\n  AND timestamp <= fromUnixTimestamp64Milli({endDateMilliseconds:Int64})\n  AND namespace_name = 'hyperdx-platform-prd'\n  AND container_name = 'app'\n  AND startsWith(log, '[API] ')\n  AND user_email != ''\n  AND startsWith(JSONExtractString(event, 'msg'), 'HTTP ')\nHAVING count() > 0"
+      }
+    },
+    {
+      "id": "report-notes",
+      "x": 0,
+      "y": 46,
+      "w": 24,
+      "h": 4,
+      "config": {
+        "name": "Metric definitions",
+        "displayType": "markdown",
+        "source": "",
+        "where": "",
+        "whereLanguage": "sql",
+        "select": [],
+        "markdown": "**Users with activity:** distinct users in authenticated API request logs. **Query requests:** ClickHouse proxy requests, including live tail, background queries, and retries—not deliberate Run clicks. **Search patterns:** distinct source, language, text, and filter combinations visible in page URLs; generated SQL is not recorded. Recent searches consolidate repeated requests. Trends use the selected time buckets; unique users across buckets must not be summed. Registered-user totals and adoption percentages are omitted until a live registration source is available. Check Data freshness for actual coverage.\n\n**Production coverage:** Uses authenticated API logs from `hyperdx-platform-prd` in `prod_logs.fluentLogsPlatformCluster`. The all-clusters view excludes this cluster. Check Data freshness for coverage in the selected period. PromQL requests are not counted."
+      }
+    }
+  ]
+}
