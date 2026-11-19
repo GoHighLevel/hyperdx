@@ -335,12 +335,19 @@ export type FilterStateHook = ReturnType<typeof useSearchPageFilterState>;
 export function mergePinnedData(
   team: { fields: string[]; filters: PinnedFilters } | null,
   personal: { fields: string[]; filters: PinnedFilters } | null,
+  sharedFields?: readonly string[],
 ): { fields: string[]; filters: PinnedFilters } {
-  const teamFields = team?.fields ?? [];
+  const teamFields = (team?.fields ?? []).filter(
+    field => !sharedFields || sharedFields.includes(field),
+  );
   const personalFields = personal?.fields ?? [];
   const fields = [...new Set([...teamFields, ...personalFields])];
 
-  const teamFilters = team?.filters ?? {};
+  const teamFilters = Object.fromEntries(
+    Object.entries(team?.filters ?? {}).filter(
+      ([field]) => !sharedFields || sharedFields.includes(field),
+    ),
+  );
   const personalFilters = personal?.filters ?? {};
   const allKeys = new Set([
     ...Object.keys(teamFilters),
@@ -390,7 +397,10 @@ function toggleValueInFilters(
   return updated;
 }
 
-export function usePinnedFilters(sourceId: string | null) {
+export function usePinnedFilters(
+  sourceId: string | null,
+  sharedFields?: readonly string[],
+) {
   const { canManageShared } = usePermissions();
   const personal = usePersonalPinnedFilters(sourceId);
 
@@ -417,14 +427,19 @@ export function usePinnedFilters(sourceId: string | null) {
     [optimisticTeam, sourceId, teamApiData],
   );
 
+  const visibleTeam = useMemo(
+    () => mergePinnedData(effectiveTeam, null, sharedFields),
+    [effectiveTeam, sharedFields],
+  );
+
   // Merge team + personal into a unified view for read operations
   const { fields: pinnedFields, filters: pinnedFilters } = useMemo(
     () =>
-      mergePinnedData(effectiveTeam, {
+      mergePinnedData(visibleTeam, {
         fields: personal.fields,
         filters: personal.filters,
       }),
-    [effectiveTeam, personal.fields, personal.filters],
+    [visibleTeam, personal.fields, personal.filters],
   );
 
   // Debounce for team API writes, cancelled on unmount to prevent stale writes.
@@ -539,12 +554,12 @@ export function usePinnedFilters(sourceId: string | null) {
     (field: string): boolean => {
       // A field is shared if it's in the fields list OR has shared filter values
       return (
-        effectiveTeam.fields.includes(field) ||
-        (effectiveTeam.filters[field] != null &&
-          effectiveTeam.filters[field].length > 0)
+        visibleTeam.fields.includes(field) ||
+        (visibleTeam.filters[field] != null &&
+          visibleTeam.filters[field].length > 0)
       );
     },
-    [effectiveTeam],
+    [visibleTeam],
   );
 
   // Team pin: value-level (MongoDB via API, debounced)
@@ -567,10 +582,10 @@ export function usePinnedFilters(sourceId: string | null) {
 
   const isSharedFilterPinned = useCallback(
     (property: string, value: string | boolean): boolean => {
-      const vals = effectiveTeam.filters[property];
+      const vals = visibleTeam.filters[property];
       return vals != null && vals.some(v => v === value);
     },
-    [effectiveTeam],
+    [visibleTeam],
   );
 
   const resetPersonalPins = useCallback(() => {
@@ -590,9 +605,9 @@ export function usePinnedFilters(sourceId: string | null) {
 
   const hasSharedPins = useMemo(
     () =>
-      effectiveTeam.fields.length > 0 ||
-      Object.keys(effectiveTeam.filters).length > 0,
-    [effectiveTeam],
+      visibleTeam.fields.length > 0 ||
+      Object.keys(visibleTeam.filters).length > 0,
+    [visibleTeam],
   );
 
   return {

@@ -315,6 +315,38 @@ describe('useFetchFacets', () => {
     expect(result.current.data.keyValues?.[0].value).toEqual(['404']);
   });
 
+  it('withholds shared pins until schema resolves and then allows only GKE defaults', () => {
+    setupDefaultMocks({ withMVs: false });
+    useColumns.mockReturnValue({
+      data: undefined,
+      isLoading: true,
+    } as ReturnType<typeof useMetadataModule.useColumns>);
+    const { wrapper } = makeWrapper();
+    const { rerender } = renderHook(
+      () =>
+        useFetchFacets({
+          chartConfig: CHART_CONFIG,
+          sourceId: 'source1',
+          dateRange: DATE_RANGE,
+          mode: 'exact',
+        }),
+      { wrapper },
+    );
+    expect(usePinnedFilters.mock.calls.at(-1)?.[1]).toEqual([]);
+    useColumns.mockReturnValue({
+      data: ['deployment_name', 'pod_name', 'log_level', 'json_payload'].map(
+        name => ({ name, type: 'String' }),
+      ),
+      isLoading: false,
+    } as ReturnType<typeof useMetadataModule.useColumns>);
+    rerender();
+    expect(usePinnedFilters.mock.calls.at(-1)?.[1]).toEqual([
+      'deployment_name',
+      'pod_name',
+      'log_level',
+    ]);
+  });
+
   it('lists all fields while fetching values only for default and expanded fields', () => {
     setupDefaultMocks({ withMVs: false });
     useColumns.mockReturnValue({
