@@ -30,6 +30,7 @@ interface Props {
   config: BuilderChartConfigWithDateRange;
   onError?: (error: Error | ClickHouseQueryError) => void;
   onScroll?: (scrollTop: number) => void;
+  onInitialResultsReady?: () => void;
   onSidebarOpen?: (rowId: string) => void;
   onExpandedRowsChange?: (hasExpandedRows: boolean) => void;
   onPropertyAddClick?: (keyPath: string, value: string) => void;
@@ -61,6 +62,7 @@ export default function DBSqlRowTableWithSideBar({
   config,
   onError,
   onScroll,
+  onInitialResultsReady,
   context,
   onExpandedRowsChange,
   denoiseResults,
@@ -166,6 +168,7 @@ export default function DBSqlRowTableWithSideBar({
         renderRowDetails={renderRowDetails}
         onOpenTrace={onOpenRowTrace}
         onScroll={onScroll}
+        onInitialResultsReady={onInitialResultsReady}
         onError={onError}
         onExpandedRowsChange={onExpandedRowsChange}
         collapseAllRows={collapseAllRows}

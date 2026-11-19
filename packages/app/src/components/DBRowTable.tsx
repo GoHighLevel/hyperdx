@@ -90,6 +90,7 @@ import {
   useRenderedSqlChartConfig,
 } from '@/hooks/useChartConfig';
 import { useCsvExport } from '@/hooks/useCsvExport';
+import { useNotifyInitialResultsReady } from '@/hooks/useInitialResultsGate';
 import { useLiveInspectionRows } from '@/hooks/useLiveInspectionRows';
 import useLiveLogQuery, {
   chronologicalLogConfig,
@@ -1993,6 +1994,7 @@ function DBSqlRowTableComponent({
   tableId,
   errorVariant,
   onResolvedColumnsChange,
+  onInitialResultsReady,
 }: {
   config: BuilderChartConfigWithDateRange;
   sourceId?: string;
@@ -2012,6 +2014,7 @@ function DBSqlRowTableComponent({
     [key: string]: unknown;
   }) => React.ReactNode;
   onScroll?: (scrollTop: number) => void;
+  onInitialResultsReady?: () => void;
   onError?: (error: Error | ClickHouseQueryError) => void;
   denoiseResults?: boolean;
   onChildModalOpen?: (open: boolean) => void;
@@ -2104,6 +2107,7 @@ function DBSqlRowTableComponent({
     isFetching,
     isError,
     error,
+    isPlaceholderData,
     refreshedUntil,
     retainedRowsDropped,
     jumpToLatest,
@@ -2124,6 +2128,13 @@ function DBSqlRowTableComponent({
     fallbackIsLive: isLive,
     queryKeyPrefix,
     enableSmallFirstWindow,
+  });
+
+  useNotifyInitialResultsReady(data, {
+    isFetching,
+    isPlaceholderData,
+    isError,
+    onReady: onInitialResultsReady,
   });
 
   // The first N columns are the select columns from the user

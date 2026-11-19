@@ -46,3 +46,15 @@ Pause keeps the inspected snapshot stable. Requests are cancelled when their
 query is abandoned, even when a team timeout is configured. Database sorting,
 resource limits and time to first server block can still dominate latency; the
 frontend does not guarantee immediate rows or unlimited date ranges.
+
+### First-page priority
+
+Timestamp-ordered log searches start with up to 50 rows in a 10-second edge window.
+Further pages retain the configured page size and continue through the requested
+range. A sparse or empty first window does not shorten the selected range.
+Counts, histograms, scan estimates and sidebar discovery/counts wait until the
+first real rows arrive or an empty page completes, then load independently.
+An error in the total-count query displays “Count unavailable”; it does not
+remove already loaded log rows. Trace and other analysis modes keep their
+existing scheduling. ClickHouse must still produce the first query block:
+these UI changes do not guarantee a particular backend latency.
