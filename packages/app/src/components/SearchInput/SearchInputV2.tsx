@@ -83,6 +83,7 @@ export default function SearchInputV2({
 
   const metadata = useMetadataWithSettings();
   const ref = useRef<HTMLTextAreaElement>(null);
+  const [isSearchInputFocused, setIsSearchInputFocused] = useState(false);
   const [cursorPosition, setCursorPosition] = useState<number>();
   const [parsedEnglishQuery, setParsedEnglishQuery] = useState<string>('');
 
@@ -114,6 +115,7 @@ export default function SearchInputV2({
       dateRange,
       sourceId,
       cursorPosition,
+      enabled: isSearchInputFocused,
     },
   );
 
@@ -148,6 +150,7 @@ export default function SearchInputV2({
     <AutocompleteInput
       inputRef={ref}
       onCursorChange={setCursorPosition}
+      onFocusChange={setIsSearchInputFocused}
       value={value}
       onChange={onChange}
       placeholder={placeholder}

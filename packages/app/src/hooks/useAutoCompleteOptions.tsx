@@ -205,12 +205,14 @@ export function useAutoCompleteOptions(
     sourceId,
     dateRange,
     cursorPosition,
+    enabled = true,
   }: {
     tableConnection?: TableConnection | TableConnection[];
     additionalSuggestions?: string[];
     sourceId?: string;
     dateRange?: [Date, Date];
     cursorPosition?: number;
+    enabled?: boolean;
   },
 ) {
   const { data: source } = useSource({ id: sourceId });
@@ -247,6 +249,7 @@ export function useAutoCompleteOptions(
     tableConnection,
     dateRange: effectiveDateRange,
     mode: 'all',
+    enabled,
     disableValues: true,
   });
   const fields = fetchFacetsData.keys;
@@ -302,10 +305,10 @@ export function useAutoCompleteOptions(
   );
 
   useEffect(() => {
-    if (searchField && searchField.jsType !== JSDataType.Map) {
+    if (enabled && searchField && searchField.jsType !== JSDataType.Map) {
       loadMoreFacetsForKey(mergePath(searchField.path, [], mapColumns));
     }
-  }, [searchField, loadMoreFacetsForKey, mapColumns]);
+  }, [enabled, searchField, loadMoreFacetsForKey, mapColumns]);
 
   // Build key-value pair suggestions
   const keyValCompleteOptions = useMemo<

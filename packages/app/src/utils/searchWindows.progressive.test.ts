@@ -2,7 +2,7 @@ import {
   DEFAULT_TIME_WINDOWS_SECONDS,
   generateTimeWindowsAscending,
   generateTimeWindowsDescending,
-  SMALL_FIRST_WINDOW_SECONDS,
+  SMALL_FIRST_WINDOW_DURATIONS_SECONDS,
 } from './searchWindows';
 
 it.each([1, 7, 30, 365])(
@@ -11,7 +11,7 @@ it.each([1, 7, 30, 365])(
     const start = new Date('2026-01-01T00:00:00Z');
     const end = new Date(start.getTime() + days * 86400000);
     const durations = [
-      SMALL_FIRST_WINDOW_SECONDS,
+      ...SMALL_FIRST_WINDOW_DURATIONS_SECONDS,
       ...DEFAULT_TIME_WINDOWS_SECONDS,
     ];
     const asc = generateTimeWindowsAscending(start, end, durations);
@@ -33,3 +33,18 @@ it.each([1, 7, 30, 365])(
     ).toBe(end.getTime() - start.getTime());
   },
 );
+
+it('uses short contiguous fallback windows before scanning broader history', () => {
+  const end = new Date('2026-11-19T12:30:00Z');
+  const windows = generateTimeWindowsDescending(
+    new Date(end.getTime() - 1800000),
+    end,
+    [...SMALL_FIRST_WINDOW_DURATIONS_SECONDS, ...DEFAULT_TIME_WINDOWS_SECONDS],
+  );
+  expect(
+    windows
+      .slice(0, 5)
+      .map(w => (w.endTime.getTime() - w.startTime.getTime()) / 1000),
+  ).toEqual([10, 20, 90, 180, 600]);
+  expect(windows[4].startTime).toEqual(new Date('2026-11-19T12:15:00Z'));
+});

@@ -129,6 +129,35 @@ describe('useAutoCompleteOptions', () => {
     wrapper = makeWrapper();
   });
 
+  it('defers metadata and cached field-value lookups until enabled', async () => {
+    const { rerender } = renderHook(
+      ({ enabled }) =>
+        useAutoCompleteOptions(
+          luceneFormatter,
+          'ResourceAttributes.service.name:',
+          { tableConnection: mockTableConnection, enabled },
+        ),
+      { wrapper, initialProps: { enabled: false } },
+    );
+    expect(jest.mocked(useAllFields).mock.calls.at(-1)?.[1]?.enabled).toBe(
+      false,
+    );
+    expect(
+      jest.mocked(useMetadataWithSettings).mock.results.at(-1)?.value
+        .getAllKeyValues,
+    ).not.toHaveBeenCalled();
+    rerender({ enabled: true });
+    expect(jest.mocked(useAllFields).mock.calls.at(-1)?.[1]?.enabled).toBe(
+      true,
+    );
+    await waitFor(() =>
+      expect(
+        jest.mocked(useMetadataWithSettings).mock.results.at(-1)?.value
+          .getAllKeyValues,
+      ).toHaveBeenCalled(),
+    );
+  });
+
   it('should return field options with correct lucene formatting', () => {
     const { result } = renderHook(
       () =>

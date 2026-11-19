@@ -10,10 +10,12 @@ function Editor({
   initial,
   onSubmit,
   loading = false,
+  onFocusChange,
 }: {
   initial: string;
   onSubmit?: () => void;
   loading?: boolean;
+  onFocusChange?: (focused: boolean) => void;
 }) {
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const [value, setValue] = useState(initial);
@@ -27,6 +29,7 @@ function Editor({
     >
       <AutocompleteInput
         inputRef={inputRef}
+        onFocusChange={onFocusChange}
         value={value}
         onChange={setValue}
         onSubmit={onSubmit}
@@ -227,4 +230,15 @@ it('visually distinguishes commented Lucene lines', () => {
   expect(overlay.querySelector('.commentedLine')).toHaveTextContent(
     '// service:"api"',
   );
+});
+
+it('reports focus and blur without starting focused', async () => {
+  const onFocusChange = jest.fn();
+  render(<Editor initial="" onFocusChange={onFocusChange} />);
+  expect(onFocusChange).not.toHaveBeenCalled();
+  const input = screen.getByRole('textbox');
+  await userEvent.click(input);
+  expect(onFocusChange).toHaveBeenLastCalledWith(true);
+  fireEvent.blur(input);
+  expect(onFocusChange).toHaveBeenLastCalledWith(false);
 });
