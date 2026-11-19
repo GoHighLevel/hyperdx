@@ -48,6 +48,14 @@ jest.mock('@/api', () => ({
   },
 }));
 
+jest.mock('@/hooks/useQueryScopedFields', () => ({
+  useQueryScopedFields: () =>
+    jest.mocked(useMetadataModule.useAllFields).mock.results.at(-1)?.value ?? {
+      data: undefined,
+      isLoading: false,
+    },
+}));
+
 jest.mock('@/source', () => ({
   __esModule: true,
   useSource: jest.fn(),

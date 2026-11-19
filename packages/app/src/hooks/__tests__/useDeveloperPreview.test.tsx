@@ -10,6 +10,13 @@ import { useDeveloperPreview } from '@/useDeveloperPreview';
 import { useDeveloperUI } from '@/useDeveloperUI';
 import { usePermissions } from '@/usePermissions';
 
+let mockView: string | null = null;
+const mockSetView = jest.fn();
+jest.mock('nuqs', () => ({
+  ...jest.requireActual('nuqs'),
+  useQueryState: () => [mockView, mockSetView],
+}));
+
 let mockMe:
   | {
       id: string;
@@ -28,6 +35,8 @@ const wrapper = ({ children }: { children: React.ReactNode }) => (
 
 beforeEach(() => {
   sessionStorage.clear();
+  mockView = null;
+  mockSetView.mockClear();
   mockMe = { id: 'admin-1', team: { id: 'team-1' }, role: 'admin' };
 });
 
@@ -108,4 +117,31 @@ it('applies team section settings to developers and admin preview without limiti
   mockMe!.role = 'developer';
   rerender();
   expect(result.current.sections).toEqual(mockMe!.team.developerUI);
+});
+
+it('opens an explicit developer link without previous tab storage', () => {
+  mockView = 'developer';
+  const { result } = renderHook(
+    () => ({ preview: useDeveloperPreview(), permissions: usePermissions() }),
+    { wrapper },
+  );
+  expect(result.current.preview.isViewingAsDeveloper).toBe(true);
+  expect(result.current.permissions.canManageShared).toBe(false);
+  expect(mockMe?.role).toBe('admin');
+});
+
+it('removes the explicit view mode when returning to admin', () => {
+  mockView = 'developer';
+  const { result, rerender } = renderHook(useDeveloperPreview, { wrapper });
+  act(() => result.current.setDeveloperPreview(false));
+  expect(mockSetView).toHaveBeenCalledWith(null);
+  mockView = null;
+  rerender();
+  expect(result.current.isViewingAsDeveloper).toBe(false);
+});
+
+it('does not treat an unknown view as a developer request', () => {
+  mockView = 'other';
+  const { result } = renderHook(useDeveloperPreview, { wrapper });
+  expect(result.current.isViewingAsDeveloper).toBe(false);
 });

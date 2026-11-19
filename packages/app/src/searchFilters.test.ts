@@ -192,3 +192,53 @@ describe('canonical key escaping at the persistence boundary', () => {
     });
   });
 });
+
+describe('filter column selection callback', () => {
+  it.each(['include', 'exclude', 'only'] as const)(
+    'announces the field for %s actions without changing the filter contract',
+    action => {
+      const onFilterApplied = jest.fn();
+      const onFilterChange = jest.fn();
+      const { result } = renderHook(() =>
+        useSearchPageFilterState({
+          searchQuery: EMPTY_SEARCH_QUERY,
+          knownColumns: new Set(['json_payload']),
+          onFilterApplied,
+          onFilterChange,
+        }),
+      );
+      act(() =>
+        result.current.setFilterValue("json_payload['id']", 'one', action),
+      );
+      expect(onFilterApplied).toHaveBeenCalledWith("json_payload['id']");
+      expect(onFilterChange).toHaveBeenCalledTimes(1);
+    },
+  );
+  it('announces range and multi-field actions while clearing a filter keeps selected columns', () => {
+    const onFilterApplied = jest.fn();
+    const { result } = renderHook(() =>
+      useSearchPageFilterState({
+        searchQuery: EMPTY_SEARCH_QUERY,
+        knownColumns: new Set(),
+        onFilterApplied,
+        onFilterChange: jest.fn(),
+      }),
+    );
+    act(() => result.current.setFilterRange('duration', { min: 1, max: 2 }));
+    expect(onFilterApplied).toHaveBeenLastCalledWith('duration');
+    act(() =>
+      result.current.setOnlyFilters([
+        { property: 'service', value: 'api' },
+        { property: 'status', value: 'error' },
+      ]),
+    );
+    expect(onFilterApplied.mock.calls.map(([field]) => field)).toEqual([
+      'duration',
+      'service',
+      'status',
+    ]);
+    onFilterApplied.mockClear();
+    act(() => result.current.clearFilter('service'));
+    expect(onFilterApplied).not.toHaveBeenCalled();
+  });
+});

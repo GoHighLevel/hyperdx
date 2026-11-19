@@ -82,11 +82,13 @@ export { parseQuery };
 export const useSearchPageFilterState = ({
   searchQuery = [],
   onFilterChange,
+  onFilterApplied,
   dateTimeColumns,
   knownColumns,
 }: {
   searchQuery?: Filter[];
   onFilterChange: (filters: Filter[]) => void;
+  onFilterApplied?: (property: string) => void;
   dateTimeColumns?: ReadonlyMap<string, string>;
   /**
    * Top-level column names on the table, used to quote
@@ -146,6 +148,7 @@ export const useSearchPageFilterState = ({
       value: string | boolean,
       action?: 'only' | 'exclude' | 'include',
     ) => {
+      onFilterApplied?.(property);
       setFilters(prevFilters => {
         const newFilters = produce(prevFilters, draft => {
           if (!draft[property]) {
@@ -184,7 +187,7 @@ export const useSearchPageFilterState = ({
         return newFilters;
       });
     },
-    [updateFilterQuery],
+    [updateFilterQuery, onFilterApplied],
   );
 
   // Apply several "only" filters atomically: each listed property is set to
@@ -197,6 +200,7 @@ export const useSearchPageFilterState = ({
       if (entries.length === 0) {
         return;
       }
+      entries.forEach(({ property }) => onFilterApplied?.(property));
       setFilters(prevFilters => {
         const newFilters = produce(prevFilters, draft => {
           for (const { property, value } of entries) {
@@ -210,11 +214,12 @@ export const useSearchPageFilterState = ({
         return newFilters;
       });
     },
-    [updateFilterQuery],
+    [updateFilterQuery, onFilterApplied],
   );
 
   const setFilterRange = useCallback(
     (property: string, range: { min: number; max: number }) => {
+      onFilterApplied?.(property);
       setFilters(prevFilters => {
         const newFilters = produce(prevFilters, draft => {
           if (!draft[property]) {
@@ -226,7 +231,7 @@ export const useSearchPageFilterState = ({
         return newFilters;
       });
     },
-    [updateFilterQuery],
+    [updateFilterQuery, onFilterApplied],
   );
 
   const clearFilter = useCallback(

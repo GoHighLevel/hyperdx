@@ -59,6 +59,7 @@ jest.mock('nuqs', () => ({
   parseAsString: 'parseAsString',
   parseAsStringEnum: () => ({
     withDefault: () => 'parseAsStringEnum',
+    withOptions: () => 'parseAsStringEnum',
   }),
   useQueryState: (key: string) => {
     switch (key) {
