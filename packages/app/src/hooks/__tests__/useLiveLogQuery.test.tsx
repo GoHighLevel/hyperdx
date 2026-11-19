@@ -377,7 +377,7 @@ it('bounds retained rows and does not replay consumed pages', () => {
   expect(result.current.retainedRowsDropped).toBe(2);
 });
 
-it('normalizes composite ordering without splitting function commas', () => {
+it('preserves explicit descending composite ordering', () => {
   expect(
     (
       chronologicalLogConfig({
@@ -385,7 +385,7 @@ it('normalizes composite ordering without splitting function commas', () => {
         orderBy: '(toStartOfSecond(Timestamp), Timestamp) DESC, id DESC',
       }) as BuilderChartConfigWithDateRange
     ).orderBy,
-  ).toBe('(toStartOfSecond(Timestamp), Timestamp) ASC, id ASC');
+  ).toBe('(toStartOfSecond(Timestamp), Timestamp) DESC, id DESC');
 });
 
 it('jumps directly to a bounded latest page instead of draining earlier rows', () => {
@@ -597,4 +597,45 @@ it('isolates navigation generations and source changes from old in-flight result
   expect(result.current.edgeNavigation).toBeUndefined();
   expect(result.current.latestInRange).toBe(false);
   expect(fetchNextPage).not.toHaveBeenCalled();
+});
+
+it('keeps newest-first rows and pagination when manual log navigation is enabled', () => {
+  const latest = response([9, 8, 7]);
+  query.mockReturnValue(latest);
+  const newestFirst = { ...config(), orderBy: 'Timestamp DESC' };
+  const { result } = renderHook(() =>
+    useLiveLogQuery(newestFirst, {
+      manualNavigation: true,
+      isLive: true,
+      fallbackIsLive: true,
+    }),
+  );
+  expect(query).toHaveBeenLastCalledWith(
+    newestFirst,
+    expect.objectContaining({ isLive: true }),
+  );
+  expect(result.current.data?.data.map(row => row.Timestamp)).toEqual([
+    9, 8, 7,
+  ]);
+  expect(result.current.fetchNextPage).toBe(fetchNextPage);
+  expect(result.current.jumpToLatest).toBeUndefined();
+});
+
+it('preserves descending builder-array ordering without reversing returned rows', () => {
+  query.mockReturnValue(response([12, 11, 10]));
+  const newestFirst = {
+    ...config(),
+    orderBy: [{ valueExpression: 'Timestamp', ordering: 'DESC' as const }],
+  };
+  expect(chronologicalLogConfig(newestFirst)).toBe(newestFirst);
+  const { result } = renderHook(() =>
+    useLiveLogQuery(newestFirst, { manualNavigation: true }),
+  );
+  expect(result.current.data?.data.map(row => row.Timestamp)).toEqual([
+    12, 11, 10,
+  ]);
+  expect(query).toHaveBeenLastCalledWith(
+    newestFirst,
+    expect.objectContaining({ isLive: false }),
+  );
 });

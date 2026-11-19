@@ -562,10 +562,10 @@ describe('DBSearchPage direct trace flow', () => {
     );
   });
 
-  it('retains a saved-search link configuration while normalizing log chronology', async () => {
+  it('retains a saved-search link configuration with its explicit newest-first order', async () => {
     // On `/search/<savedSearchId>` the source is written to the URL by the
     // saved-search effect, so the form catches up to it on a cold load. The
-    // Order normalization must preserve the bookmarked SELECT and source.
+    // Order handling must preserve the bookmarked SELECT, source and DESC.
     mockDirectTraceId = null;
     mockSourcesLoading = true;
     mockSearchedConfig = {
@@ -588,7 +588,7 @@ describe('DBSearchPage direct trace flow', () => {
       expect.objectContaining({
         source: 'log-source',
         select: 'Timestamp, Body, lower(Body) as body_lower',
-        orderBy: 'Timestamp ASC',
+        orderBy: 'Timestamp DESC',
       }),
     );
     expect(latestRowTableProps).toEqual(
@@ -596,7 +596,7 @@ describe('DBSearchPage direct trace flow', () => {
         sourceId: 'log-source',
         enabled: true,
         config: expect.objectContaining({
-          orderBy: 'Timestamp ASC',
+          orderBy: 'Timestamp DESC',
           select: 'Timestamp, Body, lower(Body) as body_lower',
         }),
       }),
@@ -618,11 +618,15 @@ describe('DBSearchPage direct trace flow', () => {
     expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
   });
 
-  it('does not advance the log range on a background refresh timer', async () => {
+  it('does not advance ascending chronological logs on a background refresh timer', async () => {
     jest.useFakeTimers();
     try {
       mockDirectTraceId = null;
-      mockSearchedConfig = { ...mockSearchedConfig, source: 'log-source' };
+      mockSearchedConfig = {
+        ...mockSearchedConfig,
+        source: 'log-source',
+        orderBy: 'Timestamp ASC',
+      };
       window.history.pushState({}, '', '/search?source=log-source');
       await act(async () => renderWithMantine(<DBSearchPage />));
       mockOnTimeRangeSelect.mockClear();
@@ -630,6 +634,31 @@ describe('DBSearchPage direct trace flow', () => {
         jest.advanceTimersByTime(60000);
       });
       expect(mockOnTimeRangeSelect).not.toHaveBeenCalled();
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('refreshes the time range for newest-first live logs', async () => {
+    jest.useFakeTimers();
+    try {
+      mockDirectTraceId = null;
+      mockSearchedConfig = {
+        ...mockSearchedConfig,
+        source: 'log-source',
+        orderBy: 'Timestamp DESC',
+      };
+      window.history.pushState(
+        {},
+        '',
+        '/search?source=log-source&orderBy=Timestamp%20DESC',
+      );
+      await act(async () => renderWithMantine(<DBSearchPage />));
+      mockOnTimeRangeSelect.mockClear();
+      await act(async () => {
+        jest.advanceTimersByTime(10000);
+      });
+      expect(mockOnTimeRangeSelect).toHaveBeenCalled();
     } finally {
       jest.useRealTimers();
     }
