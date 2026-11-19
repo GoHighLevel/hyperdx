@@ -30,7 +30,9 @@ export function useSearchTotalCount(
   {
     disableQueryChunking,
     enableParallelQueries,
+    enabled = true,
   }: {
+    enabled?: boolean;
     disableQueryChunking?: boolean;
     enableParallelQueries?: boolean;
   } = {},
@@ -62,7 +64,7 @@ export function useSearchTotalCount(
     refetchOnWindowFocus: false,
     placeholderData: keepPreviousData, // no need to flash loading state when in live tail
     enableQueryChunking: true,
-    enabled: !isLoadingMe,
+    enabled: enabled && !isLoadingMe,
   });
 
   const isTotalCountComplete = !!totalCountData?.isComplete;
@@ -89,9 +91,11 @@ export default function SearchTotalCountChart({
   queryKeyPrefix,
   disableQueryChunking,
   enableParallelQueries,
+  enabled = true,
 }: {
   config: BuilderChartConfigWithDateRange;
   queryKeyPrefix: string;
+  enabled?: boolean;
   disableQueryChunking?: boolean;
   enableParallelQueries?: boolean;
 }) {
@@ -101,14 +105,17 @@ export default function SearchTotalCountChart({
     {
       disableQueryChunking,
       enableParallelQueries,
+      enabled,
     },
   );
 
   return (
     <Text data-testid="search-total-count" size="xs" lh="normal">
-      {isLoading ? (
+      {!enabled || isLoading ? (
         <span className="effect-pulse">&middot;&middot;&middot; Results</span>
-      ) : totalCount !== null && !isError ? (
+      ) : isError ? (
+        'Count unavailable'
+      ) : totalCount !== null ? (
         `${totalCount?.toLocaleString()} Results`
       ) : (
         '0 Results'

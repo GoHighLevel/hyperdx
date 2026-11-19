@@ -114,6 +114,7 @@ import {
 } from '@/dashboard';
 import { useAliasMapFromChartConfig } from '@/hooks/useChartConfig';
 import { useExplainQuery } from '@/hooks/useExplainQuery';
+import { useInitialResultsGate } from '@/hooks/useInitialResultsGate';
 import {
   chronologicalLogConfig,
   isDescendingLogConfig,
@@ -355,7 +356,9 @@ function SearchResultsCountGroup({
   onExpandFilters,
   histogramTimeChartConfig,
   enableParallelQueries,
+  enabled = true,
 }: {
+  enabled?: boolean;
   isFilterSidebarCollapsed: boolean;
   onExpandFilters: () => void;
   histogramTimeChartConfig: BuilderChartConfigWithDateRange;
@@ -370,6 +373,7 @@ function SearchResultsCountGroup({
         config={histogramTimeChartConfig}
         queryKeyPrefix={QUERY_KEY_PREFIX}
         enableParallelQueries={enableParallelQueries}
+        enabled={enabled}
       />
     </Group>
   );
@@ -1773,6 +1777,12 @@ function SearchPageContents({ dashboard }: { dashboard?: Dashboard }) {
     };
   }, [chartConfig, searchedTimeRange]);
 
+  const { ready: backgroundReady, markReady: onInitialResultsReady } =
+    useInitialResultsGate(
+      JSON.stringify(dbSqlRowTableConfig),
+      searchedSource?.kind === SourceKind.Log && analysisMode === 'results',
+    );
+
   // Stable key for persisting column widths in localStorage. Scoped per saved
   // search when one is loaded, else per source for ad-hoc searches.
   const columnSizeTableId = savedSearchId
@@ -2578,6 +2588,7 @@ function SearchPageContents({ dashboard }: { dashboard?: Dashboard }) {
                     analysisMode={analysisMode}
                     setAnalysisMode={setAnalysisMode}
                     chartConfig={filtersChartConfig}
+                    enabled={backgroundReady}
                     sourceId={inputSourceObj?.id}
                     showDelta={
                       !!(searchedSource?.kind === SourceKind.Trace
@@ -2698,6 +2709,7 @@ function SearchPageContents({ dashboard }: { dashboard?: Dashboard }) {
                             }
                             histogramTimeChartConfig={histogramTimeChartConfig}
                             enableParallelQueries
+                            enabled={backgroundReady}
                           />
                           <Group gap="sm" align="center">
                             <LogFontSizeControl />
@@ -2721,7 +2733,7 @@ function SearchPageContents({ dashboard }: { dashboard?: Dashboard }) {
                                 dateRange: searchedTimeRange,
                               }}
                               sqlConfig={histogramTimeChartConfig ?? undefined}
-                              enabled={isReady}
+                              enabled={isReady && backgroundReady}
                               searchElapsedMs={searchElapsedMs}
                               isSearching={isAnyQueryFetching}
                               isLiveTail={isLive ?? false}
@@ -2738,7 +2750,7 @@ function SearchPageContents({ dashboard }: { dashboard?: Dashboard }) {
                             sourceId={searchedConfig.source ?? undefined}
                             showLegend={false}
                             config={histogramTimeChartConfig}
-                            enabled={isReady}
+                            enabled={isReady && backgroundReady}
                             showDisplaySwitcher={false}
                             showMVOptimizationIndicator={false}
                             showDateRangeIndicator={false}
@@ -2893,6 +2905,7 @@ function SearchPageContents({ dashboard }: { dashboard?: Dashboard }) {
                             isLive={isLive ?? true}
                             queryKeyPrefix={QUERY_KEY_PREFIX}
                             onError={handleTableError}
+                            onInitialResultsReady={onInitialResultsReady}
                             denoiseResults={denoiseResults}
                             collapseAllRows={collapseAllRows}
                             onSortingChange={onSortingChange}

@@ -1,11 +1,12 @@
 import React from 'react';
+import type { BuilderChartConfigWithDateRange } from '@hyperdx/common-utils/dist/types';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { renderHook, waitFor } from '@testing-library/react';
-import type { BuilderChartConfigWithDateRange } from '@hyperdx/common-utils/dist/types';
+
 import {
   extractSampledFields,
   useQueryScopedFields,
-} from '../useQueryScopedFields';
+} from '@/hooks/useQueryScopedFields';
 
 const mockQuery = jest.fn();
 const mockRender = jest.fn();
@@ -84,4 +85,60 @@ it('keeps active predicates and time range, bounds discovery, and clears fields 
   rerender({ where: 'deployment_name:contacts-api' });
   expect(result.current.data).toBeUndefined();
   expect(result.current.isLoading).toBe(true);
+});
+
+it('binds schema-derived select identifiers including the production log_level placeholder', async () => {
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  const wrapper = ({ children }: { children: React.ReactNode }) => (
+    <QueryClientProvider client={client}>{children}</QueryClientProvider>
+  );
+  mockRender.mockImplementation(
+    async (sample: BuilderChartConfigWithDateRange) => ({
+      sql: `SELECT ${sample.select} FROM logs`,
+      params: { predicate_value: 'billing-api' },
+    }),
+  );
+  mockQuery.mockImplementation(
+    async ({
+      query,
+      query_params,
+    }: {
+      query: string;
+      query_params: Record<string, unknown>;
+    }) => {
+      for (const match of query.matchAll(
+        /\{(HYPERDX_PARAM_\d+):Identifier\}/g,
+      )) {
+        if (!(match[1] in query_params))
+          throw new Error(`Substitution ${match[1]} is not set`);
+      }
+      return {
+        json: async () => [
+          { timestamp: '2026-11-19', json_payload: { contactId: 'test' } },
+        ],
+      };
+    },
+  );
+  const { result } = renderHook(
+    () =>
+      useQueryScopedFields(
+        config,
+        [
+          { name: 'timestamp', type: 'String' },
+          { name: 'log_level', type: 'String' },
+          ...columns,
+          { name: 'weird`column', type: 'String' },
+        ],
+        true,
+      ),
+    { wrapper },
+  );
+  await waitFor(() => expect(result.current.isSuccess).toBe(true));
+  const request = mockQuery.mock.calls.at(-1)?.[0];
+  expect(request.query_params.HYPERDX_PARAM_2006901047).toBe('log_level');
+  expect(Object.values(request.query_params)).toContain('weird`column');
+  expect(request.query_params.predicate_value).toBe('billing-api');
+  expect(request.query).not.toContain('weird`column');
 });

@@ -436,6 +436,7 @@ type SelectedValues = {
 };
 
 export type FilterGroupProps = {
+  queryEnabled?: boolean;
   summarySourceId?: string;
   name: string;
   options: { value: string | boolean; label: string }[];
@@ -1027,6 +1028,7 @@ export const FilterGroup = ({
   isDefaultExpanded,
   showFilterCounts,
   showLogCounts = true,
+  queryEnabled = true,
   'data-testid': dataTestId,
   chartConfig,
   isLive,
@@ -1180,8 +1182,8 @@ export const FilterGroup = ({
                   chartConfig={chartConfig}
                   isLive={isLive}
                   distributionKey={distributionKey}
-                  showDistributions={showDistributions}
-                  showLogCounts={showLogCounts}
+                  showDistributions={queryEnabled && showDistributions}
+                  showLogCounts={queryEnabled && showLogCounts}
                   onDistributionError={onDistributionError}
                   onFetchingDistributionChange={setIsFetchingDistribution}
                 />
@@ -1210,7 +1212,9 @@ const DBSearchPageFiltersComponent = ({
   onColumnToggle,
   displayedColumns,
   onCollapse,
+  enabled = true,
 }: {
+  enabled?: boolean;
   analysisMode: 'results' | 'delta' | 'pattern';
   setAnalysisMode: (mode: 'results' | 'delta' | 'pattern') => void;
   isLive: boolean;
@@ -1370,6 +1374,7 @@ const DBSearchPageFiltersComponent = ({
     mode: canManageShared && showAllValues ? 'all' : 'exact',
     filterState,
     expandedFacetKeys,
+    enabled,
   });
   const facets = fetchFacetsData.keyValues;
   const availableFacetKeys = fetchFacetsData.facetKeys;
@@ -1734,6 +1739,7 @@ const DBSearchPageFiltersComponent = ({
               isSharedFieldPinned={key => isSharedFieldPinned(key)}
               showFilterCounts={showFilterCounts}
               showLogCounts={showLogCounts}
+              queryEnabled={enabled}
               onColumnToggle={onColumnToggle}
               displayedColumns={displayedColumns}
               onLoadMore={loadMoreFacetsForKey}
@@ -1787,6 +1793,7 @@ const DBSearchPageFiltersComponent = ({
                 distributionKey={facetSqlKey}
                 showFilterCounts={showFilterCounts}
                 showLogCounts={showLogCounts}
+                queryEnabled={enabled}
                 options={facet.value.map(value => ({
                   value,
                   label: value.toString(),
@@ -1860,6 +1867,7 @@ const DBSearchPageFiltersComponent = ({
       loadMoreLoadingKeys,
       showFilterCounts,
       showLogCounts,
+      enabled,
       isFacetsLoading,
       isFacetsFetching,
       expandedFacetKeys,

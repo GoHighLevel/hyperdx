@@ -8,6 +8,7 @@ import { FilterGroup } from '@/components/DBSearchPageFilters';
 import classes from '@styles/SearchPage.module.scss';
 
 type NestedFilterGroupProps = {
+  queryEnabled?: boolean;
   name: string;
   childFilters: {
     key: string;
@@ -68,6 +69,7 @@ export const NestedFilterGroup = ({
   isSharedFieldPinned,
   showFilterCounts,
   showLogCounts,
+  queryEnabled = true,
   onColumnToggle,
   summarySourceId,
   displayedColumns,
@@ -266,6 +268,7 @@ export const NestedFilterGroup = ({
                             hasLoadedMore={hasLoadedMore[child.key] || false}
                             showFilterCounts={showFilterCounts}
                             showLogCounts={showLogCounts}
+                            queryEnabled={queryEnabled}
                             isDefaultExpanded={childHasSelections}
                             chartConfig={chartConfig}
                             isLive={isLive}

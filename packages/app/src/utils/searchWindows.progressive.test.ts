@@ -1,8 +1,8 @@
 import {
+  DEFAULT_TIME_WINDOWS_SECONDS,
   generateTimeWindowsAscending,
   generateTimeWindowsDescending,
-  DEFAULT_TIME_WINDOWS_SECONDS,
-  ONE_MIN_WINDOW,
+  SMALL_FIRST_WINDOW_SECONDS,
 } from './searchWindows';
 
 it.each([1, 7, 30, 365])(
@@ -10,14 +10,17 @@ it.each([1, 7, 30, 365])(
   days => {
     const start = new Date('2026-01-01T00:00:00Z');
     const end = new Date(start.getTime() + days * 86400000);
-    const durations = [ONE_MIN_WINDOW, ...DEFAULT_TIME_WINDOWS_SECONDS];
+    const durations = [
+      SMALL_FIRST_WINDOW_SECONDS,
+      ...DEFAULT_TIME_WINDOWS_SECONDS,
+    ];
     const asc = generateTimeWindowsAscending(start, end, durations);
     const desc = generateTimeWindowsDescending(start, end, durations);
     expect(asc[0].startTime).toEqual(start);
     expect(asc.at(-1)?.endTime).toEqual(end);
     expect(desc[0].endTime).toEqual(end);
     expect(desc.at(-1)?.startTime).toEqual(start);
-    expect(asc[0].endTime.getTime() - asc[0].startTime.getTime()).toBe(60000);
+    expect(asc[0].endTime.getTime() - asc[0].startTime.getTime()).toBe(10000);
     for (let i = 1; i < asc.length; i++)
       expect(asc[i].startTime).toEqual(asc[i - 1].endTime);
     for (let i = 1; i < desc.length; i++)

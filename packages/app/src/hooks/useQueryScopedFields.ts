@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import {
   chSql,
   ColumnMetaType,
+  concatChSql,
   convertCHDataTypeToJSType,
   JSDataType,
 } from '@hyperdx/common-utils/dist/clickhouse';
@@ -83,11 +84,13 @@ export function useQueryScopedFields(
       }),
     [columns],
   );
+  const sampleSelect = concatChSql(
+    ', ',
+    sampledColumns.map(column => chSql`${{ Identifier: column.name }}`),
+  );
   const sampleConfig = {
     ...config,
-    select: sampledColumns
-      .map(column => chSql`${{ Identifier: column.name }}`.sql)
-      .join(', '),
+    select: sampleSelect.sql,
     groupBy: undefined,
     orderBy: undefined,
     limit: { limit: 200 },
@@ -113,7 +116,7 @@ export function useQueryScopedFields(
         queryTimeout: 5,
       }).query<'JSONEachRow'>({
         query: query.sql,
-        query_params: query.params,
+        query_params: { ...sampleSelect.params, ...query.params },
         connectionId: config.connection,
         abort_signal: signal,
         format: 'JSONEachRow',
