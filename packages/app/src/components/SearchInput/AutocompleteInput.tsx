@@ -31,6 +31,7 @@ import styles from './AutocompleteInput.module.scss';
 export default function AutocompleteInput({
   inputRef,
   onCursorChange,
+  onFocusChange,
   value,
   onChange,
   placeholder = 'Search your events for anything...',
@@ -54,6 +55,7 @@ export default function AutocompleteInput({
 }: {
   inputRef: React.RefObject<HTMLTextAreaElement | null>;
   onCursorChange?: (position: number) => void;
+  onFocusChange?: (focused: boolean) => void;
   value?: string;
   onChange: (value: string) => void;
   onSubmit?: () => void;
@@ -84,9 +86,10 @@ export default function AutocompleteInput({
   const setIsSearchInputFocused = useCallback(
     (state: boolean) => {
       _setIsSearchInputFocused(state);
+      onFocusChange?.(state);
       setIsInputDropdownOpen(state);
     },
-    [_setIsSearchInputFocused],
+    [_setIsSearchInputFocused, onFocusChange],
   );
   const [rightSectionWidth, setRightSectionWidth] = useState<number | 'auto'>(
     'auto',

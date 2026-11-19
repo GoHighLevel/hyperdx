@@ -59,10 +59,10 @@ jest.mock('@hyperdx/common-utils/dist/core/renderChartConfig', () => ({
 }));
 
 // Import mocked modules after jest.mock calls
-import { getClickhouseClient } from '@/clickhouse';
 import { renderChartConfig } from '@hyperdx/common-utils/dist/core/renderChartConfig';
 import { isBuilderChartConfig } from '@hyperdx/common-utils/dist/guards';
 
+import { getClickhouseClient } from '@/clickhouse';
 import { useMetadataWithSettings } from '@/hooks/useMetadata';
 import {
   MVOptimizationExplanationResult,
@@ -304,6 +304,27 @@ describe('useOffsetPaginatedQuery', () => {
     expect(jest.mocked(renderChartConfig).mock.calls.at(-1)?.[0]).toMatchObject(
       { limit: { limit: 1000, offset: 1 } },
     );
+  });
+
+  it('uses a small fallback window and batch after the newest window is empty', async () => {
+    const config = createMockChartConfig({ limit: { limit: 1000 } });
+    mockReader.read.mockResolvedValue({ done: true });
+    const { result } = renderHook(
+      () => useOffsetPaginatedQuery(config, { enableSmallFirstWindow: true }),
+      { wrapper },
+    );
+    await waitFor(() => expect(result.current.isFetching).toBe(false));
+    await act(async () => {
+      await result.current.fetchNextPage();
+    });
+    const next = jest.mocked(renderChartConfig).mock.calls.at(-1)?.[0];
+    expect(next).toMatchObject({
+      limit: { limit: 50, offset: 0 },
+      dateRange: [
+        new Date('2024-01-01T23:59:30Z'),
+        new Date('2024-01-01T23:59:50Z'),
+      ],
+    });
   });
 
   it.each([0, 5, 50])(

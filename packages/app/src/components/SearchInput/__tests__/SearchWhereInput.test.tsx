@@ -9,6 +9,11 @@ import userEvent from '@testing-library/user-event';
 import SearchWhereInput from '@/components/SearchInput/SearchWhereInput';
 import { SqlVariablesProvider } from '@/components/SQLEditor/variableCompletions';
 
+// URL-driven preview permissions are verified separately from this form control.
+jest.mock('@/useDeveloperPreview', () => ({
+  useDeveloperPreview: () => ({ isViewingAsDeveloper: false }),
+}));
+
 function renderWithMantine(ui: React.ReactElement) {
   return render(
     <MantineProvider>

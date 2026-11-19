@@ -44,7 +44,7 @@ import {
   DEFAULT_TIME_WINDOWS_SECONDS,
   generateTimeWindowsAscending,
   generateTimeWindowsDescending,
-  SMALL_FIRST_WINDOW_SECONDS,
+  SMALL_FIRST_WINDOW_DURATIONS_SECONDS,
   TimeWindow,
 } from '@/utils/searchWindows';
 
@@ -224,10 +224,7 @@ const queryFn: QueryFunction<TQueryFnData, TQueryKey, TPageParam> = async ({
         dateRange: [timeWindow.startTime, timeWindow.endTime] as [Date, Date],
         limit: {
           limit:
-            smallFirstPage &&
-            shouldUseWindowing &&
-            pageParam.windowIndex === 0 &&
-            pageParam.offset === 0
+            smallFirstPage && shouldUseWindowing && pageParam.offset === 0
               ? Math.min(config.limit?.limit ?? 50, 50)
               : config.limit?.limit,
           offset: pageParam.offset,
@@ -508,7 +505,7 @@ export default function useOffsetPaginatedQuery(
 
   const windowDurationsSeconds = DEFAULT_TIME_WINDOWS_SECONDS.slice();
   if (enableSmallFirstWindow) {
-    windowDurationsSeconds.unshift(SMALL_FIRST_WINDOW_SECONDS);
+    windowDurationsSeconds.unshift(...SMALL_FIRST_WINDOW_DURATIONS_SECONDS);
   }
 
   const builderConfig = isBuilderChartConfig(config) ? config : undefined;

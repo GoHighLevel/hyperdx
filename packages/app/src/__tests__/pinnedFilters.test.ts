@@ -7,6 +7,34 @@
 import { mergePinnedData } from '@/searchFilters';
 
 describe('mergePinnedData', () => {
+  it('limits shared pins without losing personal JSON fields or changing saved data', () => {
+    const team = {
+      fields: ['deployment_name', 'json_payload.contactId'],
+      filters: {
+        'json_payload.contactId': ['unrelated'],
+        deployment_name: ['billing-api'],
+      },
+    };
+    const personal = {
+      fields: ['json_payload.contactId'],
+      filters: { 'json_payload.contactId': ['selected'] },
+    };
+    const result = mergePinnedData(team, personal, [
+      'deployment_name',
+      'pod_name',
+      'log_level',
+    ]);
+    expect(result.fields).toEqual([
+      'deployment_name',
+      'json_payload.contactId',
+    ]);
+    expect(result.filters).toEqual({
+      deployment_name: ['billing-api'],
+      'json_payload.contactId': ['selected'],
+    });
+    expect(team.filters['json_payload.contactId']).toEqual(['unrelated']);
+  });
+
   it('returns empty fields and filters when both are null', () => {
     const result = mergePinnedData(null, null);
     expect(result.fields).toEqual([]);

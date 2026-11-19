@@ -1,5 +1,12 @@
 export const ONE_MIN_WINDOW = 1 * 60;
 export const SMALL_FIRST_WINDOW_SECONDS = 10;
+export const SMALL_FIRST_WINDOW_DURATIONS_SECONDS = [
+  SMALL_FIRST_WINDOW_SECONDS,
+  20,
+  90,
+  180,
+  600,
+];
 export const DEFAULT_TIME_WINDOWS_SECONDS = [
   15 * 60, // 15m
   6 * 60 * 60, // 6h
