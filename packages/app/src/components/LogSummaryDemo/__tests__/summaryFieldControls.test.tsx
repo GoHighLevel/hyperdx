@@ -258,3 +258,18 @@ it('does not lose additions made by separate controls in the same batch', () => 
     field('labels.team'),
   ]);
 });
+
+it('automatically selects a filtered JSON field in Add fields exactly once', () => {
+  const hook = renderHook(() => useSummaryFields('logs'));
+  const original = hook.result.current[0].map(field => field.id);
+  act(() => hook.result.current[5]("json_payload['request.id']"));
+  expect(hook.result.current[0].map(field => field.id)).toEqual([
+    ...original,
+    'custom:json_payload.request.id',
+  ]);
+  expect(hook.result.current[2].at(-1)?.paths).toEqual([
+    'json_payload.request.id',
+  ]);
+  act(() => hook.result.current[5]("json_payload['request.id']"));
+  expect(hook.result.current[0]).toHaveLength(original.length + 1);
+});

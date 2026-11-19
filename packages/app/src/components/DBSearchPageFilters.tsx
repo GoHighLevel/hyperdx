@@ -58,6 +58,7 @@ import {
   useTableMetadata,
 } from '@/hooks/useMetadata';
 import useResizable from '@/hooks/useResizable';
+import { useStableCallback } from '@/hooks/useStableCallback';
 import { usePinnedFiltersApi } from '@/pinnedFilters';
 import {
   FilterStateHook,
@@ -1326,6 +1327,16 @@ const DBSearchPageFiltersComponent = ({
     previousFacetScopeRef.current = facetScope;
   }, [chartConfig.dateRange, isLive, facetScope]);
 
+  const refreshLiveFacetRange = useStableCallback(() => {
+    if (document.visibilityState === 'visible')
+      setDateRange(chartConfig.dateRange);
+  });
+  useEffect(() => {
+    if (!isLive) return;
+    const timer = setInterval(refreshLiveFacetRange, 30_000);
+    return () => clearInterval(timer);
+  }, [isLive, refreshLiveFacetRange]);
+
   const showRefreshButton = isLive && dateRange !== chartConfig.dateRange;
 
   // Conditionally backtick-quote facet keys that contain special characters and
@@ -1380,12 +1391,29 @@ const DBSearchPageFiltersComponent = ({
   // Merge pinned filter values into the queried facets, so that pinned values are always available
   const facetsWithPinnedValues = useMemo(() => {
     const facetsMap = new Map((facets ?? []).map(f => [f.key, f.value]));
-    const mergedKeys = new Set<string>([
-      ...facetsMap.keys(),
-      ...availableFacetKeys,
-      ...Object.keys(pinnedFilters),
-      ...getPinnedFields(),
-    ]);
+    const matchingKeys = new Set(
+      [
+        ...(availableFacetKeys ?? []),
+        ...Object.keys(filterState),
+        ...(queriedFields ?? []),
+        ...[...facetsMap]
+          .filter(([, values]) => values.length > 0)
+          .map(([key]) => key),
+      ].map(key => normalizeJsonFacetKey(key, jsonColumns ?? [])),
+    );
+    const mergedKeys = new Set<string>(
+      [
+        ...facetsMap.keys(),
+        ...availableFacetKeys,
+        ...Object.keys(pinnedFilters),
+        ...getPinnedFields(),
+      ].filter(
+        key =>
+          source?.kind !== 'log' ||
+          (canManageShared && showAllValues) ||
+          matchingKeys.has(normalizeJsonFacetKey(key, jsonColumns ?? [])),
+      ),
+    );
 
     return Array.from(mergedKeys).map(key => {
       const queriedValues = facetsMap.get(key);
@@ -1397,7 +1425,18 @@ const DBSearchPageFiltersComponent = ({
 
       return { key, value: Array.from(mergedValues) };
     });
-  }, [facets, availableFacetKeys, pinnedFilters, getPinnedFields]);
+  }, [
+    facets,
+    availableFacetKeys,
+    pinnedFilters,
+    getPinnedFields,
+    filterState,
+    queriedFields,
+    jsonColumns,
+    source?.kind,
+    canManageShared,
+    showAllValues,
+  ]);
 
   const normalizedFacetsWithPinnedValues = useMemo(
     () => mergeJsonFacets(facetsWithPinnedValues, jsonColumns ?? []),
@@ -1915,6 +1954,12 @@ const DBSearchPageFiltersComponent = ({
               ) : undefined
             }
           />
+          {source?.kind === 'log' && !(canManageShared && showAllValues) && (
+            <Text size="xs" c="dimmed">
+              Fields from a bounded sample of matching logs. Expand a field to
+              load its values.
+            </Text>
+          )}
           {developerUI.analysisMode && (
             <Tabs
               value={analysisMode}

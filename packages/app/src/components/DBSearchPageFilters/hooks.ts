@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import produce from 'immer';
 import {
   TableConnection,
@@ -15,6 +15,7 @@ import {
   TSource,
 } from '@hyperdx/common-utils/dist/types';
 
+import api from '@/api';
 import {
   Facet,
   useAllFields,
@@ -25,6 +26,7 @@ import {
   useMapColumns,
   useMetadataWithSettings,
 } from '@/hooks/useMetadata';
+import { useQueryScopedFields } from '@/hooks/useQueryScopedFields';
 import { escapeFilterStateKeys, usePinnedFilters } from '@/searchFilters';
 import { useSource } from '@/source';
 import { mergePath } from '@/utils';
@@ -116,15 +118,24 @@ function useFacets({
     !!columns && enabled !== false,
   );
 
+  const { data: me } = api.useMe();
+  const queryScoped = mode === 'exact' && source?.kind === 'log';
+  const broadFields = useAllFields(tableConnection, {
+    dateRange,
+    timestampValueExpression: source?.timestampValueExpression,
+    enabled: enabled && !queryScoped,
+  });
+  const scopedFields = useQueryScopedFields(
+    { ...chartConfig, dateRange },
+    columns,
+    enabled !== false && queryScoped && !me?.team?.fieldMetadataDisabled,
+    source?.querySettings,
+  );
   const {
     data: allFields,
     error: allFieldsError,
     isLoading: isAllFieldsLoading,
-  } = useAllFields(tableConnection, {
-    dateRange,
-    timestampValueExpression: source?.timestampValueExpression,
-    enabled,
-  });
+  } = queryScoped ? scopedFields : broadFields;
 
   const { isFieldPinned, isSharedFieldPinned, getPinnedFields } =
     usePinnedFilters(sourceId ?? null);
@@ -143,7 +154,8 @@ function useFacets({
         );
       })
       .filter(
-        field => field.jsType && ['string'].includes(field.jsType),
+        field =>
+          field.jsType && ['string', 'number', 'bool'].includes(field.jsType),
         // todo: add number type with sliders :D
       )
       .map(({ path, type }) => {
@@ -516,6 +528,10 @@ export function useFetchFacets({
     return mergeLatestFacets(previous, latest);
   }, [cachedQueryFacets, facetScope, facetsQuery]);
 
+  const activeFacetScopeRef = useRef(facetScope);
+  useEffect(() => {
+    activeFacetScopeRef.current = facetScope;
+  }, [facetScope]);
   const [extraFacets, setExtraFacets] = useState<Facet[] | null>(null);
   const facets = useMemo<Facet[] | undefined>(() => {
     const base = queryFacets;
@@ -569,7 +585,9 @@ export function useFetchFacets({
           draft.add(key);
         }),
       );
+      const requestScope = facetScope;
       const newFacet = await strategy(key);
+      if (requestScope !== activeFacetScopeRef.current) return;
       if (newFacet) {
         setExtraFacets(prev => [...(prev ?? []), newFacet]);
         setExtraFacetKeys(prev =>
@@ -584,7 +602,7 @@ export function useFetchFacets({
         }),
       );
     },
-    [facetsQuery.loadMoreFacetsForKey],
+    [facetsQuery.loadMoreFacetsForKey, facetScope],
   );
 
   // Clear extras when the query scope that produced them changes; otherwise
@@ -593,6 +611,7 @@ export function useFetchFacets({
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setExtraFacets(null);
     setExtraFacetKeys(new Set());
+    setLoadMoreLoadingKeys(new Set());
   }, [facetScope]);
 
   return {

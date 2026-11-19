@@ -22,12 +22,12 @@ jest.mock('@/api', () => ({
 }));
 
 // Mock the clickhouse client
-jest.mock('@hyperdx/app/src/clickhouse', () => ({
+jest.mock('@/clickhouse', () => ({
   getClickhouseClient: jest.fn(),
 }));
 
 // Mock the metadata module
-jest.mock('@hyperdx/app/src/metadata', () => ({
+jest.mock('@/metadata', () => ({
   getMetadata: jest.fn(),
 }));
 
@@ -59,7 +59,7 @@ jest.mock('@hyperdx/common-utils/dist/core/renderChartConfig', () => ({
 }));
 
 // Import mocked modules after jest.mock calls
-import { getClickhouseClient } from '@hyperdx/app/src/clickhouse';
+import { getClickhouseClient } from '@/clickhouse';
 import { renderChartConfig } from '@hyperdx/common-utils/dist/core/renderChartConfig';
 import { isBuilderChartConfig } from '@hyperdx/common-utils/dist/guards';
 
@@ -156,6 +156,119 @@ describe('useOffsetPaginatedQuery', () => {
     };
     jest.mocked(useMetadataWithSettings).mockReturnValue(mockMetadata as any);
   });
+
+  it('streams historical rows before EOF even when a previous range is cached', async () => {
+    const config = createMockChartConfig();
+    const prior = { ...config, dateRange: [new Date(0), new Date(1)] };
+    queryClient.setQueryData(['', prior, 30], { pages: [], pageParams: [] });
+    let finish: ((value: { done: true }) => void) | undefined;
+    mockReader.read
+      .mockResolvedValueOnce({
+        done: false,
+        value: [
+          { json: () => ['timestamp', 'message'] },
+          { json: () => ['DateTime', 'String'] },
+          { json: () => ['2024-01-01T01:00:00Z', 'first streamed row'] },
+        ],
+      })
+      .mockImplementationOnce(
+        () =>
+          new Promise(resolve => {
+            finish = resolve;
+          }),
+      );
+    const { result } = renderHook(() => useOffsetPaginatedQuery(config), {
+      wrapper,
+    });
+    await waitFor(() =>
+      expect(result.current.data?.data[0]?.message).toBe('first streamed row'),
+    );
+    expect(result.current.isFetching).toBe(true);
+    await act(async () => {
+      finish?.({ done: true });
+    });
+    await waitFor(() => expect(result.current.isFetching).toBe(false));
+    expect(result.current.data?.data).toHaveLength(1);
+  });
+
+  it('aborts the network request when its observer unmounts despite a team timeout', async () => {
+    mockClickhouseClient.query.mockImplementation(() => new Promise(() => {}));
+    const { unmount } = renderHook(
+      () => useOffsetPaginatedQuery(createMockChartConfig()),
+      { wrapper },
+    );
+    await waitFor(() =>
+      expect(mockClickhouseClient.query).toHaveBeenCalledTimes(1),
+    );
+    const requestSignal = mockClickhouseClient.query.mock.calls[0][0]
+      .abort_signal as AbortSignal;
+    unmount();
+    expect(requestSignal.aborted).toBe(true);
+  });
+
+  it.each([false, true])(
+    'keeps a cached multi-page result atomic when later-page failure is %s',
+    async fails => {
+      const config = createMockChartConfig();
+      const window = {
+        startTime: new Date('2024-01-01T23:45:00Z'),
+        endTime: new Date('2024-01-02T00:00:00Z'),
+        windowIndex: 0,
+        direction: 'DESC',
+      };
+      const page = (message: string) => ({
+        data: [{ timestamp: '2024-01-01T23:50:00Z', message }],
+        meta: [
+          { name: 'timestamp', type: 'DateTime' },
+          { name: 'message', type: 'String' },
+        ],
+        chSql: { sql: '', params: {} },
+        window,
+      });
+      queryClient.setQueryData(['', config, 30], {
+        pages: [page('old one'), page('old two')],
+        pageParams: [
+          { windowIndex: 0, offset: 0 },
+          { windowIndex: 0, offset: 1 },
+        ],
+      });
+      const chunk = (message: string) => ({
+        done: false,
+        value: [
+          { json: () => ['timestamp', 'message'] },
+          { json: () => ['DateTime', 'String'] },
+          { json: () => ['2024-01-01T23:50:00Z', message] },
+        ],
+      });
+      mockReader.read
+        .mockResolvedValueOnce(chunk('new one'))
+        .mockResolvedValueOnce({ done: true });
+      if (fails)
+        mockReader.read.mockRejectedValue(new Error('later page failed'));
+      else
+        mockReader.read
+          .mockResolvedValueOnce(chunk('new two'))
+          .mockResolvedValue({ done: true });
+      const { result } = renderHook(() => useOffsetPaginatedQuery(config), {
+        wrapper,
+      });
+      expect(result.current.data?.data.map(row => row.message)).toEqual([
+        'old one',
+        'old two',
+      ]);
+      await act(async () => {
+        await queryClient.refetchQueries({
+          queryKey: ['', config, 30],
+          exact: true,
+        });
+      });
+      await waitFor(() => expect(result.current.isError).toBe(fails));
+      await waitFor(() => expect(mockReader.read.mock.calls.length).toBeGreaterThanOrEqual(3));
+      await waitFor(() => expect(result.current.data?.data.map(row => row.message)).toEqual(
+        fails ? ['old one', 'old two'] : ['new one', 'new two'],
+      ));
+    },
+  );
 
   describe('Time Window Generation', () => {
     it('should generate correct time windows for 24-hour range', async () => {

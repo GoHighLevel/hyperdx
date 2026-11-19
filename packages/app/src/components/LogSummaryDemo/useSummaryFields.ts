@@ -7,6 +7,7 @@ import {
 import { DEFAULT_DEVELOPER_UI } from '@hyperdx/common-utils/dist/types';
 
 import api from '@/api';
+import { filterKeyPath } from '@/components/DBSearchPageFilters/utils';
 
 import { SummaryField } from './LogSummaryRow';
 import { summaryFieldForPath } from './resolveFields';
@@ -79,6 +80,7 @@ export function useSummaryFields(sourceId?: string) {
       const selected = previous[key];
       const current = isFields(selected) ? selected : defaults;
       const updated = typeof next === 'function' ? next(current) : next;
+      if (updated === current) return;
       const available = previous[`${key}:available`];
       const remembered = new Map(
         [...(isFields(available) ? available : []), ...current, ...updated].map(
@@ -123,11 +125,25 @@ export function useSummaryFields(sourceId?: string) {
     localStorage.setItem(storageKey, JSON.stringify(previous));
     window.dispatchEvent(new Event(storageKey));
   }, [key]);
+  const ensureField = useCallback(
+    (expression: string) => {
+      const path = filterKeyPath(expression).join('.');
+      if (!path) return;
+      const field = summaryFieldForPath(path);
+      setFields(current =>
+        current.some(item => item.id === field.id)
+          ? current
+          : [...current, field],
+      );
+    },
+    [setFields],
+  );
   return [
     fields,
     setFields,
     availableFields,
     removeField,
     resetFields,
+    ensureField,
   ] as const;
 }

@@ -6,6 +6,7 @@ import {
   useRef,
   useState,
 } from 'react';
+import { isEqual } from 'lodash';
 import { splitAndTrimWithBracket } from '@hyperdx/common-utils/dist/core/utils';
 import { isBuilderChartConfig } from '@hyperdx/common-utils/dist/guards';
 import type {
@@ -326,12 +327,79 @@ export default function useLiveLogQuery(
     [canRequest, scope, config, isLive],
   );
 
+  // A preview never commits the chronological cursor or replaces retained rows.
+  const streamingPreview = useMemo(() => {
+    if (
+      !usesSession ||
+      !active ||
+      !query.isFetching ||
+      query.isError ||
+      !query.data ||
+      query.data === current.batch.beforeRequest
+    )
+      return undefined;
+    const rows = current.batch.replace ? [] : (current.data?.data ?? []);
+    const seen = new Set(rows.map(rowKey));
+    const pending = query.data.data
+      .slice(current.batch.consumed)
+      .filter(row => {
+        const key = rowKey(row);
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+    if (!pending.length) return undefined;
+    const merged = sortChronologically(
+      [...rows, ...pending],
+      query.data,
+      current.batch.config,
+    );
+    return { ...query.data, data: merged.slice(-MAX_RETAINED_ROWS) };
+  }, [
+    usesSession,
+    active,
+    query.isFetching,
+    query.isError,
+    query.data,
+    current,
+  ]);
+  const [previewSnapshot, setPreviewSnapshot] = useState<
+    | {
+        scope: string;
+        generation: number;
+        data: Data;
+      }
+    | undefined
+  >(undefined);
+  useEffect(() => {
+    if (streamingPreview) {
+      // Retain the last visible stream block while a row inspector is paused.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setPreviewSnapshot(previous =>
+        previous?.scope === scope &&
+        previous.generation === current.generation &&
+        isEqual(previous.data, streamingPreview)
+          ? previous
+          : { scope, generation: current.generation, data: streamingPreview },
+      );
+    } else if (!query.isFetching && !paused) {
+      setPreviewSnapshot(undefined);
+    }
+  }, [streamingPreview, scope, current.generation, query.isFetching, paused]);
+  const visibleData =
+    streamingPreview ??
+    (paused &&
+    previewSnapshot?.scope === scope &&
+    previewSnapshot.generation === current.generation
+      ? previewSnapshot.data
+      : current.data);
+
   return useMemo(
     () =>
       usesSession
         ? {
             ...query,
-            data: current.data,
+            data: visibleData,
             isFetching: active && query.isFetching,
             isLoading: active && query.isLoading && current.data == null,
             hasNextPage: !current.batch.complete && query.hasNextPage,
@@ -414,6 +482,7 @@ export default function useLiveLogQuery(
       usesSession,
       query,
       current,
+      visibleData,
       active,
       isLive,
       canRequest,

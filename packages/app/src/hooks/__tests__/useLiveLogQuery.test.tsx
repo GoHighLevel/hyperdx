@@ -639,3 +639,19 @@ it('preserves descending builder-array ordering without reversing returned rows'
     expect.objectContaining({ isLive: false }),
   );
 });
+
+it('shows initial chronological stream rows before completion without advancing the cursor', () => {
+  query.mockReturnValue(response([1], { isFetching: true }));
+  const { result, rerender } = renderHook(() =>
+    useLiveLogQuery(config(), { manualNavigation: true }),
+  );
+  expect(result.current.data?.data.map(row => row.Timestamp)).toEqual([1]);
+  expect(result.current.refreshedUntil).toBeUndefined();
+  query.mockReturnValue(response([1, 2], { isFetching: true }));
+  rerender();
+  expect(result.current.data?.data.map(row => row.Timestamp)).toEqual([1, 2]);
+  query.mockReturnValue(response([1, 2], { hasNextPage: false }));
+  rerender();
+  expect(result.current.data?.data.map(row => row.Timestamp)).toEqual([1, 2]);
+  expect(result.current.refreshedUntil).toBe(60000);
+});

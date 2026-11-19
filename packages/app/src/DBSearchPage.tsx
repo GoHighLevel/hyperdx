@@ -95,6 +95,7 @@ import { ErrorBoundary } from '@/components/Error/ErrorBoundary';
 import { FavoriteButton } from '@/components/FavoriteButton';
 import ResourceTerraformPopover from '@/components/Iac/ResourceTerraformPopover';
 import { InputControlled } from '@/components/InputControlled';
+import { useSummaryFields } from '@/components/LogSummaryDemo/useSummaryFields';
 import OnboardingModal from '@/components/OnboardingModal';
 import FilterQueryInput from '@/components/SearchInput/FilterQueryInput';
 import { getStoredLanguage } from '@/components/SearchInput/SearchWhereInput';
@@ -1439,9 +1440,18 @@ function SearchPageContents({ dashboard }: { dashboard?: Dashboard }) {
     },
     [setValue],
   );
+  const [, , , , , ensureSummaryField] = useSummaryFields(inputSourceObj?.id);
+  const handleFilterApplied = useCallback(
+    (property: string) => {
+      if (inputSourceObj?.kind === SourceKind.Log) ensureSummaryField(property);
+    },
+    [inputSourceObj?.kind, ensureSummaryField],
+  );
+
   const searchFilters = useSearchPageFilterState({
     searchQuery: filters ?? undefined,
     onFilterChange: handleSetFilters,
+    onFilterApplied: handleFilterApplied,
     dateTimeColumns,
     knownColumns,
   });
