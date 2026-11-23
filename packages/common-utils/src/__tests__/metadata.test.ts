@@ -1956,6 +1956,47 @@ describe('Metadata', () => {
       ).rejects.toThrow('Read limit exceeded');
     });
 
+    it('inspects newest timestamps while retaining multi-column partition pruning and smaller source budgets', async () => {
+      jest
+        .spyOn(metadata, 'renderMetadataKeyExpression')
+        .mockResolvedValue('severity');
+      jest
+        .spyOn(metadata, 'getColumn')
+        .mockResolvedValueOnce({ name: 'EventDate', type: 'Date' } as never)
+        .mockResolvedValueOnce({
+          name: 'EventTime',
+          type: 'DateTime64(9)',
+        } as never);
+      await metadata.getInspectedValuesDistribution({
+        chartConfig: {
+          ...mockChartConfig,
+          timestampValueExpression: 'EventDate, EventTime',
+        },
+        key: 'severity',
+        source: {
+          ...source,
+          querySettings: [{ setting: 'max_rows_to_group_by', value: '100' }],
+        },
+      });
+      expect(renderChartConfigModule.renderChartConfig).toHaveBeenCalledWith(
+        expect.objectContaining({
+          timestampValueExpression: 'EventDate, EventTime',
+          select:
+            'severity AS __hdx_value, EventTime AS __hdx_inspected_timestamp',
+          orderBy: 'EventTime DESC',
+        }),
+        metadata,
+        [],
+      );
+      expect(mockClickhouseClient.query).toHaveBeenCalledWith(
+        expect.objectContaining({
+          clickhouse_settings: expect.objectContaining({
+            max_rows_to_group_by: '100',
+          }),
+        }),
+      );
+    });
+
     it('should fetch and return values distribution for severity', async () => {
       const result = await metadata.getValuesDistribution({
         chartConfig: mockChartConfig,

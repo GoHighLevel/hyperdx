@@ -51,6 +51,7 @@ import {
   getDistributedTableArgs,
   MetadataMVQueryOptions,
   objectHash,
+  pickBucketTimestampColumn,
   splitAndTrimWithBracket,
   TextIndexColumnQueryOptions,
   TextIndexMapColumnQueryOptions,
@@ -2348,12 +2349,19 @@ export class Metadata {
       connectionId: chartConfig.connection,
       keyExpression: key,
     });
+    const inspectedTimestamp = await pickBucketTimestampColumn({
+      timestampValueExpression: chartConfig.timestampValueExpression,
+      metadata: this,
+      databaseName: chartConfig.from.databaseName,
+      tableName: chartConfig.from.tableName,
+      connectionId: chartConfig.connection,
+    });
     const inspected = await renderChartConfig(
       {
         ...chartConfig,
-        select: `${renderedKey} AS __hdx_value, ${chartConfig.timestampValueExpression} AS __hdx_inspected_timestamp`,
+        select: `${renderedKey} AS __hdx_value, ${inspectedTimestamp} AS __hdx_inspected_timestamp`,
         groupBy: undefined,
-        orderBy: `${chartConfig.timestampValueExpression} DESC`,
+        orderBy: `${inspectedTimestamp} DESC`,
         limit: { limit: samples },
       },
       this,
@@ -2391,7 +2399,7 @@ export class Metadata {
         max_memory_usage: cap('max_memory_usage', 1_073_741_824),
         max_rows_to_read: cap('max_rows_to_read', 2_000_000),
         max_bytes_to_read: cap('max_bytes_to_read', 1_073_741_824),
-        max_rows_to_group_by: String(samples),
+        max_rows_to_group_by: cap('max_rows_to_group_by', samples),
         read_overflow_mode: 'throw',
         timeout_overflow_mode: 'throw',
         group_by_overflow_mode: 'throw',
