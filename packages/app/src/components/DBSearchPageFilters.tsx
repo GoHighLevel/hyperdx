@@ -547,6 +547,9 @@ const FilterGroupBody = ({
     data: distributionData,
     isFetching: isFetchingDistribution,
     error: distributionError,
+    inspectedRows,
+    inspectedFrom,
+    inspectedTo,
   } = useGetValuesDistribution(
     {
       chartConfig: { ...chartConfig, dateRange },
@@ -722,6 +725,21 @@ const FilterGroupBody = ({
 
   return (
     <Stack gap={0}>
+      {showDistributions && inspectedRows != null && (
+        <Text
+          size="xxs"
+          px="xs"
+          pb={4}
+          c="var(--color-text-muted)"
+          role="status"
+        >
+          Distribution of {inspectedRows.toLocaleString()} inspected logs
+          {inspectedFrom && inspectedTo
+            ? ` · ${inspectedFrom} – ${inspectedTo}`
+            : ''}
+          {' · Not a full-range estimate'}
+        </Text>
+      )}
       {showLogCounts &&
         (isFetchingCounts || isCountsPartial || countsError) && (
           <Group gap="xs" px="xs" pb={4}>

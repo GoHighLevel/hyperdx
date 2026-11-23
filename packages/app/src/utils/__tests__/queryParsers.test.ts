@@ -1,12 +1,19 @@
 import {
   dashboardFilterValuesParser,
   parseAsJsonEncoded,
+  parseAsLiveUpdates,
   parseAsStringEncoded,
 } from '@/utils/queryParsers';
 
 // Helper: extract the parse/serialize functions from the parser object
 const stringParser = parseAsStringEncoded;
 const jsonParser = parseAsJsonEncoded<unknown>();
+
+it('defaults live updates off while retaining explicit live and paused links', () => {
+  expect(parseAsLiveUpdates.defaultValue).toBe(false);
+  expect(parseAsLiveUpdates.parse('true')).toBe(true);
+  expect(parseAsLiveUpdates.parse('false')).toBe(false);
+});
 
 describe('parseAsStringEncoded', () => {
   describe('parse', () => {

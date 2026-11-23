@@ -106,6 +106,46 @@ export function parse(query: string): lucene.AST {
   return lucene.parse(encodeSpecialTokens(uncommentedQuery));
 }
 
+/** Scheduling hints only: this never rewrites a predicate or changes its meaning. */
+export function getSearchQueryTraits(
+  query: string,
+  exactIdFields: readonly string[] = [],
+) {
+  let hasKeyword = false;
+  let hasExactId = false;
+  let conjunctionOnly = true;
+  const visit = (value: unknown, positive = true): void => {
+    if (value == null || typeof value !== 'object') return;
+    const node: Record<string, unknown> = Object.fromEntries(
+      Object.entries(value),
+    );
+    const isPositive = positive && node.start !== 'NOT';
+    if (node.operator != null && node.operator !== 'AND')
+      conjunctionOnly = false;
+    if (typeof node.field === 'string' && typeof node.term === 'string') {
+      if (node.field === IMPLICIT_FIELD && node.term !== '*') hasKeyword = true;
+      if (
+        isPositive &&
+        node.quoted === true &&
+        node.regex !== true &&
+        node.prefix !== '-' &&
+        node.term !== '' &&
+        exactIdFields.includes(node.field)
+      )
+        hasExactId = true;
+    }
+    visit(node.left, isPositive);
+    visit(node.right, isPositive);
+  };
+  try {
+    visit(parse(query));
+    return { hasKeyword, hasExactId: conjunctionOnly && hasExactId };
+  } catch {
+    // Incomplete editor input must retain the ordinary search path.
+    return { hasKeyword: false, hasExactId: false };
+  }
+}
+
 /** Escape the LIKE/ILIKE metacharacters `\`, `%` and `_` so a term matches literally */
 function escapeLikePattern(term: string): string {
   return term.replace(/[\\%_]/g, '\\$&');

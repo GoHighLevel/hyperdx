@@ -95,6 +95,7 @@ import { ErrorBoundary } from '@/components/Error/ErrorBoundary';
 import { FavoriteButton } from '@/components/FavoriteButton';
 import ResourceTerraformPopover from '@/components/Iac/ResourceTerraformPopover';
 import { InputControlled } from '@/components/InputControlled';
+import { ShareLogButton } from '@/components/LogShare';
 import { useSummaryFields } from '@/components/LogSummaryDemo/useSummaryFields';
 import OnboardingModal from '@/components/OnboardingModal';
 import FilterQueryInput from '@/components/SearchInput/FilterQueryInput';
@@ -173,6 +174,7 @@ import {
 } from './utils/directTrace';
 import {
   parseAsJsonEncoded,
+  parseAsLiveUpdates,
   parseAsSortingStateString,
   parseAsStringEncoded,
 } from './utils/queryParsers';
@@ -1139,10 +1141,7 @@ function SearchPageContents({ dashboard }: { dashboard?: Dashboard }) {
     setDraftPatternColumn(patternColumn ?? '');
   }, [patternColumn]);
 
-  const [isLive, setIsLive] = useQueryState(
-    'isLive',
-    parseAsBoolean.withDefault(true),
-  );
+  const [isLive, setIsLive] = useQueryState('isLive', parseAsLiveUpdates);
 
   useEffect(() => {
     if (analysisMode === 'delta' || analysisMode === 'pattern') {
@@ -2071,6 +2070,11 @@ function SearchPageContents({ dashboard }: { dashboard?: Dashboard }) {
   const rowTableContext = useMemo(
     () => ({
       onPropertyAddClick: searchFilters.setFilterValue,
+      onAddSummaryField:
+        searchedSource?.kind === SourceKind.Log &&
+        searchedSource.id === inputSourceObj?.id
+          ? ensureSummaryField
+          : undefined,
       displayedColumns,
       toggleColumn,
       generateSearchUrl,
@@ -2081,6 +2085,8 @@ function SearchPageContents({ dashboard }: { dashboard?: Dashboard }) {
     }),
     [
       searchFilters.setFilterValue,
+      ensureSummaryField,
+      inputSourceObj?.id,
       searchedSource,
       dbSqlRowTableConfig,
       displayedColumns,
@@ -2109,11 +2115,10 @@ function SearchPageContents({ dashboard }: { dashboard?: Dashboard }) {
   const onTimePickerRelativeSearch = useCallback(
     (rangeMs: number) => {
       const _range = parseRelativeTimeQuery(rangeMs);
-      setIsLive(true);
       setInterval(rangeMs);
       onTimeRangeSelect(_range[0], _range[1], null);
     },
-    [setIsLive, setInterval, onTimeRangeSelect],
+    [setInterval, onTimeRangeSelect],
   );
   const directTraceFocusDate = useMemo(
     () =>
@@ -2529,6 +2534,13 @@ function SearchPageContents({ dashboard }: { dashboard?: Dashboard }) {
               width="100%"
               size="xs"
             />
+            {searchedSource?.kind === SourceKind.Log && (
+              <ShareLogButton
+                sourceId={searchedSource.id}
+                dateRange={searchedTimeRange}
+                config={dbSqlRowTableConfig}
+              />
+            )}
             <SearchSubmitButton isFormStateDirty={formState.isDirty} />
           </Flex>
         </Flex>

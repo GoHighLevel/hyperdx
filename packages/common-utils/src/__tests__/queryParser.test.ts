@@ -6,6 +6,7 @@ import {
   decodeSpecialTokensToSource,
   encodeSpecialTokens,
   genEnglishExplanation,
+  getSearchQueryTraits,
   parse,
   parseKvItemsCastExpression,
   parseKvItemsExpression,
@@ -22,6 +23,33 @@ beforeAll(() => {
 });
 afterAll(() => {
   jest.restoreAllMocks();
+});
+
+describe('search scheduling traits', () => {
+  it('detects a keyword and a required exact ID through the parsed expression', () => {
+    expect(
+      getSearchQueryTraits('source AND (trace_id:"123")', ['trace_id']),
+    ).toEqual({ hasKeyword: true, hasExactId: true });
+  });
+  it.each([
+    'trace_id:123',
+    'trace_id:*123*',
+    'NOT trace_id:"123"',
+    'trace_id:"123" OR source',
+    'message:"trace_id:123"',
+    '// trace_id:"123"\nsource',
+  ])('does not classify %s as a required exact ID', query => {
+    expect(getSearchQueryTraits(query, ['trace_id']).hasExactId).toBe(false);
+  });
+  it('fails closed for malformed expressions and does not treat a field name as a keyword', () => {
+    expect(getSearchQueryTraits('"', ['trace_id'])).toEqual({
+      hasKeyword: false,
+      hasExactId: false,
+    });
+    expect(getSearchQueryTraits('deployment_name:"source"').hasKeyword).toBe(
+      false,
+    );
+  });
 });
 
 describe('special token encoding', () => {

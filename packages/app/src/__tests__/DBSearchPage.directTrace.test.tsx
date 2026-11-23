@@ -52,6 +52,8 @@ jest.mock('next/link', () => ({
   }) => <a href={href}>{children}</a>,
 }));
 
+jest.mock('@/components/LogShare', () => ({ ShareLogButton: () => null }));
+
 jest.mock('nuqs', () => ({
   parseAsBoolean: {
     withDefault: () => 'parseAsBoolean',

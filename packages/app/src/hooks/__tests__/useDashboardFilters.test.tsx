@@ -28,6 +28,7 @@ const mockSetState = jest.fn(
 );
 
 jest.mock('nuqs', () => ({
+  parseAsBoolean: jest.requireActual('nuqs').parseAsBoolean,
   useQueryState: () => [mockState, mockSetState],
   createParser: (opts: { parse: Function; serialize: Function }) => opts,
 }));

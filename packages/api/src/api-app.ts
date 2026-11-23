@@ -16,6 +16,7 @@ import connectionsRouter from './routers/api/connections';
 import dashboardFoldersRouter from './routers/api/dashboardFolders';
 import favoritesRouter from './routers/api/favorites';
 import iacRouter from './routers/api/iac';
+import logSharesRouter from './routers/api/logShares';
 import personalPinnedFiltersRouter from './routers/api/personalPinnedFilters';
 import pinnedFiltersRouter from './routers/api/pinnedFilters';
 import savedSearchRouter from './routers/api/savedSearch';
@@ -131,6 +132,7 @@ app.use(
   savedSearchRouter,
 );
 app.use('/favorites', isUserAuthenticated, favoritesRouter);
+app.use('/log-shares', isUserAuthenticated, logSharesRouter);
 app.use(
   '/personal-pinned-filters',
   isUserAuthenticated,

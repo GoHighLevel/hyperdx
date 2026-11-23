@@ -22,6 +22,7 @@ import {
   isPromqlChartConfig,
   isRawSqlChartConfig,
 } from '@hyperdx/common-utils/dist/guards';
+import { getSearchQueryTraits } from '@hyperdx/common-utils/dist/queryParser';
 import {
   ChartConfigWithOptTimestamp,
   TSource,
@@ -41,10 +42,9 @@ import { useMetadataWithSettings } from '@/hooks/useMetadata';
 import { useMVOptimizationExplanation } from '@/hooks/useMVOptimizationExplanation';
 import { useSource } from '@/source';
 import {
-  DEFAULT_TIME_WINDOWS_SECONDS,
   generateTimeWindowsAscending,
   generateTimeWindowsDescending,
-  SMALL_FIRST_WINDOW_DURATIONS_SECONDS,
+  getLogSearchWindowDurations,
   TimeWindow,
 } from '@/utils/searchWindows';
 
@@ -503,10 +503,23 @@ export default function useOffsetPaginatedQuery(
   const hasPreviousQueries =
     isLive === true && matchedQueries.some(([_, data]) => data != null);
 
-  const windowDurationsSeconds = DEFAULT_TIME_WINDOWS_SECONDS.slice();
-  if (enableSmallFirstWindow) {
-    windowDurationsSeconds.unshift(...SMALL_FIRST_WINDOW_DURATIONS_SECONDS);
-  }
+  const queryTraits =
+    isBuilderChartConfig(config) &&
+    config.whereLanguage === 'lucene' &&
+    typeof config.where === 'string' &&
+    getSearchQueryTraits(config.where, [
+      'trace_id',
+      'TraceId',
+      'traceId',
+      'request_id',
+      'requestId',
+      'RequestId',
+    ]);
+  const windowDurationsSeconds = getLogSearchWindowDurations(
+    enableSmallFirstWindow === true,
+    !!queryTraits && queryTraits.hasKeyword,
+    !!queryTraits && queryTraits.hasExactId,
+  );
 
   const builderConfig = isBuilderChartConfig(config) ? config : undefined;
   const { data: mvOptimizationData, isLoading: isLoadingMVOptimization } =

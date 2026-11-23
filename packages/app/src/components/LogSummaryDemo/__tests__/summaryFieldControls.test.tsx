@@ -6,6 +6,7 @@ import { FilterGroup } from '@/components/DBSearchPageFilters';
 import SummaryFieldButton from '@/components/LogSummaryDemo/SummaryFieldButton';
 import SummaryFieldPicker from '@/components/LogSummaryDemo/SummaryFieldPicker';
 import { useSummaryFields } from '@/components/LogSummaryDemo/useSummaryFields';
+import { parseSharedSummaryFields } from '@/components/LogSummaryDemo/useSummaryFields';
 
 let mockEmail = 'dev@example.com';
 let mockDefaults: string[] | undefined;
@@ -31,6 +32,21 @@ jest.mock('@/hooks/useMetadata', () => ({
 }));
 const oldColumnToggle = jest.fn();
 const changeQuery = jest.fn();
+
+it('reads shared fields only for the linked source and rejects malformed snapshots', () => {
+  const fields = [
+    { id: 'contact', label: 'contact', paths: ['json_payload.contactId'] },
+  ];
+  const params = new URLSearchParams({
+    source: 'logs',
+    summaryFields: JSON.stringify(fields),
+  });
+  expect(parseSharedSummaryFields('?' + params, 'logs')).toEqual(fields);
+  expect(parseSharedSummaryFields('?' + params, 'other')).toBeUndefined();
+  expect(
+    parseSharedSummaryFields('?source=logs&summaryFields=bad', 'logs'),
+  ).toBeUndefined();
+});
 
 function Picker() {
   const [fields, setFields, availableFields, removeField, resetFields] =
@@ -81,10 +97,44 @@ function Controls() {
 
 beforeEach(() => {
   localStorage.clear();
+  window.history.replaceState({}, '', '/search');
   mockEmail = 'dev@example.com';
   mockDefaults = undefined;
   oldColumnToggle.mockClear();
   changeQuery.mockClear();
+});
+
+it('opens shared summary fields without overwriting preferences, then persists an explicit edit', () => {
+  const personal = { id: 'pod', label: 'pod', paths: ['pod_name'] };
+  const shared = {
+    id: 'contact',
+    label: 'contact',
+    paths: ['json_payload.contactId'],
+  };
+  const stored = JSON.stringify({ 'dev@example.com:logs': [personal] });
+  localStorage.setItem('log-summary-fields-v1', stored);
+  window.history.replaceState(
+    {},
+    '',
+    '/search?' +
+      new URLSearchParams({
+        source: 'logs',
+        summaryFields: JSON.stringify([shared]),
+      }),
+  );
+  const hook = renderHook(() => useSummaryFields('logs'));
+  expect(hook.result.current[0]).toEqual([shared]);
+  expect(localStorage.getItem('log-summary-fields-v1')).toBe(stored);
+  act(() => hook.result.current[1](current => [...current, personal]));
+  expect(hook.result.current[0]).toEqual([shared, personal]);
+  expect(new URLSearchParams(window.location.search).has('summaryFields')).toBe(
+    false,
+  );
+  expect(
+    JSON.parse(localStorage.getItem('log-summary-fields-v1') ?? '{}')[
+      'dev@example.com:logs'
+    ],
+  ).toEqual([shared, personal]);
 });
 
 it('adds a sidebar field, reorders it, and remembers it after unchecking and remounting', async () => {

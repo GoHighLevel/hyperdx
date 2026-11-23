@@ -121,6 +121,30 @@ const createMockQueryResponse = (data: any[]): ResponseJSON<any> => {
 
 describe('useChartConfig', () => {
   describe('getGranularityAlignedTimeWindows', () => {
+    it('bounds keyword histogram scans and preserves complete non-overlapping coverage', () => {
+      const start = new Date('2026-11-01T00:00:00Z');
+      const end = new Date('2026-11-08T00:00:00Z');
+      const config: ChartConfigWithDateRange & { granularity: string } = {
+        dateRange: [start, end],
+        granularity: '5 minute',
+        timestampValueExpression: 'timestamp',
+        where: 'source',
+        whereLanguage: 'lucene',
+        from: { databaseName: 'logs', tableName: 'unified' },
+        connection: 'test',
+        select: 'count()',
+      };
+      const windows = getGranularityAlignedTimeWindows(config);
+      expect(windows[0].dateRange[1]).toEqual(end);
+      expect(windows.at(-1)?.dateRange[0]).toEqual(start);
+      for (let i = 0; i < windows.length; i++) {
+        expect(
+          windows[i].dateRange[1].getTime() - windows[i].dateRange[0].getTime(),
+        ).toBeLessThanOrEqual(3600000);
+        if (i)
+          expect(windows[i].dateRange[1]).toEqual(windows[i - 1].dateRange[0]);
+      }
+    });
     it('returns windows aligned to the granularity if the granularity is auto', () => {
       expect(
         getGranularityAlignedTimeWindows(

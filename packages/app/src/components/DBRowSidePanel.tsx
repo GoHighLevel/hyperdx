@@ -78,6 +78,7 @@ import {
   INITIAL_DRAWER_WIDTH_PERCENT,
 } from './DrawerUtils';
 import LogLevel from './LogLevel';
+import { ShareLogButton } from './LogShare';
 import SidePanelBreadcrumbs, { BreadcrumbItem } from './SidePanelBreadcrumbs';
 import {
   getValidSpanLinks,
@@ -89,6 +90,7 @@ import { ViewTraceCalloutButton } from './ViewTraceCalloutButton';
 import styles from '@/../styles/LogSidePanel.module.scss';
 
 export type RowSidePanelContextProps = {
+  onAddSummaryField?: (field: string) => void;
   onPropertyAddClick?: (
     keyPath: string,
     value: string,
@@ -140,6 +142,7 @@ export function deriveRowSidePanelContextForSource(
       : undefined,
     displayedColumns: sameSource ? parentContext.displayedColumns : undefined,
     toggleColumn: sameSource ? parentContext.toggleColumn : undefined,
+    onAddSummaryField: sameSource ? parentContext.onAddSummaryField : undefined,
   };
 }
 
@@ -153,6 +156,7 @@ function SidePanelHeaderActions({
   onToggleFullWidth?: () => void;
 }) {
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  const { source, dbSqlRowTableConfig } = use(RowSidePanelContext);
 
   return (
     <>
@@ -174,26 +178,34 @@ function SidePanelHeaderActions({
             <IconKeyboard size={16} />
           </ActionIcon>
         </Tooltip>
-        <CopyButton
-          value={typeof window !== 'undefined' ? window.location.href : ''}
-        >
-          {({ copied, copy }) => (
-            <Tooltip
-              label={copied ? 'Copied!' : 'Share link'}
-              position="bottom"
-            >
-              <ActionIcon
-                variant="subtle"
-                color="gray"
-                size="sm"
-                onClick={copy}
-                aria-label="Share"
+        {source?.kind === SourceKind.Log && dbSqlRowTableConfig ? (
+          <ShareLogButton
+            sourceId={source.id}
+            dateRange={dbSqlRowTableConfig.dateRange}
+            config={dbSqlRowTableConfig}
+          />
+        ) : (
+          <CopyButton
+            value={typeof window !== 'undefined' ? window.location.href : ''}
+          >
+            {({ copied, copy }) => (
+              <Tooltip
+                label={copied ? 'Copied!' : 'Share link'}
+                position="bottom"
               >
-                <IconShare size={16} />
-              </ActionIcon>
-            </Tooltip>
-          )}
-        </CopyButton>
+                <ActionIcon
+                  variant="subtle"
+                  color="gray"
+                  size="sm"
+                  onClick={copy}
+                  aria-label="Share"
+                >
+                  <IconShare size={16} />
+                </ActionIcon>
+              </Tooltip>
+            )}
+          </CopyButton>
+        )}
         <Tooltip label="Close" position="bottom">
           <ActionIcon
             variant="subtle"

@@ -2,8 +2,19 @@ import {
   DEFAULT_TIME_WINDOWS_SECONDS,
   generateTimeWindowsAscending,
   generateTimeWindowsDescending,
+  getLogSearchWindowDurations,
   SMALL_FIRST_WINDOW_DURATIONS_SECONDS,
 } from './searchWindows';
+
+it('keeps a tiny keyword preview but skips the serial staircase for older matches', () => {
+  expect(getLogSearchWindowDurations(true, true, false).slice(0, 2)).toEqual([
+    10, 300,
+  ]);
+  expect(getLogSearchWindowDurations(true, false, true)[0]).toBe(1800);
+  expect(getLogSearchWindowDurations(true, false, false).slice(0, 5)).toEqual([
+    10, 20, 90, 180, 600,
+  ]);
+});
 
 it.each([1, 7, 30, 365])(
   'covers a %i-day range without gaps or overlapping windows',
