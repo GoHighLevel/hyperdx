@@ -103,7 +103,42 @@ export function parse(query: string): lucene.AST {
     .split('\n')
     .filter(line => !line.trimStart().startsWith('//'))
     .join('\n');
-  return lucene.parse(encodeSpecialTokens(uncommentedQuery));
+  const ast = lucene.parse(encodeSpecialTokens(uncommentedQuery));
+  // Product shorthand: bare http_status>N selects N through its class end.
+  // Normalize parsed terms so quotes, escapes and explicit field scopes survive.
+  const expandStatus = (
+    node: lucene.AST | lucene.Node,
+    inFieldScope = false,
+  ): lucene.AST | lucene.Node => {
+    const scoped =
+      inFieldScope || Boolean(node.field && node.field !== IMPLICIT_FIELD);
+    if ('left' in node) {
+      node.left = expandStatus(node.left, scoped);
+      if ('right' in node && node.right)
+        node.right = expandStatus(node.right, scoped);
+    } else if (
+      !scoped &&
+      isNodeTerm(node) &&
+      !node.quoted &&
+      !node.regex &&
+      !node.prefix &&
+      !node.boost &&
+      !node.similarity &&
+      /^http_status>[1-5][0-9]{2}$/.test(node.term)
+    ) {
+      const code = Number(node.term.slice('http_status>'.length));
+      return {
+        field: 'http_status',
+        fieldLocation: node.termLocation,
+        term_min: String(code),
+        term_max: String(Math.floor(code / 100) * 100 + 99),
+        inclusive: 'both',
+      };
+    }
+    return node;
+  };
+  expandStatus(ast);
+  return ast;
 }
 
 /** Scheduling hints only: this never rewrites a predicate or changes its meaning. */

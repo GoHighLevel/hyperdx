@@ -107,6 +107,31 @@ const SQL_SECTIONS: Section[] = [
 
 const LUCENE_SECTIONS: Section[] = [
   {
+    title: 'HTTP status shorthand',
+    rows: [
+      {
+        expr: 'http_status>200',
+        desc: 'HTTP 200–299 (inclusive class shorthand)',
+      },
+      {
+        expr: 'http_status>400',
+        desc: 'HTTP 400–499 (inclusive class shorthand)',
+      },
+      {
+        expr: 'http_status>500',
+        desc: 'HTTP 500–599 (inclusive class shorthand)',
+      },
+      {
+        expr: 'http_status>403',
+        desc: 'HTTP 403–499 (includes the specified code)',
+      },
+      {
+        expr: 'http_status:>500',
+        desc: 'Standard comparison: strictly greater than 500',
+      },
+    ],
+  },
+  {
     title: 'String matching',
     rows: [
       { expr: 'ServiceName:"api"', desc: 'Field exact match' },

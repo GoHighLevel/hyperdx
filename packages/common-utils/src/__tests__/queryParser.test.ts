@@ -6,6 +6,7 @@ import {
   decodeSpecialTokensToSource,
   encodeSpecialTokens,
   genEnglishExplanation,
+  getLuceneFields,
   getSearchQueryTraits,
   parse,
   parseKvItemsCastExpression,
@@ -123,6 +124,73 @@ describe('Lucene queries copied from JSON filters', () => {
     expect(sql).toContain('NULL');
     expect(sql).toContain('200');
     expect(sql).toContain('499');
+  });
+});
+
+describe('HTTP status class shorthand', () => {
+  const metadata = getMetadata(
+    new ClickhouseClient({ host: 'http://localhost:8123' }),
+  );
+  metadata.getColumn = jest.fn().mockImplementation(async ({ column }) => ({
+    name: column,
+    type: column === 'http_status' ? 'UInt16' : 'String',
+  }));
+  metadata.getColumns = jest
+    .fn()
+    .mockResolvedValue([{ name: 'http_status', type: 'UInt16' }]);
+  metadata.getSkipIndices = jest.fn().mockResolvedValue([]);
+  metadata.getSetting = jest.fn().mockResolvedValue('0');
+  metadata.getServerVersion = jest.fn().mockResolvedValue([26, 6, 1, 2455]);
+  metadata.isClickHouseCloud = jest.fn().mockResolvedValue(false);
+  metadata.getMaterializedColumnsLookupTable = jest
+    .fn()
+    .mockResolvedValue(new Map());
+  const serializer = new CustomSchemaSQLSerializerV2({
+    metadata,
+    databaseName: 'test',
+    tableName: 'logs',
+    connectionId: 'local',
+    implicitColumnExpression: 'log',
+  });
+  const sql = (query: string) =>
+    new SearchQueryBuilder(query, serializer).build();
+
+  it('uses an inclusive bounded range for every HTTP status code', async () => {
+    for (let code = 100; code <= 599; code++) {
+      const upper = Math.floor(code / 100) * 100 + 99;
+      expect(await sql(`http_status>${code}`)).toBe(
+        await sql(`http_status:[${code} TO ${upper}]`),
+      );
+    }
+  });
+  it.each([
+    'NOT http_status>500',
+    '(http_status>400 OR http_status>500)',
+    'deployment_name:api AND http_status>503',
+  ])('preserves Boolean logic in %s', async query => {
+    const canonical = query.replace(
+      /http_status>([1-5][0-9]{2})/g,
+      (_, code: string) =>
+        `http_status:[${code} TO ${Math.floor(Number(code) / 100) * 100 + 99}]`,
+    );
+    expect(await sql(query)).toBe(await sql(canonical));
+  });
+  it.each([
+    '"http_status>500"',
+    'log:http_status>500',
+    'log:(http_status>500)',
+    'http_status\\>500',
+    'http_status>5000',
+    'http_status>099',
+    'http_status>600',
+    'other_status>500',
+    'http_status:>500',
+  ])('preserves literal and explicit field expressions: %s', query => {
+    expect(JSON.stringify(parse(query))).not.toContain('term_min');
+  });
+  it('reports the shorthand as a field filter rather than a keyword scan', () => {
+    expect(getSearchQueryTraits('http_status>500').hasKeyword).toBe(false);
+    expect(getLuceneFields('http_status>500')).toEqual(['http_status']);
   });
 });
 
