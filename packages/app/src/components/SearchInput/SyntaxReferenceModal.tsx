@@ -77,7 +77,7 @@ const SQL_SECTIONS: Section[] = [
   {
     title: 'Existence & absence',
     rows: [
-      { expr: 'notEmpty(StatusCode)', desc: 'Field exists / is not null' },
+      { expr: 'isNotNull(StatusCode)', desc: 'Field exists / is not null' },
       { expr: 'empty(Body)', desc: 'Field is absent / null' },
     ],
   },

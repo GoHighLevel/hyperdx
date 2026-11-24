@@ -55,6 +55,65 @@ describe('processRowToWhereClause', () => {
     expect(result).toBe("name='test'");
   });
 
+  it.each([
+    ['Float32', 0.003],
+    ['Float32', -0.003],
+    ['Float32', 0],
+    ['Nullable(Float32)', 0.003],
+    ['LowCardinality(Float32)', 0.003],
+    ['LowCardinality(Nullable(Float32))', 0.003],
+  ])('preserves %s precision in expanded-row lookup for %s', (type, value) => {
+    const columns = new Map([
+      [
+        'latency',
+        {
+          name: 'latency',
+          type,
+          valueExpr: 'http_latency_seconds',
+          jsType: JSDataType.Number,
+        },
+      ],
+    ]);
+    expect(processRowToWhereClause({ latency: value }, columns)).toBe(
+      `http_latency_seconds=toFloat32(${value})`,
+    );
+  });
+
+  it.each(['Float64', 'Int32', 'UInt16'])(
+    'keeps %s row comparisons unchanged',
+    type => {
+      const columns = new Map([
+        [
+          'value',
+          {
+            name: 'value',
+            type,
+            valueExpr: 'value',
+            jsType: JSDataType.Number,
+          },
+        ],
+      ]);
+      expect(processRowToWhereClause({ value: 2 }, columns)).toBe('value=2');
+    },
+  );
+
+  it('preserves null checks for nullable Float32 fields', () => {
+    const columns = new Map([
+      [
+        'latency',
+        {
+          name: 'latency',
+          type: 'Nullable(Float32)',
+          valueExpr: 'http_latency_seconds',
+          jsType: JSDataType.Number,
+        },
+      ],
+    ]);
+    expect(processRowToWhereClause({ latency: null }, columns)).toBe(
+      'isNull(http_latency_seconds)',
+    );
+  });
+
   it('should handle date columns', () => {
     const columnMap = new Map([
       [

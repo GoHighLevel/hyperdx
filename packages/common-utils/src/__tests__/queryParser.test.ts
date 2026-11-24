@@ -126,6 +126,53 @@ describe('Lucene queries copied from JSON filters', () => {
   });
 });
 
+describe('scalar field existence', () => {
+  it.each([
+    'UInt16',
+    'Nullable(UInt16)',
+    'Int64',
+    'Float32',
+    'Bool',
+    'DateTime64(9)',
+  ])(
+    'uses null checks for %s fields, including valid zero values',
+    async type => {
+      const metadata = getMetadata(
+        new ClickhouseClient({ host: 'http://localhost:8123' }),
+      );
+      metadata.getColumn = jest
+        .fn()
+        .mockResolvedValue({ name: 'http_status', type });
+      metadata.getColumns = jest
+        .fn()
+        .mockResolvedValue([{ name: 'http_status', type }]);
+      metadata.getSkipIndices = jest.fn().mockResolvedValue([]);
+      metadata.getSetting = jest.fn().mockResolvedValue('0');
+      metadata.getServerVersion = jest.fn().mockResolvedValue([26, 6, 1, 2455]);
+      metadata.isClickHouseCloud = jest.fn().mockResolvedValue(false);
+      metadata.getMaterializedColumnsLookupTable = jest
+        .fn()
+        .mockResolvedValue(new Map());
+      const serializer = new CustomSchemaSQLSerializerV2({
+        metadata,
+        databaseName: 'test',
+        tableName: 'logs',
+        connectionId: 'local',
+        implicitColumnExpression: 'log',
+      });
+      expect(
+        await new SearchQueryBuilder('http_status:*', serializer).build(),
+      ).toBe('(isNotNull(http_status))');
+      expect(
+        await new SearchQueryBuilder('NOT http_status:*', serializer).build(),
+      ).toBe('(NOT isNotNull(http_status))');
+      expect(await serializer.isNotNull('http_status', true, {})).toBe(
+        'isNull(http_status)',
+      );
+    },
+  );
+});
+
 describe('CustomSchemaSQLSerializerV2 - json', () => {
   const metadata = getMetadata(
     new ClickhouseClient({ host: 'http://localhost:8123' }),

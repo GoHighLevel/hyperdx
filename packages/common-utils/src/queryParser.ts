@@ -691,6 +691,7 @@ export abstract class SQLSerializer implements Serializer {
       columnJSON,
       found,
       propertyType,
+      mapKey,
       mapKeyIndexExpression,
       isArray,
       arrayMapKeyExpression,
@@ -717,6 +718,17 @@ export abstract class SQLSerializer implements Serializer {
         `${isNegatedField ? 'NOT ' : ''}arrayExists(el -> notEmpty(toString(${fieldAccess})) = 1, ?)`,
         [SqlString.raw(column)],
       );
+    }
+
+    // Scalar zero/false values exist; notEmpty only accepts containers.
+    if (
+      !isArray &&
+      !mapKey &&
+      (propertyType === JSDataType.Number ||
+        propertyType === JSDataType.Bool ||
+        propertyType === JSDataType.Date)
+    ) {
+      return `${isNegatedField ? 'isNull' : 'isNotNull'}(${column})`;
     }
 
     if (propertyType === JSDataType.JSON && !isArray) {
