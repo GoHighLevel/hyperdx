@@ -98,6 +98,7 @@ import { InputControlled } from '@/components/InputControlled';
 import { ShareLogButton } from '@/components/LogShare';
 import { useSummaryFields } from '@/components/LogSummaryDemo/useSummaryFields';
 import OnboardingModal from '@/components/OnboardingModal';
+import { QuickIncidentGuideButton } from '@/components/QuickIncidentGuideButton';
 import FilterQueryInput from '@/components/SearchInput/FilterQueryInput';
 import { getStoredLanguage } from '@/components/SearchInput/SearchWhereInput';
 import SearchPageActionBar from '@/components/SearchPageActionBar';
@@ -2514,6 +2515,9 @@ function SearchPageContents({ dashboard }: { dashboard?: Dashboard }) {
             sourceId={inputSource}
             size="xs"
           />
+          {inputSourceObj?.kind === SourceKind.Log && (
+            <QuickIncidentGuideButton />
+          )}
           <Flex
             gap="sm"
             style={{ flex: '0 1 500px', minWidth: 0 }}

@@ -355,6 +355,26 @@ describe('DBSearchPage direct trace flow', () => {
     ];
   });
 
+  it('shows the incident guide to log-search users without a query action', async () => {
+    mockDirectTraceId = null;
+    mockSearchedConfig = { ...mockSearchedConfig, source: 'log-source' };
+    window.history.pushState({}, '', '/search?source=log-source');
+    await act(async () => renderWithMantine(<DBSearchPage />));
+    expect(
+      screen.getByRole('button', { name: 'Quick incident guide' }),
+    ).toHaveAttribute('type', 'button');
+  });
+
+  it('does not show the HTTP incident guide for a trace source', async () => {
+    mockDirectTraceId = null;
+    mockSearchedConfig = { ...mockSearchedConfig, source: 'trace-source' };
+    window.history.pushState({}, '', '/search?source=trace-source');
+    await act(async () => renderWithMantine(<DBSearchPage />));
+    expect(
+      screen.queryByRole('button', { name: 'Quick incident guide' }),
+    ).not.toBeInTheDocument();
+  });
+
   it('prioritizes the first log page and leaves results mounted when background counts fail', async () => {
     mockDirectTraceId = null;
     mockSearchedConfig = { ...mockSearchedConfig, source: 'log-source' };
