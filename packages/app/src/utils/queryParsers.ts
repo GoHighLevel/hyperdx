@@ -1,9 +1,11 @@
-import { createParser } from 'nuqs';
+import { createParser, parseAsBoolean } from 'nuqs';
 import {
   DashboardFilterValue,
   DashboardFilterValueSchema,
 } from '@hyperdx/common-utils/dist/types';
 import { SortingState } from '@tanstack/react-table';
+
+export const parseAsLiveUpdates = parseAsBoolean.withDefault(false);
 
 /**
  * Problem: nuqs serializes spaces as '+' (form-encoding). When

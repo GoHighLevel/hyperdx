@@ -3,7 +3,12 @@ import cx from 'classnames';
 import { Popover } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
 import { notifications } from '@mantine/notifications';
-import { IconCopy, IconFilter, IconFilterX } from '@tabler/icons-react';
+import {
+  IconCopy,
+  IconFilter,
+  IconFilterX,
+  IconPlus,
+} from '@tabler/icons-react';
 
 import { RowSidePanelContext } from '@/components/DBRowSidePanel';
 import {
@@ -51,10 +56,11 @@ const DBRowTableFieldWithPopover = ({
   }, []);
 
   // Get filter functionality from context
-  const { onPropertyAddClick } = use(RowSidePanelContext);
+  const { onPropertyAddClick, onAddSummaryField } = use(RowSidePanelContext);
 
   // Check if we have both the column name and filter function available
   const canFilter = columnName && onPropertyAddClick && cellValue != null;
+  const canAddSummary = columnName && onAddSummaryField;
 
   const handleMouseEnter = () => {
     if (hoverDisabled) return;
@@ -122,7 +128,7 @@ const DBRowTableFieldWithPopover = ({
 
   const buttonSize = 20;
   const gapSize = 4;
-  const numberOfButtons = canFilter ? 3 : 1; // Copy + Include Filter + Exclude Filter (if filtering available)
+  const numberOfButtons = (canFilter ? 3 : 1) + (canAddSummary ? 1 : 0);
   const numberOfGaps = numberOfButtons - 1;
 
   // If it's a chart, just render the children without popover functionality
@@ -193,6 +199,18 @@ const DBRowTableFieldWithPopover = ({
             >
               <IconCopy size={14} />
             </DBRowTableIconButton>
+            {canAddSummary && (
+              <DBRowTableIconButton
+                onClick={() => {
+                  onAddSummaryField(columnName);
+                  handleClick();
+                }}
+                variant="copy"
+                title="Add field to summary"
+              >
+                <IconPlus size={14} />
+              </DBRowTableIconButton>
+            )}
             {canFilter && (
               <>
                 <DBRowTableIconButton

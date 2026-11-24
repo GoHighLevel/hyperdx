@@ -73,6 +73,7 @@ import { useLocalStorage } from '@/utils';
 import { FilterSettingsPanel } from './DBSearchPageFilters/FilterSettingsPopover';
 import { useFetchFacets } from './DBSearchPageFilters/hooks';
 import { NestedFilterGroup } from './DBSearchPageFilters/NestedFilterGroup';
+import { sharedFilterFieldsForColumns } from './DBSearchPageFilters/personalFilterDefaults';
 import {
   PinShareIndicator,
   PinShareMenu,
@@ -436,6 +437,7 @@ type SelectedValues = {
 };
 
 export type FilterGroupProps = {
+  queryEnabled?: boolean;
   summarySourceId?: string;
   name: string;
   options: { value: string | boolean; label: string }[];
@@ -545,6 +547,9 @@ const FilterGroupBody = ({
     data: distributionData,
     isFetching: isFetchingDistribution,
     error: distributionError,
+    inspectedRows,
+    inspectedFrom,
+    inspectedTo,
   } = useGetValuesDistribution(
     {
       chartConfig: { ...chartConfig, dateRange },
@@ -720,6 +725,21 @@ const FilterGroupBody = ({
 
   return (
     <Stack gap={0}>
+      {showDistributions && inspectedRows != null && (
+        <Text
+          size="xxs"
+          px="xs"
+          pb={4}
+          c="var(--color-text-muted)"
+          role="status"
+        >
+          Distribution of {inspectedRows.toLocaleString()} inspected logs
+          {inspectedFrom && inspectedTo
+            ? ` · ${inspectedFrom} – ${inspectedTo}`
+            : ''}
+          {' · Not a full-range estimate'}
+        </Text>
+      )}
       {showLogCounts &&
         (isFetchingCounts || isCountsPartial || countsError) && (
           <Group gap="xs" px="xs" pb={4}>
@@ -1027,6 +1047,7 @@ export const FilterGroup = ({
   isDefaultExpanded,
   showFilterCounts,
   showLogCounts = true,
+  queryEnabled = true,
   'data-testid': dataTestId,
   chartConfig,
   isLive,
@@ -1180,8 +1201,8 @@ export const FilterGroup = ({
                   chartConfig={chartConfig}
                   isLive={isLive}
                   distributionKey={distributionKey}
-                  showDistributions={showDistributions}
-                  showLogCounts={showLogCounts}
+                  showDistributions={queryEnabled && showDistributions}
+                  showLogCounts={queryEnabled && showLogCounts}
                   onDistributionError={onDistributionError}
                   onFetchingDistributionChange={setIsFetchingDistribution}
                 />
@@ -1210,7 +1231,9 @@ const DBSearchPageFiltersComponent = ({
   onColumnToggle,
   displayedColumns,
   onCollapse,
+  enabled = true,
 }: {
+  enabled?: boolean;
   analysisMode: 'results' | 'delta' | 'pattern';
   setAnalysisMode: (mode: 'results' | 'delta' | 'pattern') => void;
   isLive: boolean;
@@ -1238,6 +1261,26 @@ const DBSearchPageFiltersComponent = ({
     },
     [_setFilterValue],
   );
+  const { data: source } = useSource({ id: sourceId });
+  const sourceTableConnection = tcFromSource(source);
+  const { data: jsonColumns } = useJsonColumns(sourceTableConnection);
+  const { data: columns } = useColumns({
+    databaseName: chartConfig.from.databaseName,
+    tableName: chartConfig.from.tableName,
+    connectionId: chartConfig.connection,
+  });
+  // Conditionally backtick-quote facet keys that contain special characters and
+  // match known column names, so they can be used in the ClickHouse query to get
+  // key values.
+  const knownColumns = useMemo(
+    () => (columns ? new Set(columns.map(c => c.name)) : new Set<string>()),
+    [columns],
+  );
+  const sharedFields = sharedFilterFieldsForColumns(
+    source?.kind,
+    columns ? knownColumns : undefined,
+  );
+
   const {
     toggleFilterPin,
     toggleFieldPin,
@@ -1255,7 +1298,7 @@ const DBSearchPageFiltersComponent = ({
     hasSharedPins,
     rememberFields,
     personalPinsLoaded,
-  } = usePinnedFilters(sourceId ?? null);
+  } = usePinnedFilters(sourceId ?? null, sharedFields);
 
   useEffect(() => {
     const activeFields = Object.entries(filterState)
@@ -1295,20 +1338,10 @@ const DBSearchPageFiltersComponent = ({
   );
   const { size, startResize } = useResizable(16, 'left');
 
-  const { data: source } = useSource({ id: sourceId });
-  const sourceTableConnection = tcFromSource(source);
-  const { data: jsonColumns } = useJsonColumns(sourceTableConnection);
-
   // Special case for live tail
   const [dateRange, setDateRange] = useState<[Date, Date]>(
     chartConfig.dateRange,
   );
-
-  const { data: columns } = useColumns({
-    databaseName: chartConfig.from.databaseName,
-    tableName: chartConfig.from.tableName,
-    connectionId: chartConfig.connection,
-  });
 
   const { data: tableMetadata } = useTableMetadata(sourceTableConnection);
 
@@ -1339,14 +1372,6 @@ const DBSearchPageFiltersComponent = ({
 
   const showRefreshButton = isLive && dateRange !== chartConfig.dateRange;
 
-  // Conditionally backtick-quote facet keys that contain special characters and
-  // match known column names, so they can be used in the ClickHouse query to get
-  // key values.
-  const knownColumns = useMemo(
-    () => (columns ? new Set(columns.map(c => c.name)) : new Set<string>()),
-    [columns],
-  );
-
   const [expandedFacetKeys, setExpandedFacetKeys] = useState<string[]>([]);
   const handleFacetExpand = useCallback((key: string) => {
     setExpandedFacetKeys(current => [
@@ -1370,6 +1395,7 @@ const DBSearchPageFiltersComponent = ({
     mode: canManageShared && showAllValues ? 'all' : 'exact',
     filterState,
     expandedFacetKeys,
+    enabled,
   });
   const facets = fetchFacetsData.keyValues;
   const availableFacetKeys = fetchFacetsData.facetKeys;
@@ -1451,11 +1477,11 @@ const DBSearchPageFiltersComponent = ({
     }
     const team = pinnedFiltersApiData.team;
     return new Set(
-      [...team.fields, ...Object.keys(team.filters)].map(key =>
-        normalizeJsonFacetKey(key, jsonColumns ?? []),
-      ),
+      [...team.fields, ...Object.keys(team.filters)]
+        .filter(key => !sharedFields || sharedFields.includes(key))
+        .map(key => normalizeJsonFacetKey(key, jsonColumns ?? [])),
     );
-  }, [isSharedFiltersVisible, pinnedFiltersApiData, jsonColumns]);
+  }, [isSharedFiltersVisible, pinnedFiltersApiData, jsonColumns, sharedFields]);
 
   // Build the facet list for the Shared Filters section.
   // For each team-pinned field: merge pinned values with dynamic facet values.
@@ -1734,6 +1760,7 @@ const DBSearchPageFiltersComponent = ({
               isSharedFieldPinned={key => isSharedFieldPinned(key)}
               showFilterCounts={showFilterCounts}
               showLogCounts={showLogCounts}
+              queryEnabled={enabled}
               onColumnToggle={onColumnToggle}
               displayedColumns={displayedColumns}
               onLoadMore={loadMoreFacetsForKey}
@@ -1787,6 +1814,7 @@ const DBSearchPageFiltersComponent = ({
                 distributionKey={facetSqlKey}
                 showFilterCounts={showFilterCounts}
                 showLogCounts={showLogCounts}
+                queryEnabled={enabled}
                 options={facet.value.map(value => ({
                   value,
                   label: value.toString(),
@@ -1860,6 +1888,7 @@ const DBSearchPageFiltersComponent = ({
       loadMoreLoadingKeys,
       showFilterCounts,
       showLogCounts,
+      enabled,
       isFacetsLoading,
       isFacetsFetching,
       expandedFacetKeys,

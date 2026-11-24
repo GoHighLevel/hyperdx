@@ -8,6 +8,7 @@ import {
 } from '@hyperdx/common-utils/dist/clickhouse';
 import {
   Field,
+  Metadata,
   MetricNames,
   TableConnection,
   TableMetadata,
@@ -497,29 +498,48 @@ export function useGetValuesDistribution(
     key: string;
     limit: number;
   },
-  options?: Omit<UseQueryOptions<Map<string, number>, Error>, 'queryKey'>,
+  options?: Omit<
+    UseQueryOptions<
+      Awaited<ReturnType<Metadata['getInspectedValuesDistribution']>>,
+      Error
+    >,
+    'queryKey' | 'queryFn' | 'placeholderData'
+  >,
 ) {
   const metadata = useMetadataWithSettings();
   const { data: source, isLoading: isLoadingSource } = useSource({
     id: chartConfig.source,
   });
 
-  return useQuery<Map<string, number>>({
-    queryKey: ['useMetadata.useGetValuesDistribution', chartConfig, key],
-    queryFn: async () => {
-      return await metadata.getValuesDistribution({
+  const query = useQuery({
+    queryKey: [
+      'useMetadata.useGetValuesDistribution.inspected',
+      chartConfig,
+      key,
+      limit,
+      source?.querySettings,
+    ],
+    queryFn: async ({ signal }) => {
+      return await metadata.getInspectedValuesDistribution({
         chartConfig,
         key,
         limit,
         source,
+        signal,
       });
     },
     staleTime: Infinity,
     enabled: !!key && !isLoadingSource,
-    placeholderData: keepPreviousData,
     retry: false,
     ...options,
   });
+  return {
+    ...query,
+    data: query.data?.values,
+    inspectedRows: query.data?.inspectedRows,
+    inspectedFrom: query.data?.inspectedFrom,
+    inspectedTo: query.data?.inspectedTo,
+  };
 }
 
 export function useGetKeyValues(

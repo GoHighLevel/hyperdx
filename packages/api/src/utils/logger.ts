@@ -67,10 +67,11 @@ export const REDACTED_PATHS = [
 ];
 
 // `redact` addresses object paths, so it cannot reach a credential embedded in
-// a URL string. This route takes a standalone bearer token as a path segment,
+// a URL string. Setup routes take a bearer token, and short-share routes take
+// an opaque search identifier, as a path segment,
 // which pino-http emits via `req.url` and which the custom message builders
 // interpolate into `msg`.
-const TOKEN_PATH_RE = /\/(team\/setup)\/[^/?#]+/g;
+const TOKEN_PATH_RE = /\/(team\/setup|log-shares|s)\/[^/?#]+/g;
 
 export const scrubUrlTokens = (url: string): string =>
   url

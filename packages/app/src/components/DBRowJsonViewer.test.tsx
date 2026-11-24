@@ -29,11 +29,13 @@ describe('DBRowJsonViewer', () => {
   const mockGenerateSearchUrl = jest.fn();
   const mockOnPropertyAddClick = jest.fn();
   const mockToggleColumn = jest.fn();
+  const mockAddSummaryField = jest.fn();
 
   const defaultContext = {
     generateSearchUrl: mockGenerateSearchUrl,
     onPropertyAddClick: mockOnPropertyAddClick,
     toggleColumn: mockToggleColumn,
+    onAddSummaryField: mockAddSummaryField,
     displayedColumns: [],
     generateChartUrl: jest.fn(),
   };
@@ -129,6 +131,15 @@ describe('DBRowJsonViewer', () => {
     const button = findActionButton(line, buttonText);
     fireEvent.click(button);
   };
+
+  it('lets a developer add a scalar field to summary without filtering it', () => {
+    jest.mocked(usePermissions).mockReturnValue({ canManageShared: false });
+    renderComponent(logData);
+    clickLineButton('field1', 'Add field to summary');
+    expect(mockAddSummaryField).toHaveBeenCalledWith("LogAttributes['field1']");
+    expect(mockOnPropertyAddClick).not.toHaveBeenCalled();
+    expect(mockToggleColumn).not.toHaveBeenCalled();
+  });
 
   // Helper to expand a field and click a button on a nested field
   const expandAndClickButton = (

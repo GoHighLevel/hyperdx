@@ -368,6 +368,7 @@ export function DBRowJsonViewer({
     generateChartUrl,
     displayedColumns,
     toggleColumn,
+    onAddSummaryField,
   } = use(RowSidePanelContext);
 
   const [filter, setFilter] = useState<string>('');
@@ -581,6 +582,25 @@ export function DBRowJsonViewer({
         });
       }
 
+      if (onAddSummaryField && value != null && typeof value !== 'object') {
+        const summaryPath =
+          isInParsedJson && parsedJsonRootPath
+            ? (buildJSONExtractQuery(
+                keyPath,
+                parsedJsonRootPath,
+                jsonColumns,
+                'JSONExtractString',
+                mapColumns,
+              ) ?? fieldPath)
+            : fieldPath;
+        actions.push({
+          key: 'add-summary-field',
+          label: <IconPlus size={14} />,
+          title: 'Add field to summary',
+          onClick: () => onAddSummaryField(summaryPath),
+        });
+      }
+
       // Toggle column action (non-object values)
       if (canManageShared && toggleColumn && typeof value !== 'object') {
         let columnFieldPath = fieldPath;
@@ -686,6 +706,7 @@ export function DBRowJsonViewer({
       generateChartUrl,
       generateSearchUrl,
       onPropertyAddClick,
+      onAddSummaryField,
       rowData,
       toggleColumn,
       canManageShared,

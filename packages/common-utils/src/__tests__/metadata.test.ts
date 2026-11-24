@@ -1885,6 +1885,118 @@ describe('Metadata', () => {
       });
     });
 
+    it('inspects a bounded newest-first set without counting the full range', async () => {
+      jest
+        .spyOn(metadata, 'renderMetadataKeyExpression')
+        .mockResolvedValue('severity');
+      const controller = new AbortController();
+      jest.mocked(mockClickhouseClient.query).mockResolvedValueOnce({
+        json: async () => ({
+          data: [
+            {
+              __hdx_value: 'error',
+              __hdx_percentage: 25,
+              __hdx_inspected_rows: '100',
+              __hdx_inspected_from: '2026-11-20 00:00:00',
+              __hdx_inspected_to: '2026-11-20 00:01:00',
+            },
+          ],
+        }),
+      } as never);
+      const result = await metadata.getInspectedValuesDistribution({
+        chartConfig: {
+          ...mockChartConfig,
+          timestampValueExpression: 'Timestamp',
+        },
+        key: 'severity',
+        source: {
+          ...source,
+          querySettings: [{ setting: 'max_threads', value: '40' }],
+        },
+        signal: controller.signal,
+      });
+      expect(result.values.get('error')).toBe(25);
+      expect(result.inspectedRows).toBe(100);
+      const config = jest.mocked(renderChartConfigModule.renderChartConfig).mock
+        .calls[0][0];
+      expect(config).toMatchObject({
+        limit: { limit: 10000 },
+        orderBy: 'Timestamp DESC',
+      });
+      expect(JSON.stringify(config)).not.toContain('tableStats');
+      expect(mockClickhouseClient.query).toHaveBeenCalledTimes(1);
+      expect(mockClickhouseClient.query).toHaveBeenCalledWith(
+        expect.objectContaining({
+          abort_signal: controller.signal,
+          clickhouse_settings: expect.objectContaining({
+            max_threads: 4,
+            max_rows_to_read: '2000000',
+            read_overflow_mode: 'throw',
+          }),
+        }),
+      );
+    });
+
+    it('does not label a failed bounded inspection as an empty distribution', async () => {
+      jest
+        .spyOn(metadata, 'renderMetadataKeyExpression')
+        .mockResolvedValue('severity');
+      jest
+        .mocked(mockClickhouseClient.query)
+        .mockRejectedValueOnce(new Error('Read limit exceeded'));
+      await expect(
+        metadata.getInspectedValuesDistribution({
+          chartConfig: {
+            ...mockChartConfig,
+            timestampValueExpression: 'Timestamp',
+          },
+          key: 'severity',
+          source,
+        }),
+      ).rejects.toThrow('Read limit exceeded');
+    });
+
+    it('inspects newest timestamps while retaining multi-column partition pruning and smaller source budgets', async () => {
+      jest
+        .spyOn(metadata, 'renderMetadataKeyExpression')
+        .mockResolvedValue('severity');
+      jest
+        .spyOn(metadata, 'getColumn')
+        .mockResolvedValueOnce({ name: 'EventDate', type: 'Date' } as never)
+        .mockResolvedValueOnce({
+          name: 'EventTime',
+          type: 'DateTime64(9)',
+        } as never);
+      await metadata.getInspectedValuesDistribution({
+        chartConfig: {
+          ...mockChartConfig,
+          timestampValueExpression: 'EventDate, EventTime',
+        },
+        key: 'severity',
+        source: {
+          ...source,
+          querySettings: [{ setting: 'max_rows_to_group_by', value: '100' }],
+        },
+      });
+      expect(renderChartConfigModule.renderChartConfig).toHaveBeenCalledWith(
+        expect.objectContaining({
+          timestampValueExpression: 'EventDate, EventTime',
+          select:
+            'severity AS __hdx_value, EventTime AS __hdx_inspected_timestamp',
+          orderBy: 'EventTime DESC',
+        }),
+        metadata,
+        [],
+      );
+      expect(mockClickhouseClient.query).toHaveBeenCalledWith(
+        expect.objectContaining({
+          clickhouse_settings: expect.objectContaining({
+            max_rows_to_group_by: '100',
+          }),
+        }),
+      );
+    });
+
     it('should fetch and return values distribution for severity', async () => {
       const result = await metadata.getValuesDistribution({
         chartConfig: mockChartConfig,

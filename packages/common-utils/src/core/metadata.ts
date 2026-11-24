@@ -51,6 +51,7 @@ import {
   getDistributedTableArgs,
   MetadataMVQueryOptions,
   objectHash,
+  pickBucketTimestampColumn,
   splitAndTrimWithBracket,
   TextIndexColumnQueryOptions,
   TextIndexMapColumnQueryOptions,
@@ -2314,6 +2315,115 @@ export class Metadata {
     for (const row of data)
       counts.set(row.__hdx_value, String(row.__hdx_count));
     return counts;
+  }
+
+  /** Fast exploration over inspected records, never an estimate of the full range. */
+  async getInspectedValuesDistribution({
+    chartConfig,
+    key,
+    samples = 10_000,
+    limit = 100,
+    source,
+    signal,
+  }: {
+    chartConfig: BuilderChartConfigWithDateRange;
+    key: string;
+    samples?: number;
+    limit?: number;
+    source: TSource | undefined;
+    signal?: AbortSignal;
+  }) {
+    if (
+      !Number.isSafeInteger(samples) ||
+      samples < 1 ||
+      samples > 100_000 ||
+      !Number.isSafeInteger(limit) ||
+      limit < 1 ||
+      limit > 1_000 ||
+      !chartConfig.timestampValueExpression
+    )
+      throw new Error('Invalid distribution inspection budget or timestamp');
+
+    const renderedKey = await this.renderMetadataKeyExpression({
+      ...chartConfig.from,
+      connectionId: chartConfig.connection,
+      keyExpression: key,
+    });
+    const inspectedTimestamp = await pickBucketTimestampColumn({
+      timestampValueExpression: chartConfig.timestampValueExpression,
+      metadata: this,
+      databaseName: chartConfig.from.databaseName,
+      tableName: chartConfig.from.tableName,
+      connectionId: chartConfig.connection,
+    });
+    const inspected = await renderChartConfig(
+      {
+        ...chartConfig,
+        select: `${renderedKey} AS __hdx_value, ${inspectedTimestamp} AS __hdx_inspected_timestamp`,
+        groupBy: undefined,
+        orderBy: `${inspectedTimestamp} DESC`,
+        limit: { limit: samples },
+      },
+      this,
+      [],
+    );
+
+    const settings = {
+      ...this.getClickHouseSettings(),
+      ...Object.fromEntries(
+        (source?.querySettings ?? []).map(({ setting, value }) => [
+          setting,
+          value,
+        ]),
+      ),
+    };
+    const cap = (name: string, maximum: number) => {
+      const configured = Number(settings[name]);
+      return String(configured > 0 ? Math.min(configured, maximum) : maximum);
+    };
+    const result = await this.clickhouseClient.query<'JSON'>({
+      query: `SELECT __hdx_value, count() AS __hdx_count,
+        sum(count()) OVER () AS __hdx_inspected_rows,
+        100.0 * __hdx_count / __hdx_inspected_rows AS __hdx_percentage,
+        toString(min(min(__hdx_inspected_timestamp)) OVER ()) AS __hdx_inspected_from,
+        toString(max(max(__hdx_inspected_timestamp)) OVER ()) AS __hdx_inspected_to
+        FROM (${inspected.sql}) GROUP BY __hdx_value
+        ORDER BY __hdx_count DESC, __hdx_value LIMIT ${limit}`,
+      query_params: inspected.params,
+      connectionId: chartConfig.connection,
+      abort_signal: signal,
+      clickhouse_settings: {
+        ...settings,
+        max_threads: Number(cap('max_threads', 4)),
+        max_execution_time: Number(cap('max_execution_time', 10)),
+        max_memory_usage: cap('max_memory_usage', 1_073_741_824),
+        max_rows_to_read: cap('max_rows_to_read', 2_000_000),
+        max_bytes_to_read: cap('max_bytes_to_read', 1_073_741_824),
+        max_rows_to_group_by: cap('max_rows_to_group_by', samples),
+        read_overflow_mode: 'throw',
+        timeout_overflow_mode: 'throw',
+        group_by_overflow_mode: 'throw',
+        result_overflow_mode: 'throw',
+      },
+    });
+    const { data } = await result.json<{
+      __hdx_value: string;
+      __hdx_percentage: string | number;
+      __hdx_inspected_rows: string | number;
+      __hdx_inspected_from: string;
+      __hdx_inspected_to: string;
+    }>();
+    return {
+      values: new Map(
+        data.map(row => [
+          String(row.__hdx_value),
+          Number(row.__hdx_percentage),
+        ]),
+      ),
+      inspectedRows: Number(data[0]?.__hdx_inspected_rows ?? 0),
+      inspectedFrom: data[0]?.__hdx_inspected_from,
+      inspectedTo: data[0]?.__hdx_inspected_to,
+    };
   }
 
   async getValuesDistribution({

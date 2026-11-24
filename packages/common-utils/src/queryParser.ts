@@ -103,7 +103,82 @@ export function parse(query: string): lucene.AST {
     .split('\n')
     .filter(line => !line.trimStart().startsWith('//'))
     .join('\n');
-  return lucene.parse(encodeSpecialTokens(uncommentedQuery));
+  const ast = lucene.parse(encodeSpecialTokens(uncommentedQuery));
+  // Product shorthand: bare http_status>N selects N through its class end.
+  // Normalize parsed terms so quotes, escapes and explicit field scopes survive.
+  const expandStatus = (
+    node: lucene.AST | lucene.Node,
+    inFieldScope = false,
+  ): lucene.AST | lucene.Node => {
+    const scoped =
+      inFieldScope || Boolean(node.field && node.field !== IMPLICIT_FIELD);
+    if ('left' in node) {
+      node.left = expandStatus(node.left, scoped);
+      if ('right' in node && node.right)
+        node.right = expandStatus(node.right, scoped);
+    } else if (
+      !scoped &&
+      isNodeTerm(node) &&
+      !node.quoted &&
+      !node.regex &&
+      !node.prefix &&
+      !node.boost &&
+      !node.similarity &&
+      /^http_status>[1-5][0-9]{2}$/.test(node.term)
+    ) {
+      const code = Number(node.term.slice('http_status>'.length));
+      return {
+        field: 'http_status',
+        fieldLocation: node.termLocation,
+        term_min: String(code),
+        term_max: String(Math.floor(code / 100) * 100 + 99),
+        inclusive: 'both',
+      };
+    }
+    return node;
+  };
+  expandStatus(ast);
+  return ast;
+}
+
+/** Scheduling hints only: this never rewrites a predicate or changes its meaning. */
+export function getSearchQueryTraits(
+  query: string,
+  exactIdFields: readonly string[] = [],
+) {
+  let hasKeyword = false;
+  let hasExactId = false;
+  let conjunctionOnly = true;
+  const visit = (value: unknown, positive = true): void => {
+    if (value == null || typeof value !== 'object') return;
+    const node: Record<string, unknown> = Object.fromEntries(
+      Object.entries(value),
+    );
+    const isPositive = positive && node.start !== 'NOT';
+    if (node.operator != null && node.operator !== 'AND')
+      conjunctionOnly = false;
+    if (typeof node.field === 'string' && typeof node.term === 'string') {
+      if (node.field === IMPLICIT_FIELD && node.term !== '*') hasKeyword = true;
+      if (
+        isPositive &&
+        node.quoted === true &&
+        node.regex !== true &&
+        node.prefix !== '-' &&
+        node.term !== '' &&
+        exactIdFields.includes(node.field)
+      )
+        hasExactId = true;
+    }
+    visit(node.left, isPositive);
+    visit(node.right, isPositive);
+  };
+  try {
+    visit(parse(query));
+    return { hasKeyword, hasExactId: conjunctionOnly && hasExactId };
+  } catch {
+    // Incomplete editor input must retain the ordinary search path.
+    return { hasKeyword: false, hasExactId: false };
+  }
 }
 
 /** Escape the LIKE/ILIKE metacharacters `\`, `%` and `_` so a term matches literally */
@@ -651,6 +726,7 @@ export abstract class SQLSerializer implements Serializer {
       columnJSON,
       found,
       propertyType,
+      mapKey,
       mapKeyIndexExpression,
       isArray,
       arrayMapKeyExpression,
@@ -677,6 +753,17 @@ export abstract class SQLSerializer implements Serializer {
         `${isNegatedField ? 'NOT ' : ''}arrayExists(el -> notEmpty(toString(${fieldAccess})) = 1, ?)`,
         [SqlString.raw(column)],
       );
+    }
+
+    // Scalar zero/false values exist; notEmpty only accepts containers.
+    if (
+      !isArray &&
+      !mapKey &&
+      (propertyType === JSDataType.Number ||
+        propertyType === JSDataType.Bool ||
+        propertyType === JSDataType.Date)
+    ) {
+      return `${isNegatedField ? 'isNull' : 'isNotNull'}(${column})`;
     }
 
     if (propertyType === JSDataType.JSON && !isArray) {

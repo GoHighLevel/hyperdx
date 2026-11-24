@@ -6,6 +6,8 @@ import {
   decodeSpecialTokensToSource,
   encodeSpecialTokens,
   genEnglishExplanation,
+  getLuceneFields,
+  getSearchQueryTraits,
   parse,
   parseKvItemsCastExpression,
   parseKvItemsExpression,
@@ -22,6 +24,33 @@ beforeAll(() => {
 });
 afterAll(() => {
   jest.restoreAllMocks();
+});
+
+describe('search scheduling traits', () => {
+  it('detects a keyword and a required exact ID through the parsed expression', () => {
+    expect(
+      getSearchQueryTraits('source AND (trace_id:"123")', ['trace_id']),
+    ).toEqual({ hasKeyword: true, hasExactId: true });
+  });
+  it.each([
+    'trace_id:123',
+    'trace_id:*123*',
+    'NOT trace_id:"123"',
+    'trace_id:"123" OR source',
+    'message:"trace_id:123"',
+    '// trace_id:"123"\nsource',
+  ])('does not classify %s as a required exact ID', query => {
+    expect(getSearchQueryTraits(query, ['trace_id']).hasExactId).toBe(false);
+  });
+  it('fails closed for malformed expressions and does not treat a field name as a keyword', () => {
+    expect(getSearchQueryTraits('"', ['trace_id'])).toEqual({
+      hasKeyword: false,
+      hasExactId: false,
+    });
+    expect(getSearchQueryTraits('deployment_name:"source"').hasKeyword).toBe(
+      false,
+    );
+  });
 });
 
 describe('special token encoding', () => {
@@ -96,6 +125,120 @@ describe('Lucene queries copied from JSON filters', () => {
     expect(sql).toContain('200');
     expect(sql).toContain('499');
   });
+});
+
+describe('HTTP status class shorthand', () => {
+  const metadata = getMetadata(
+    new ClickhouseClient({ host: 'http://localhost:8123' }),
+  );
+  metadata.getColumn = jest.fn().mockImplementation(async ({ column }) => ({
+    name: column,
+    type: column === 'http_status' ? 'UInt16' : 'String',
+  }));
+  metadata.getColumns = jest
+    .fn()
+    .mockResolvedValue([{ name: 'http_status', type: 'UInt16' }]);
+  metadata.getSkipIndices = jest.fn().mockResolvedValue([]);
+  metadata.getSetting = jest.fn().mockResolvedValue('0');
+  metadata.getServerVersion = jest.fn().mockResolvedValue([26, 6, 1, 2455]);
+  metadata.isClickHouseCloud = jest.fn().mockResolvedValue(false);
+  metadata.getMaterializedColumnsLookupTable = jest
+    .fn()
+    .mockResolvedValue(new Map());
+  const serializer = new CustomSchemaSQLSerializerV2({
+    metadata,
+    databaseName: 'test',
+    tableName: 'logs',
+    connectionId: 'local',
+    implicitColumnExpression: 'log',
+  });
+  const sql = (query: string) =>
+    new SearchQueryBuilder(query, serializer).build();
+
+  it('uses an inclusive bounded range for every HTTP status code', async () => {
+    for (let code = 100; code <= 599; code++) {
+      const upper = Math.floor(code / 100) * 100 + 99;
+      expect(await sql(`http_status>${code}`)).toBe(
+        await sql(`http_status:[${code} TO ${upper}]`),
+      );
+    }
+  });
+  it.each([
+    'NOT http_status>500',
+    '(http_status>400 OR http_status>500)',
+    'deployment_name:api AND http_status>503',
+  ])('preserves Boolean logic in %s', async query => {
+    const canonical = query.replace(
+      /http_status>([1-5][0-9]{2})/g,
+      (_, code: string) =>
+        `http_status:[${code} TO ${Math.floor(Number(code) / 100) * 100 + 99}]`,
+    );
+    expect(await sql(query)).toBe(await sql(canonical));
+  });
+  it.each([
+    '"http_status>500"',
+    'log:http_status>500',
+    'log:(http_status>500)',
+    'http_status\\>500',
+    'http_status>5000',
+    'http_status>099',
+    'http_status>600',
+    'other_status>500',
+    'http_status:>500',
+  ])('preserves literal and explicit field expressions: %s', query => {
+    expect(JSON.stringify(parse(query))).not.toContain('term_min');
+  });
+  it('reports the shorthand as a field filter rather than a keyword scan', () => {
+    expect(getSearchQueryTraits('http_status>500').hasKeyword).toBe(false);
+    expect(getLuceneFields('http_status>500')).toEqual(['http_status']);
+  });
+});
+
+describe('scalar field existence', () => {
+  it.each([
+    'UInt16',
+    'Nullable(UInt16)',
+    'Int64',
+    'Float32',
+    'Bool',
+    'DateTime64(9)',
+  ])(
+    'uses null checks for %s fields, including valid zero values',
+    async type => {
+      const metadata = getMetadata(
+        new ClickhouseClient({ host: 'http://localhost:8123' }),
+      );
+      metadata.getColumn = jest
+        .fn()
+        .mockResolvedValue({ name: 'http_status', type });
+      metadata.getColumns = jest
+        .fn()
+        .mockResolvedValue([{ name: 'http_status', type }]);
+      metadata.getSkipIndices = jest.fn().mockResolvedValue([]);
+      metadata.getSetting = jest.fn().mockResolvedValue('0');
+      metadata.getServerVersion = jest.fn().mockResolvedValue([26, 6, 1, 2455]);
+      metadata.isClickHouseCloud = jest.fn().mockResolvedValue(false);
+      metadata.getMaterializedColumnsLookupTable = jest
+        .fn()
+        .mockResolvedValue(new Map());
+      const serializer = new CustomSchemaSQLSerializerV2({
+        metadata,
+        databaseName: 'test',
+        tableName: 'logs',
+        connectionId: 'local',
+        implicitColumnExpression: 'log',
+      });
+      expect(
+        await new SearchQueryBuilder('http_status:*', serializer).build(),
+      ).toBe('(isNotNull(http_status))');
+      expect(
+        await new SearchQueryBuilder('NOT http_status:*', serializer).build(),
+      ).toBe('(NOT isNotNull(http_status))');
+      expect(await serializer.isNotNull('http_status', true, {})).toBe(
+        'isNull(http_status)',
+      );
+    },
+  );
 });
 
 describe('CustomSchemaSQLSerializerV2 - json', () => {

@@ -59,10 +59,10 @@ jest.mock('@hyperdx/common-utils/dist/core/renderChartConfig', () => ({
 }));
 
 // Import mocked modules after jest.mock calls
-import { getClickhouseClient } from '@/clickhouse';
 import { renderChartConfig } from '@hyperdx/common-utils/dist/core/renderChartConfig';
 import { isBuilderChartConfig } from '@hyperdx/common-utils/dist/guards';
 
+import { getClickhouseClient } from '@/clickhouse';
 import { useMetadataWithSettings } from '@/hooks/useMetadata';
 import {
   MVOptimizationExplanationResult,
@@ -263,10 +263,83 @@ describe('useOffsetPaginatedQuery', () => {
         });
       });
       await waitFor(() => expect(result.current.isError).toBe(fails));
-      await waitFor(() => expect(mockReader.read.mock.calls.length).toBeGreaterThanOrEqual(3));
-      await waitFor(() => expect(result.current.data?.data.map(row => row.message)).toEqual(
-        fails ? ['old one', 'old two'] : ['new one', 'new two'],
-      ));
+      await waitFor(() =>
+        expect(mockReader.read.mock.calls.length).toBeGreaterThanOrEqual(3),
+      );
+      await waitFor(() =>
+        expect(result.current.data?.data.map(row => row.message)).toEqual(
+          fails ? ['old one', 'old two'] : ['new one', 'new two'],
+        ),
+      );
+    },
+  );
+
+  it('requests only 50 newest rows in a ten-second first window, then continues without skipping offsets', async () => {
+    const config = createMockChartConfig({ limit: { limit: 1000 } });
+    mockReader.read
+      .mockResolvedValueOnce({
+        done: false,
+        value: [
+          { json: () => ['timestamp', 'message'] },
+          { json: () => ['DateTime', 'String'] },
+          { json: () => ['2024-01-01T23:59:59Z', 'first'] },
+        ],
+      })
+      .mockResolvedValueOnce({ done: true });
+    const { result } = renderHook(
+      () => useOffsetPaginatedQuery(config, { enableSmallFirstWindow: true }),
+      { wrapper },
+    );
+    await waitFor(() => expect(result.current.data?.data.length).toBe(1));
+    const first = jest.mocked(renderChartConfig).mock.calls[0][0];
+    expect(first).toMatchObject({ limit: { limit: 50, offset: 0 } });
+    expect(first.dateRange).toEqual([
+      new Date('2024-01-01T23:59:50Z'),
+      new Date('2024-01-02T00:00:00Z'),
+    ]);
+    mockReader.read.mockResolvedValueOnce({ done: true });
+    await act(async () => {
+      await result.current.fetchNextPage();
+    });
+    expect(jest.mocked(renderChartConfig).mock.calls.at(-1)?.[0]).toMatchObject(
+      { limit: { limit: 1000, offset: 1 } },
+    );
+  });
+
+  it('uses a small fallback window and batch after the newest window is empty', async () => {
+    const config = createMockChartConfig({ limit: { limit: 1000 } });
+    mockReader.read.mockResolvedValue({ done: true });
+    const { result } = renderHook(
+      () => useOffsetPaginatedQuery(config, { enableSmallFirstWindow: true }),
+      { wrapper },
+    );
+    await waitFor(() => expect(result.current.isFetching).toBe(false));
+    await act(async () => {
+      await result.current.fetchNextPage();
+    });
+    const next = jest.mocked(renderChartConfig).mock.calls.at(-1)?.[0];
+    expect(next).toMatchObject({
+      limit: { limit: 50, offset: 0 },
+      dateRange: [
+        new Date('2024-01-01T23:59:30Z'),
+        new Date('2024-01-01T23:59:50Z'),
+      ],
+    });
+  });
+
+  it.each([0, 5, 50])(
+    'preserves a configured first-page limit of %i',
+    async limit => {
+      const config = createMockChartConfig({ limit: { limit } });
+      mockReader.read.mockResolvedValueOnce({ done: true });
+      const { result } = renderHook(
+        () => useOffsetPaginatedQuery(config, { enableSmallFirstWindow: true }),
+        { wrapper },
+      );
+      await waitFor(() => expect(result.current.isFetching).toBe(false));
+      expect(jest.mocked(renderChartConfig).mock.calls[0][0]).toMatchObject({
+        limit: { limit, offset: 0 },
+      });
     },
   );
 

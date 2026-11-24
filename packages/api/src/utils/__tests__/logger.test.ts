@@ -88,6 +88,9 @@ describe('scrubUrlTokens', () => {
     ['/api/team/setup/tok-xyz', '/api/team/setup/[REDACTED]'],
     // Query strings and fragments must not be swallowed into the token.
     ['/team/setup/tok-xyz?x=1', '/team/setup/[REDACTED]?x=1'],
+    ['/api/log-shares/abcdefghijklmnopqrstuvwx', '/api/log-shares/[REDACTED]'],
+    ['/log-shares/abcdefghijklmnopqrstuvwx?x=1', '/log-shares/[REDACTED]?x=1'],
+    ['/s/abcdefghijklmnopqrstuvwx', '/s/[REDACTED]'],
   ])('scrubs %s', (input, expected) => {
     expect(scrubUrlTokens(input)).toBe(expected);
   });

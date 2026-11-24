@@ -1,5 +1,8 @@
 import { useEffect, useMemo } from 'react';
-import { JSDataType } from '@hyperdx/common-utils/dist/clickhouse';
+import {
+  convertCHDataTypeToJSType,
+  JSDataType,
+} from '@hyperdx/common-utils/dist/clickhouse';
 import {
   Field,
   parseKeyPath,
@@ -12,7 +15,7 @@ import {
   useFetchFacets,
 } from '@/components/DBSearchPageFilters/hooks';
 import { NOW } from '@/config';
-import { deduplicate2dArray } from '@/hooks/useMetadata';
+import { deduplicate2dArray, useColumns } from '@/hooks/useMetadata';
 import { useSource } from '@/source';
 import { mergePath, useDebounce } from '@/utils';
 
@@ -205,12 +208,14 @@ export function useAutoCompleteOptions(
     sourceId,
     dateRange,
     cursorPosition,
+    enabled = true,
   }: {
     tableConnection?: TableConnection | TableConnection[];
     additionalSuggestions?: string[];
     sourceId?: string;
     dateRange?: [Date, Date];
     cursorPosition?: number;
+    enabled?: boolean;
   },
 ) {
   const { data: source } = useSource({ id: sourceId });
@@ -224,6 +229,20 @@ export function useAutoCompleteOptions(
       ? _tableConnection[0]
       : _tableConnection
     : undefined;
+
+  const resolvedTableConnection = resolveTableConnection(
+    source,
+    tableConnection,
+  );
+  const { data: schemaColumns } = useColumns(resolvedTableConnection, {
+    enabled:
+      enabled &&
+      Boolean(
+        resolvedTableConnection.connectionId &&
+          resolvedTableConnection.databaseName &&
+          resolvedTableConnection.tableName,
+      ),
+  });
 
   // Build chart config and keys for fetching values from rollup tables
   const chartConfig = useMemo<BuilderChartConfigWithDateRange>(
@@ -247,9 +266,26 @@ export function useAutoCompleteOptions(
     tableConnection,
     dateRange: effectiveDateRange,
     mode: 'all',
+    enabled,
     disableValues: true,
   });
-  const fields = fetchFacetsData.keys;
+  // Schema columns are cheap cached metadata. Do not wait for Map/JSON key
+  // discovery to finish before offering ordinary field names.
+  const fields = useMemo(() => {
+    const byPath = new Map<string, Field>();
+    for (const column of schemaColumns ?? []) {
+      const field: Field = {
+        path: [column.name],
+        type: column.type,
+        jsType: convertCHDataTypeToJSType(column.type),
+      };
+      byPath.set(JSON.stringify(field.path), field);
+    }
+    for (const field of fetchFacetsData.keys ?? []) {
+      byPath.set(JSON.stringify(field.path), field);
+    }
+    return [...byPath.values()];
+  }, [schemaColumns, fetchFacetsData.keys]);
 
   const { fieldCompleteOptions, fieldCompleteMap } = useMemo(() => {
     const _columns = (fields ?? []).filter(c => c.jsType !== null);
@@ -302,10 +338,10 @@ export function useAutoCompleteOptions(
   );
 
   useEffect(() => {
-    if (searchField && searchField.jsType !== JSDataType.Map) {
+    if (enabled && searchField && searchField.jsType !== JSDataType.Map) {
       loadMoreFacetsForKey(mergePath(searchField.path, [], mapColumns));
     }
-  }, [searchField, loadMoreFacetsForKey, mapColumns]);
+  }, [enabled, searchField, loadMoreFacetsForKey, mapColumns]);
 
   // Build key-value pair suggestions
   const keyValCompleteOptions = useMemo<

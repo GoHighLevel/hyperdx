@@ -1048,3 +1048,41 @@ describe('NestedFilterGroup', () => {
     expect(panel).toHaveAttribute('aria-hidden', 'false');
   });
 });
+
+describe('first-results priority for saved filter values', () => {
+  it('does not start value counts for an expanded pinned field before log results are ready', () => {
+    jest.mocked(useGetValueCounts).mockClear();
+    renderWithMantine(
+      <FilterGroup
+        name="pod_name"
+        options={[{ value: 'saved-pod', label: 'saved-pod' }]}
+        selectedValues={{
+          included: new Set(['saved-pod']),
+          excluded: new Set(),
+        }}
+        onChange={jest.fn()}
+        onClearClick={jest.fn()}
+        onOnlyClick={jest.fn()}
+        onExcludeClick={jest.fn()}
+        valuePins={{ isPinned: () => true, onPinClick: jest.fn() }}
+        onLoadMore={jest.fn()}
+        loadMoreLoading={false}
+        hasLoadedMore={false}
+        isDefaultExpanded
+        showLogCounts
+        queryEnabled={false}
+        chartConfig={{
+          connection: 'conn',
+          from: { databaseName: 'db', tableName: 'logs' },
+          timestampValueExpression: 'timestamp',
+          select: '',
+          where: '',
+          dateRange: [new Date(0), new Date(1000)],
+        }}
+      />,
+    );
+    expect(useGetValueCounts).toHaveBeenCalledWith(
+      expect.objectContaining({ enabled: false }),
+    );
+  });
+});

@@ -41,11 +41,47 @@ const read = () => {
 const subscribe = (callback: () => void) => {
   window.addEventListener(storageKey, callback);
   window.addEventListener('storage', callback);
+  window.addEventListener('popstate', callback);
   return () => {
     window.removeEventListener(storageKey, callback);
     window.removeEventListener('storage', callback);
+    window.removeEventListener('popstate', callback);
   };
 };
+
+export function parseSharedSummaryFields(
+  search: string,
+  sourceId?: string,
+): SummaryField[] | undefined {
+  const params = new URLSearchParams(search);
+  const value = params.get('summaryFields');
+  if (
+    !value ||
+    value.length > 32_000 ||
+    !sourceId ||
+    params.get('source') !== sourceId
+  )
+    return undefined;
+  try {
+    const parsed: unknown = JSON.parse(value);
+    return isFields(parsed) &&
+      parsed.length <= 50 &&
+      parsed.every(
+        field =>
+          field.id.length <= 1024 &&
+          field.label.length <= 1024 &&
+          field.paths.length <= 20 &&
+          field.paths.every(path => path.length <= 1024),
+      )
+      ? parsed
+      : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+const readSharedSearch = () =>
+  typeof window === 'undefined' ? '' : window.location.search;
 
 export function useSummaryFields(sourceId?: string) {
   const { data: me } = api.useMe();
@@ -65,11 +101,26 @@ export function useSummaryFields(sourceId?: string) {
   );
   const key = `${me?.email ?? 'anonymous'}:${sourceId ?? 'none'}`;
   const stored = useSyncExternalStore(subscribe, read, () => '{}');
+  const sharedSearch = useSyncExternalStore(
+    subscribe,
+    readSharedSearch,
+    () => '',
+  );
+  const sharedFields = useMemo(
+    () => parseSharedSummaryFields(sharedSearch, sourceId),
+    [sharedSearch, sourceId],
+  );
+  const clearSharedFields = useCallback(() => {
+    if (!sharedFields) return;
+    const url = new URL(window.location.href);
+    url.searchParams.delete('summaryFields');
+    window.history.replaceState(window.history.state, '', url);
+  }, [sharedFields]);
   const preferences = useMemo(() => parsePreferences(stored), [stored]);
   const fields = useMemo<SummaryField[]>(() => {
     const parsed = preferences[key];
-    return isFields(parsed) ? parsed : defaults;
-  }, [preferences, key, defaults]);
+    return sharedFields ?? (isFields(parsed) ? parsed : defaults);
+  }, [preferences, key, defaults, sharedFields]);
   const availableFields = useMemo(() => {
     const parsed = preferences[`${key}:available`];
     return isFields(parsed) ? parsed : fields;
@@ -78,9 +129,11 @@ export function useSummaryFields(sourceId?: string) {
     (next: SetStateAction<SummaryField[]>) => {
       const previous = parsePreferences(read());
       const selected = previous[key];
-      const current = isFields(selected) ? selected : defaults;
+      const current =
+        sharedFields ?? (isFields(selected) ? selected : defaults);
       const updated = typeof next === 'function' ? next(current) : next;
       if (updated === current) return;
+      clearSharedFields();
       const available = previous[`${key}:available`];
       const remembered = new Map(
         [...(isFields(available) ? available : []), ...current, ...updated].map(
@@ -97,13 +150,15 @@ export function useSummaryFields(sourceId?: string) {
       );
       window.dispatchEvent(new Event(storageKey));
     },
-    [key, defaults],
+    [key, defaults, sharedFields, clearSharedFields],
   );
   const removeField = useCallback(
     (field: SummaryField) => {
       const previous = parsePreferences(read());
       const selected = previous[key];
-      const current = isFields(selected) ? selected : defaults;
+      const current =
+        sharedFields ?? (isFields(selected) ? selected : defaults);
+      clearSharedFields();
       const available = previous[`${key}:available`];
       const catalog = isFields(available) ? available : current;
       localStorage.setItem(
@@ -116,15 +171,16 @@ export function useSummaryFields(sourceId?: string) {
       );
       window.dispatchEvent(new Event(storageKey));
     },
-    [key, defaults],
+    [key, defaults, sharedFields, clearSharedFields],
   );
   const resetFields = useCallback(() => {
+    clearSharedFields();
     const previous = parsePreferences(read());
     delete previous[key];
     delete previous[`${key}:available`];
     localStorage.setItem(storageKey, JSON.stringify(previous));
     window.dispatchEvent(new Event(storageKey));
-  }, [key]);
+  }, [key, clearSharedFields]);
   const ensureField = useCallback(
     (expression: string) => {
       const path = filterKeyPath(expression).join('.');

@@ -71,6 +71,15 @@ export function processRowToWhereClause(
             : JSON.stringify(rawValue)
           : rawValue;
 
+      // JSON rounds Float32 values to short decimals. Comparing those as
+      // Float64 literals can fail to match the row they came from.
+      if (/^(?:Nullable\(|LowCardinality\()*Float32\)*$/.test(chType)) {
+        return SqlString.format(`?=toFloat32(?)`, [
+          SqlString.raw(valueExpr),
+          value,
+        ]);
+      }
+
       switch (jsType) {
         case JSDataType.Date:
           return SqlString.format(`?=parseDateTime64BestEffort(?, 9)`, [

@@ -1,6 +1,6 @@
 import React from 'react';
 import { enableMapSet } from 'immer';
-import { JSDataType } from '@hyperdx/common-utils/dist/clickhouse';
+import { ColumnMeta, JSDataType } from '@hyperdx/common-utils/dist/clickhouse';
 import { Field } from '@hyperdx/common-utils/dist/core/metadata';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { renderHook, waitFor } from '@testing-library/react';
@@ -13,6 +13,7 @@ import {
 } from '@/hooks/useAutoCompleteOptions';
 import {
   useAllFields,
+  useColumns,
   useGetKeyValues,
   useMetadataWithSettings,
 } from '@/hooks/useMetadata';
@@ -114,6 +115,11 @@ describe('useAutoCompleteOptions', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    jest
+      .mocked(useColumns)
+      .mockReturnValue({ data: [] as ColumnMeta[] } as ReturnType<
+        typeof useColumns
+      >);
 
     (useAllFields as jest.Mock).mockReturnValue({
       data: mockFields,
@@ -127,6 +133,118 @@ describe('useAutoCompleteOptions', () => {
     });
 
     wrapper = makeWrapper();
+  });
+
+  it('suggests schema columns while nested field discovery is pending', () => {
+    jest.mocked(useColumns).mockReturnValue({
+      data: [
+        { name: 'http_status', type: 'UInt16' },
+        { name: 'deployment_name', type: 'LowCardinality(String)' },
+      ],
+    } as ReturnType<typeof useColumns>);
+    jest
+      .mocked(useAllFields)
+      .mockReturnValue({ data: undefined, isLoading: true } as ReturnType<
+        typeof useAllFields
+      >);
+    const { result } = renderHook(
+      () =>
+        useAutoCompleteOptions(luceneFormatter, 'http', {
+          tableConnection: mockTableConnection,
+        }),
+      { wrapper },
+    );
+    expect(result.current.options).toEqual(
+      expect.arrayContaining([
+        { value: 'http_status', label: 'http_status (number)' },
+        { value: 'deployment_name', label: 'deployment_name (string)' },
+      ]),
+    );
+  });
+
+  it('deduplicates schema fields and preserves discovered nested fields', () => {
+    jest.mocked(useColumns).mockReturnValue({
+      data: [{ name: 'ResourceAttributes', type: 'Map(String, String)' }],
+    } as ReturnType<typeof useColumns>);
+    const { result } = renderHook(
+      () =>
+        useAutoCompleteOptions(luceneFormatter, '', {
+          tableConnection: mockTableConnection,
+        }),
+      { wrapper },
+    );
+    expect(
+      result.current.options.filter(
+        option => option.value === 'ResourceAttributes',
+      ),
+    ).toHaveLength(1);
+    expect(
+      result.current.options.some(
+        option => option.value === 'ResourceAttributes.service.name',
+      ),
+    ).toBe(true);
+  });
+
+  it('replaces schema suggestions when the source table changes', () => {
+    jest.mocked(useColumns).mockImplementation(
+      ({ tableName }) =>
+        ({
+          data: [
+            {
+              name: tableName === 'logs_a' ? 'field_a' : 'field_b',
+              type: 'String',
+            },
+          ],
+        }) as ReturnType<typeof useColumns>,
+    );
+    jest
+      .mocked(useAllFields)
+      .mockReturnValue({ data: undefined, isLoading: true } as ReturnType<
+        typeof useAllFields
+      >);
+    const { result, rerender } = renderHook(
+      ({ tableName }) =>
+        useAutoCompleteOptions(luceneFormatter, '', {
+          tableConnection: { ...mockTableConnection, tableName },
+        }),
+      { wrapper, initialProps: { tableName: 'logs_a' } },
+    );
+    expect(result.current.options.map(option => option.value)).toEqual([
+      'field_a',
+    ]);
+    rerender({ tableName: 'logs_b' });
+    expect(result.current.options.map(option => option.value)).toEqual([
+      'field_b',
+    ]);
+  });
+
+  it('defers metadata and cached field-value lookups until enabled', async () => {
+    const { rerender } = renderHook(
+      ({ enabled }) =>
+        useAutoCompleteOptions(
+          luceneFormatter,
+          'ResourceAttributes.service.name:',
+          { tableConnection: mockTableConnection, enabled },
+        ),
+      { wrapper, initialProps: { enabled: false } },
+    );
+    expect(jest.mocked(useAllFields).mock.calls.at(-1)?.[1]?.enabled).toBe(
+      false,
+    );
+    expect(
+      jest.mocked(useMetadataWithSettings).mock.results.at(-1)?.value
+        .getAllKeyValues,
+    ).not.toHaveBeenCalled();
+    rerender({ enabled: true });
+    expect(jest.mocked(useAllFields).mock.calls.at(-1)?.[1]?.enabled).toBe(
+      true,
+    );
+    await waitFor(() =>
+      expect(
+        jest.mocked(useMetadataWithSettings).mock.results.at(-1)?.value
+          .getAllKeyValues,
+      ).toHaveBeenCalled(),
+    );
   });
 
   it('should return field options with correct lucene formatting', () => {

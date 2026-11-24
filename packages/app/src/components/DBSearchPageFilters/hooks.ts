@@ -31,7 +31,10 @@ import { escapeFilterStateKeys, usePinnedFilters } from '@/searchFilters';
 import { useSource } from '@/source';
 import { mergePath } from '@/utils';
 
-import { isDefaultVisibleFilter } from './personalFilterDefaults';
+import {
+  isDefaultVisibleFilter,
+  sharedFilterFieldsForColumns,
+} from './personalFilterDefaults';
 import { useQueriedFields } from './useQueriedFields';
 import { toQuotedClickHouseKeyExpression } from './utils';
 
@@ -138,7 +141,13 @@ function useFacets({
   } = queryScoped ? scopedFields : broadFields;
 
   const { isFieldPinned, isSharedFieldPinned, getPinnedFields } =
-    usePinnedFilters(sourceId ?? null);
+    usePinnedFilters(
+      sourceId ?? null,
+      sharedFilterFieldsForColumns(
+        source?.kind,
+        columns ? knownColumns : undefined,
+      ),
+    );
 
   const availableFacetKeys = useMemo(() => {
     const aliases = new Set(chartConfig.with?.map(clause => clause.name));
@@ -458,6 +467,7 @@ export function useFetchFacets({
   filterState,
   expandedFacetKeys,
   disableValues,
+  enabled = true,
 }: {
   chartConfig: BuilderChartConfigWithDateRange;
   sourceId: string | null;
@@ -471,6 +481,7 @@ export function useFetchFacets({
   filterState?: FilterState;
   expandedFacetKeys?: readonly string[];
   disableValues?: boolean;
+  enabled?: boolean;
 }) {
   const facetsQuery = useFacets({
     chartConfig,
@@ -480,7 +491,7 @@ export function useFetchFacets({
     dateRange,
     filterState,
     expandedFacetKeys,
-    enabled: true,
+    enabled,
     disableValues,
   });
 

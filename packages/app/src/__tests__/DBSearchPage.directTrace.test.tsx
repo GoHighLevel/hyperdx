@@ -14,6 +14,9 @@ const mockOnSearch = jest.fn();
 const mockOnTimeRangeSelect = jest.fn();
 
 let mockDirectTraceId: string | null = null;
+let latestCountProps: Record<string, unknown> | null = null;
+let latestHistogramProps: Record<string, unknown> | null = null;
+let mockCountFailure = false;
 let mockSearchedConfig: Record<string, any> = {};
 let mockSources: any[] = [];
 // When true, useSources() reports the list as still loading, so tests can
@@ -48,6 +51,8 @@ jest.mock('next/link', () => ({
     href: string;
   }) => <a href={href}>{children}</a>,
 }));
+
+jest.mock('@/components/LogShare', () => ({ ShareLogButton: () => null }));
 
 jest.mock('nuqs', () => ({
   parseAsBoolean: {
@@ -201,7 +206,10 @@ jest.mock('@/components/DBSearchPageFilters', () => ({
 }));
 
 jest.mock('@/components/DBTimeChart', () => ({
-  DBTimeChart: () => <div />,
+  DBTimeChart: (props: Record<string, unknown>) => {
+    latestHistogramProps = props;
+    return <div />;
+  },
 }));
 
 jest.mock('@/components/ActiveFilterPills', () => ({
@@ -223,7 +231,17 @@ jest.mock('@/components/SearchInput/SearchWhereInput', () => ({
   getStoredLanguage: () => 'lucene',
 }));
 jest.mock('@/components/SearchPageActionBar', () => () => <div />);
-jest.mock('@/components/SearchTotalCountChart', () => () => <div />);
+jest.mock(
+  '@/components/SearchTotalCountChart',
+  () => (props: Record<string, unknown>) => {
+    latestCountProps = props;
+    return mockCountFailure && props.enabled ? (
+      <div role="alert">Count failed</div>
+    ) : (
+      <div />
+    );
+  },
+);
 jest.mock('@/components/Sources/SourceForm', () => ({
   TableSourceForm: () => <div />,
 }));
@@ -246,7 +264,7 @@ jest.mock(
   '../components/DBSqlRowTableWithSidebar',
   () => (props: Record<string, unknown>) => {
     latestRowTableProps = props;
-    return <div />;
+    return <div data-testid="independent-row-results" />;
   },
 );
 jest.mock('../components/PatternTable', () => () => <div />);
@@ -335,6 +353,38 @@ describe('DBSearchPage direct trace flow', () => {
         connection: 'conn',
       },
     ];
+  });
+
+  it('prioritizes the first log page and leaves results mounted when background counts fail', async () => {
+    mockDirectTraceId = null;
+    mockSearchedConfig = { ...mockSearchedConfig, source: 'log-source' };
+    window.history.pushState({}, '', '/search?source=log-source');
+    mockCountFailure = true;
+    const view = renderWithMantine(<DBSearchPage />);
+    await waitFor(() =>
+      expect(latestRowTableProps?.onInitialResultsReady).toEqual(
+        expect.any(Function),
+      ),
+    );
+    expect(latestRowTableProps?.enabled).toBe(true);
+    expect(latestCountProps?.enabled).toBe(false);
+    expect(latestHistogramProps?.enabled).toBe(false);
+    act(() => latestRowTableProps?.onInitialResultsReady());
+    await waitFor(() => expect(latestCountProps?.enabled).toBe(true));
+    expect(latestHistogramProps?.enabled).toBe(true);
+    expect(screen.getByRole('alert')).toHaveTextContent('Count failed');
+    expect(screen.getByTestId('independent-row-results')).toBeInTheDocument();
+    mockSearchedConfig = {
+      ...mockSearchedConfig,
+      where: 'deployment_name:other',
+    };
+    view.rerender(
+      <MantineProvider>
+        <DBSearchPage />
+      </MantineProvider>,
+    );
+    await waitFor(() => expect(latestCountProps?.enabled).toBe(false));
+    mockCountFailure = false;
   });
 
   it('opens the direct trace panel with no selected source when none is provided', async () => {

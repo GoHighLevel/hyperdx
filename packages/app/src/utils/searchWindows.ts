@@ -1,4 +1,12 @@
 export const ONE_MIN_WINDOW = 1 * 60;
+export const SMALL_FIRST_WINDOW_SECONDS = 10;
+export const SMALL_FIRST_WINDOW_DURATIONS_SECONDS = [
+  SMALL_FIRST_WINDOW_SECONDS,
+  20,
+  90,
+  180,
+  600,
+];
 export const DEFAULT_TIME_WINDOWS_SECONDS = [
   15 * 60, // 15m
   6 * 60 * 60, // 6h
@@ -13,6 +21,19 @@ export type TimeWindow = {
   windowIndex: number;
   direction: 'ASC' | 'DESC';
 };
+
+export function getLogSearchWindowDurations(
+  smallFirstWindow: boolean,
+  keyword: boolean,
+  exactId: boolean,
+): number[] {
+  if (exactId) return [1800, ...DEFAULT_TIME_WINDOWS_SECONDS.slice(1)];
+  if (smallFirstWindow && keyword)
+    return [10, 300, 900, 1800, ...DEFAULT_TIME_WINDOWS_SECONDS.slice(1)];
+  return smallFirstWindow
+    ? [...SMALL_FIRST_WINDOW_DURATIONS_SECONDS, ...DEFAULT_TIME_WINDOWS_SECONDS]
+    : DEFAULT_TIME_WINDOWS_SECONDS.slice();
+}
 
 // Generate time windows from date range using progressive bucketing, starting at the end of the date range
 export function generateTimeWindowsDescending(

@@ -95,6 +95,7 @@ import { ErrorBoundary } from '@/components/Error/ErrorBoundary';
 import { FavoriteButton } from '@/components/FavoriteButton';
 import ResourceTerraformPopover from '@/components/Iac/ResourceTerraformPopover';
 import { InputControlled } from '@/components/InputControlled';
+import { ShareLogButton } from '@/components/LogShare';
 import { useSummaryFields } from '@/components/LogSummaryDemo/useSummaryFields';
 import OnboardingModal from '@/components/OnboardingModal';
 import FilterQueryInput from '@/components/SearchInput/FilterQueryInput';
@@ -114,6 +115,7 @@ import {
 } from '@/dashboard';
 import { useAliasMapFromChartConfig } from '@/hooks/useChartConfig';
 import { useExplainQuery } from '@/hooks/useExplainQuery';
+import { useInitialResultsGate } from '@/hooks/useInitialResultsGate';
 import {
   chronologicalLogConfig,
   isDescendingLogConfig,
@@ -172,6 +174,7 @@ import {
 } from './utils/directTrace';
 import {
   parseAsJsonEncoded,
+  parseAsLiveUpdates,
   parseAsSortingStateString,
   parseAsStringEncoded,
 } from './utils/queryParsers';
@@ -355,7 +358,9 @@ function SearchResultsCountGroup({
   onExpandFilters,
   histogramTimeChartConfig,
   enableParallelQueries,
+  enabled = true,
 }: {
+  enabled?: boolean;
   isFilterSidebarCollapsed: boolean;
   onExpandFilters: () => void;
   histogramTimeChartConfig: BuilderChartConfigWithDateRange;
@@ -370,6 +375,7 @@ function SearchResultsCountGroup({
         config={histogramTimeChartConfig}
         queryKeyPrefix={QUERY_KEY_PREFIX}
         enableParallelQueries={enableParallelQueries}
+        enabled={enabled}
       />
     </Group>
   );
@@ -1135,10 +1141,7 @@ function SearchPageContents({ dashboard }: { dashboard?: Dashboard }) {
     setDraftPatternColumn(patternColumn ?? '');
   }, [patternColumn]);
 
-  const [isLive, setIsLive] = useQueryState(
-    'isLive',
-    parseAsBoolean.withDefault(true),
-  );
+  const [isLive, setIsLive] = useQueryState('isLive', parseAsLiveUpdates);
 
   useEffect(() => {
     if (analysisMode === 'delta' || analysisMode === 'pattern') {
@@ -1773,6 +1776,12 @@ function SearchPageContents({ dashboard }: { dashboard?: Dashboard }) {
     };
   }, [chartConfig, searchedTimeRange]);
 
+  const { ready: backgroundReady, markReady: onInitialResultsReady } =
+    useInitialResultsGate(
+      JSON.stringify(dbSqlRowTableConfig),
+      searchedSource?.kind === SourceKind.Log && analysisMode === 'results',
+    );
+
   // Stable key for persisting column widths in localStorage. Scoped per saved
   // search when one is loaded, else per source for ad-hoc searches.
   const columnSizeTableId = savedSearchId
@@ -2061,6 +2070,11 @@ function SearchPageContents({ dashboard }: { dashboard?: Dashboard }) {
   const rowTableContext = useMemo(
     () => ({
       onPropertyAddClick: searchFilters.setFilterValue,
+      onAddSummaryField:
+        searchedSource?.kind === SourceKind.Log &&
+        searchedSource.id === inputSourceObj?.id
+          ? ensureSummaryField
+          : undefined,
       displayedColumns,
       toggleColumn,
       generateSearchUrl,
@@ -2071,6 +2085,8 @@ function SearchPageContents({ dashboard }: { dashboard?: Dashboard }) {
     }),
     [
       searchFilters.setFilterValue,
+      ensureSummaryField,
+      inputSourceObj?.id,
       searchedSource,
       dbSqlRowTableConfig,
       displayedColumns,
@@ -2099,11 +2115,10 @@ function SearchPageContents({ dashboard }: { dashboard?: Dashboard }) {
   const onTimePickerRelativeSearch = useCallback(
     (rangeMs: number) => {
       const _range = parseRelativeTimeQuery(rangeMs);
-      setIsLive(true);
       setInterval(rangeMs);
       onTimeRangeSelect(_range[0], _range[1], null);
     },
-    [setIsLive, setInterval, onTimeRangeSelect],
+    [setInterval, onTimeRangeSelect],
   );
   const directTraceFocusDate = useMemo(
     () =>
@@ -2519,6 +2534,13 @@ function SearchPageContents({ dashboard }: { dashboard?: Dashboard }) {
               width="100%"
               size="xs"
             />
+            {searchedSource?.kind === SourceKind.Log && (
+              <ShareLogButton
+                sourceId={searchedSource.id}
+                dateRange={searchedTimeRange}
+                config={dbSqlRowTableConfig}
+              />
+            )}
             <SearchSubmitButton isFormStateDirty={formState.isDirty} />
           </Flex>
         </Flex>
@@ -2578,6 +2600,7 @@ function SearchPageContents({ dashboard }: { dashboard?: Dashboard }) {
                     analysisMode={analysisMode}
                     setAnalysisMode={setAnalysisMode}
                     chartConfig={filtersChartConfig}
+                    enabled={backgroundReady}
                     sourceId={inputSourceObj?.id}
                     showDelta={
                       !!(searchedSource?.kind === SourceKind.Trace
@@ -2698,6 +2721,7 @@ function SearchPageContents({ dashboard }: { dashboard?: Dashboard }) {
                             }
                             histogramTimeChartConfig={histogramTimeChartConfig}
                             enableParallelQueries
+                            enabled={backgroundReady}
                           />
                           <Group gap="sm" align="center">
                             <LogFontSizeControl />
@@ -2721,7 +2745,7 @@ function SearchPageContents({ dashboard }: { dashboard?: Dashboard }) {
                                 dateRange: searchedTimeRange,
                               }}
                               sqlConfig={histogramTimeChartConfig ?? undefined}
-                              enabled={isReady}
+                              enabled={isReady && backgroundReady}
                               searchElapsedMs={searchElapsedMs}
                               isSearching={isAnyQueryFetching}
                               isLiveTail={isLive ?? false}
@@ -2738,7 +2762,7 @@ function SearchPageContents({ dashboard }: { dashboard?: Dashboard }) {
                             sourceId={searchedConfig.source ?? undefined}
                             showLegend={false}
                             config={histogramTimeChartConfig}
-                            enabled={isReady}
+                            enabled={isReady && backgroundReady}
                             showDisplaySwitcher={false}
                             showMVOptimizationIndicator={false}
                             showDateRangeIndicator={false}
@@ -2893,6 +2917,7 @@ function SearchPageContents({ dashboard }: { dashboard?: Dashboard }) {
                             isLive={isLive ?? true}
                             queryKeyPrefix={QUERY_KEY_PREFIX}
                             onError={handleTableError}
+                            onInitialResultsReady={onInitialResultsReady}
                             denoiseResults={denoiseResults}
                             collapseAllRows={collapseAllRows}
                             onSortingChange={onSortingChange}

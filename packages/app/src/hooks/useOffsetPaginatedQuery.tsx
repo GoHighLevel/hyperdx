@@ -22,6 +22,7 @@ import {
   isPromqlChartConfig,
   isRawSqlChartConfig,
 } from '@hyperdx/common-utils/dist/guards';
+import { getSearchQueryTraits } from '@hyperdx/common-utils/dist/queryParser';
 import {
   ChartConfigWithOptTimestamp,
   TSource,
@@ -41,10 +42,9 @@ import { useMetadataWithSettings } from '@/hooks/useMetadata';
 import { useMVOptimizationExplanation } from '@/hooks/useMVOptimizationExplanation';
 import { useSource } from '@/source';
 import {
-  DEFAULT_TIME_WINDOWS_SECONDS,
   generateTimeWindowsAscending,
   generateTimeWindowsDescending,
-  ONE_MIN_WINDOW,
+  getLogSearchWindowDurations,
   TimeWindow,
 } from '@/utils/searchWindows';
 
@@ -82,6 +82,7 @@ type TData = {
 type QueryMeta = {
   queryClient: QueryClient;
   hasPreviousQueries: boolean;
+  smallFirstPage: boolean;
   windowDurationsSeconds: number[];
   metadata: Metadata;
   optimizedConfig?: ChartConfigWithOptTimestamp;
@@ -178,6 +179,7 @@ const queryFn: QueryFunction<TQueryFnData, TQueryKey, TPageParam> = async ({
     windowDurationsSeconds,
     metadata,
     hasPreviousQueries,
+    smallFirstPage,
     optimizedConfig,
     source,
   } = meta as QueryMeta;
@@ -221,7 +223,10 @@ const queryFn: QueryFunction<TQueryFnData, TQueryKey, TPageParam> = async ({
         ...config,
         dateRange: [timeWindow.startTime, timeWindow.endTime] as [Date, Date],
         limit: {
-          limit: config.limit?.limit,
+          limit:
+            smallFirstPage && shouldUseWindowing && pageParam.offset === 0
+              ? Math.min(config.limit?.limit ?? 50, 50)
+              : config.limit?.limit,
           offset: pageParam.offset,
         },
       }
@@ -498,10 +503,23 @@ export default function useOffsetPaginatedQuery(
   const hasPreviousQueries =
     isLive === true && matchedQueries.some(([_, data]) => data != null);
 
-  const windowDurationsSeconds = DEFAULT_TIME_WINDOWS_SECONDS.slice();
-  if (enableSmallFirstWindow) {
-    windowDurationsSeconds.unshift(ONE_MIN_WINDOW);
-  }
+  const queryTraits =
+    isBuilderChartConfig(config) &&
+    config.whereLanguage === 'lucene' &&
+    typeof config.where === 'string' &&
+    getSearchQueryTraits(config.where, [
+      'trace_id',
+      'TraceId',
+      'traceId',
+      'request_id',
+      'requestId',
+      'RequestId',
+    ]);
+  const windowDurationsSeconds = getLogSearchWindowDurations(
+    enableSmallFirstWindow === true,
+    !!queryTraits && queryTraits.hasKeyword,
+    !!queryTraits && queryTraits.hasExactId,
+  );
 
   const builderConfig = isBuilderChartConfig(config) ? config : undefined;
   const { data: mvOptimizationData, isLoading: isLoadingMVOptimization } =
@@ -550,6 +568,7 @@ export default function useOffsetPaginatedQuery(
     meta: {
       queryClient,
       hasPreviousQueries,
+      smallFirstPage: enableSmallFirstWindow === true,
       windowDurationsSeconds,
       metadata,
       optimizedConfig: mvOptimizationData?.optimizedConfig,
@@ -578,6 +597,7 @@ export default function useOffsetPaginatedQuery(
 
   return {
     refreshedUntil,
+    isPlaceholderData,
     isError,
     error,
     data: flattenedData,

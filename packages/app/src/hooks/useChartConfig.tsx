@@ -24,6 +24,7 @@ import {
   isPromqlChartConfig,
   isRawSqlChartConfig,
 } from '@hyperdx/common-utils/dist/guards';
+import { getSearchQueryTraits } from '@hyperdx/common-utils/dist/queryParser';
 import { format } from '@hyperdx/common-utils/dist/sqlFormatter';
 import {
   BuilderChartConfigWithOptDateRange,
@@ -107,10 +108,17 @@ export const getGranularityAlignedTimeWindows = (
   windowDurationsSeconds?: number[],
 ): TimeWindow[] => {
   const [startDate, endDate] = config.dateRange;
+  // Full-text histograms still inspect many matches even with a text index.
+  // Keep each request bounded and publish complete buckets progressively.
+  const hasKeyword =
+    isBuilderChartConfig(config) &&
+    config.whereLanguage === 'lucene' &&
+    typeof config.where === 'string' &&
+    getSearchQueryTraits(config.where).hasKeyword;
   const windowsUnaligned = generateTimeWindowsDescending(
     startDate,
     endDate,
-    windowDurationsSeconds,
+    windowDurationsSeconds ?? (hasKeyword ? [900, 3600] : undefined),
   );
 
   const granularity =
